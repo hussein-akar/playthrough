@@ -31,7 +31,8 @@
   /* ==== base ================================================================================== */
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
-  body { font: var(--fs)/1.45 var(--font); color: var(--ink); background: var(--bg); display: grid; grid-template-rows: var(--header-h) 1fr var(--table-h); grid-template-columns: minmax(0, 1fr) var(--panel-w); height: 100vh; overflow: hidden; }
+  body { font: var(--fs)/1.45 var(--font); color: var(--ink); background: var(--bg); display: grid; grid-template-rows: var(--header-h) 1fr var(--table-h); grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); height: 100vh; overflow: hidden; --side-w: 0px; }
+  body.has-project:not(.side-hidden) { --side-w: 220px; }
   code, kbd { font-family: var(--mono); font-size: var(--fs-sm); }
   code { background: var(--line-2); padding: 1px 4px; border-radius: 3px; }
   kbd { font-size: var(--fs-xs); background: var(--line-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink); }
@@ -97,6 +98,30 @@
   header .menu .items { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 180px; display: flex; flex-direction: column; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
   header .menu .items button { justify-content: flex-start; border: 0; border-radius: 4px; padding: 0 10px; font-weight: 400; }
   header .menu .items button:hover { background: var(--line-2); }
+
+  /* ==== project sidebar ======================================================================= */
+  #project { display: none; grid-row: 2 / 4; grid-column: 1; min-width: 0; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); overflow: auto; }
+  body.has-project:not(.side-hidden) #project { display: flex; }
+  #project .head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding: 10px 10px 8px 14px; border-bottom: 1px solid var(--line-2); }
+  #project .pname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  #project ul { list-style: none; margin: 0; padding: 6px 6px; }
+  #project li { position: relative; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: var(--r1); cursor: pointer; }
+  #project li:hover { background: var(--panel-2); }
+  #project li.active { background: var(--accent-soft); }
+  #project li.broken { cursor: default; opacity: .7; }
+  #project li .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #project li.active .name { font-weight: 600; }
+  #project li.unfiled .name { font-style: italic; }
+  #project li .name .dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--warn); vertical-align: middle; }
+  #project li .status { flex: none; font-size: var(--fs-xs); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  #project li .status .ok { color: var(--ok); }
+  #project li .status .bad { color: var(--bad); }
+  #project li .rm { flex: none; width: 16px; height: 16px; display: none; color: var(--faint); font-size: 14px; }
+  #project li:hover .rm { display: inline-flex; }
+  #project li .rm:hover { color: var(--bad); }
+  #project li:hover .status { display: none; }
+  #project .empty { margin: 8px 14px; line-height: 1.5; }
+  #project .foot { margin: auto 14px 10px; padding-top: 10px; font-size: var(--fs-xs); }
 
   /* ==== stage & overlays ====================================================================== */
   #stage { position: relative; overflow: hidden; background: var(--bg) radial-gradient(circle, #d3d7dd 1px, transparent 1px) 0 0 / 20px 20px; }
@@ -201,7 +226,7 @@
   #inspector .verdict .step.stuck { color: var(--bad); font-weight: 600; }
 
   /* ==== scenarios ============================================================================= */
-  #scenarios { grid-column: 1 / -1; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-top: 1px solid var(--line); }
+  #scenarios { grid-column: 2 / -1; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-top: 1px solid var(--line); }
   #scenarios .bar { display: flex; align-items: center; gap: 10px; flex: none; height: 36px; padding: 0 var(--s3); border-bottom: 1px solid var(--line); }
   #scenarios .bar h2 { margin: 0; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
   #scenarios .bar .muted { font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -247,7 +272,8 @@
   dialog h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
   dialog #modalBody { color: var(--muted); line-height: 1.5; white-space: pre-wrap; }
   dialog #modalBody textarea { width: 100%; min-height: 160px; margin-top: var(--s2); color: var(--ink); }
-  dialog .buttons { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s4); }
+  dialog #modalBody input { margin-top: var(--s3); color: var(--ink); }
+  dialog .buttons { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: var(--s2); margin-top: var(--s4); }   /* OK is first in the DOM (the default button for Enter) but sits on the right */
   dialog table.keys { border-collapse: collapse; font-size: var(--fs); }
   dialog table.keys td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
   dialog table.keys tr:last-child td { border-bottom: 0; }
@@ -295,6 +321,7 @@
     <div class="sep"></div>
     <div class="group" aria-label="View">
       <button id="coverage" class="toggle" title="Dim what no scenario touches">Coverage</button>
+      <button id="projectToggle" class="toggle" title="Show or hide the project's flows" hidden>Flows</button>
     </div>
     <div class="sep"></div>
     <details id="share" class="menu">
@@ -302,6 +329,7 @@
       <div class="items">
         <button id="copyMarkdown">Copy as Markdown</button>
         <button id="copyLink">Copy link</button>
+        <button id="downloadDoc">Download as JSON</button>
       </div>
     </details>
     <div class="spacer"></div>
@@ -309,6 +337,7 @@
     <button id="help" class="icon" title="Keys (?)" aria-label="Keys">?</button>
   </header>
 
+  <nav id="project" aria-label="Project"></nav>
   <div id="stage">
     <svg id="canvas"></svg>
     <div id="palette">
@@ -346,7 +375,7 @@
     <form method="dialog">
       <h3 id="modalTitle"></h3>
       <div id="modalBody"></div>
-      <div class="buttons"><button id="modalCancel" value="cancel">Cancel</button><button id="modalOk" value="ok" class="primary">OK</button></div>
+      <div class="buttons"><button id="modalOk" value="ok" class="primary">OK</button><button id="modalCancel" value="cancel">Cancel</button></div>
     </form>
   </dialog>
   <dialog id="helpDialog">
@@ -364,6 +393,7 @@
         <tr><td><kbd>Space</kbd>, with a scenario selected</td><td>play it step by step</td></tr>
         <tr><td><kbd>F</kbd></td><td>fit the drawing to the window</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>clear the selection</td></tr>
+        <tr><td><kbd>⌘S</kbd></td><td>save</td></tr>
         <tr><td><kbd>?</kbd></td><td>this list</td></tr>
         <tr><td>drop a <code>.json</code> file on the page</td><td>open it</td></tr>
       </table>

@@ -4,6 +4,7 @@ import { runAll, lint } from '../lib/run.mjs';
 
 const KEY = 'playthrough.doc';
 const DIRTY = 'playthrough.dirty';
+const FILE = 'playthrough.file';
 
 export const uid = (p) => p + Math.random().toString(36).slice(2, 8);
 
@@ -20,6 +21,8 @@ export const store = {
   results: null,            // from runAll
   problems: [],             // from lint
   dirty: false,             // changed since the last Save / Open / Example / New (autosave does not count)
+  file: null,               // the project file this flow lives in, when the server has a project folder
+  mtime: null,              // that file's modification time as last read or written, so a save can notice a change on disk
   undo: [], redo: [],
   listeners: new Set(),
 };
@@ -107,6 +110,13 @@ function pruneSelection() {
 export function save() { try { localStorage.setItem(KEY, JSON.stringify(store.doc)); } catch {} }
 export function restore() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch { return null; } }
 export function restoreDirty() { try { return localStorage.getItem(DIRTY) === '1'; } catch { return false; } }
+
+/** Which project file the page is on (null: none). Remembered so a reload lands on the same flow. */
+export function setFile(file, mtime = null) {
+  store.file = file; store.mtime = mtime;
+  try { if (file) localStorage.setItem(FILE, JSON.stringify({ file, mtime })); else localStorage.removeItem(FILE); } catch {}
+}
+export function restoreFile() { try { return JSON.parse(localStorage.getItem(FILE)) ?? null; } catch { return null; } }
 
 /** Tolerate hand-written files: missing lists, missing ids, stray fields. */
 export function normalize(doc) {

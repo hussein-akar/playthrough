@@ -1,8 +1,10 @@
-import { store, subscribe, commit, load, restore, restoreDirty, setDirty, undo, redo, select, selectNodes, emit } from './store.mjs';
+import { store, subscribe, commit, load, restore, restoreDirty, restoreFile, setDirty, setFile, undo, redo, select, selectNodes, emit } from './store.mjs';
 import { toMarkdown } from '../lib/markdown.mjs';
+import { ask, notice, toast, dialogOpen } from './dialog.mjs';
 import * as canvas from './canvas.mjs';
 import * as inspector from './inspector.mjs';
 import * as table from './table.mjs';
+import * as project from './project.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -49,32 +51,6 @@ $('lint').addEventListener('click', (ev) => {
   else if (p?.edge) select({ type: 'edge', id: p.edge });
 });
 
-// ---- small in-page dialogs ------------------------------------------------------------------------
-// No native confirm()/alert(): a <dialog> for questions and errors, a toast for "it worked".
-
-/** A yes/no question. Resolves true on OK. */
-function ask({ title, body = '', ok = 'OK', cancel = 'Cancel', danger = false }) {
-  const dlg = $('modal');
-  $('modalTitle').textContent = title;
-  $('modalBody').textContent = body;
-  $('modalOk').textContent = ok; $('modalOk').classList.toggle('danger', danger);
-  $('modalCancel').textContent = cancel; $('modalCancel').hidden = cancel == null;
-  dlg.returnValue = '';
-  return new Promise((resolve) => { dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok'), { once: true }); dlg.showModal(); $('modalOk').focus(); });
-}
-/** Something to read, with one button. `text`, if given, is shown in a textarea to copy from. */
-function notice(title, body = '', text = null) {
-  const p = ask({ title, body, ok: 'Close', cancel: null });
-  if (text != null) { const ta = Object.assign(document.createElement('textarea'), { value: text, readOnly: true }); $('modalBody').append(ta); ta.select(); }
-  return p;
-}
-function toast(message, ms = 2200) {
-  const el = Object.assign(document.createElement('div'), { className: 'toast', textContent: message });
-  $('toasts').append(el);
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, ms);
-}
-const dialogOpen = () => Boolean(document.querySelector('dialog[open]'));
-
 async function copy(text, what) {
   try { await navigator.clipboard.writeText(text); toast(`Copied ${what}`); }
   catch { notice(`Could not reach the clipboard`, `Copy the ${what} from here instead.`, text); }
@@ -88,28 +64,43 @@ async function replaceable(what) {
   if (!store.dirty || !store.doc.nodes.length) return true;
   return ask({ title: `${what} and drop the unsaved changes?`, body: `"${store.doc.name || 'Untitled flow'}" has changes that are not in a file. Save first if you want to keep them.`, ok: what, danger: true });
 }
-$('newDoc').addEventListener('click', async () => { if (await replaceable('Start a new flow')) { load({ name: 'Untitled flow' }); canvas.fit(); } });
+project.hooks.fit = canvas.fit;
+project.hooks.replaceable = replaceable;
+// New, Open… and Example put an unfiled flow on the page; in a project, Save then adds it to the folder.
+$('newDoc').addEventListener('click', async () => { if (await replaceable('Start a new flow')) { setFile(null); load({ name: 'Untitled flow' }); canvas.fit(); } });
 $('loadExample').addEventListener('click', async () => {
   if (!await replaceable('Load the example')) return;
   const doc = await (await fetch('examples/order.json')).json();
-  load(doc); canvas.fit();
+  setFile(null); load(doc); canvas.fit();
 });
-$('saveDoc').addEventListener('click', () => {
+/** In a project, Save writes the file in place; otherwise it downloads the flow. */
+function save() {
+  if (project.project.info) return project.save();
+  download();
+  setDirty(false); emit();
+}
+function download() {
   const blob = new Blob([JSON.stringify(store.doc, null, 2)], { type: 'application/json' });
-  const name = `${(store.doc.name || 'flow').replace(/[^\w.-]+/g, '-').toLowerCase()}.playthrough.json`;
+  const name = store.file ?? `${(store.doc.name || 'flow').replace(/[^\w.-]+/g, '-').toLowerCase()}.playthrough.json`;
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  setDirty(false); emit();
-  toast(`Saved ${name}`);
-});
+  toast(`Downloaded ${name}`);
+}
+$('saveDoc').addEventListener('click', save);
 $('openDoc').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files[0]; if (f) await openFile(f); ev.target.value = ''; });
 async function openFile(file) {
   if (!await replaceable(`Open ${file.name}`)) return;
-  try { load(JSON.parse(await file.text())); canvas.fit(); toast(`Opened ${file.name}`); }
+  try { const doc = JSON.parse(await file.text()); setFile(null); load(doc); canvas.fit(); toast(`Opened ${file.name}`); }
   catch (e) { notice('Could not read that file', `${file.name}: ${e.message}`); }
 }
+$('projectToggle').addEventListener('click', () => {
+  const hidden = document.body.classList.toggle('side-hidden');
+  try { localStorage.setItem('playthrough.sideHidden', hidden ? '1' : ''); } catch {}
+  $('projectToggle').classList.toggle('on', !hidden);
+  canvas.render();
+});
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('coverage').addEventListener('click', () => { store.showCoverage = !store.showCoverage; emit(); });
@@ -123,6 +114,7 @@ window.addEventListener('beforeunload', (ev) => { if (store.dirty) { ev.preventD
 const closeShare = () => { $('share').open = false; };
 document.addEventListener('click', (ev) => { if (!$('share').contains(ev.target)) closeShare(); });
 $('copyMarkdown').addEventListener('click', () => { closeShare(); copy(toMarkdown(store.doc, store.results), 'Markdown'); });
+$('downloadDoc').addEventListener('click', () => { closeShare(); download(); });
 $('copyLink').addEventListener('click', async () => {
   closeShare();
   const url = `${location.origin}${location.pathname}#d=${await encodeDoc(store.doc)}`;
@@ -181,6 +173,7 @@ document.addEventListener('keydown', (ev) => {
   const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
   const mod = ev.metaKey || ev.ctrlKey;
   if (mod && ev.key.toLowerCase() === 'z') { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); return; }
+  if (mod && ev.key.toLowerCase() === 's') { ev.preventDefault(); save(); return; }
   if (typing) return;
   if (mod && ev.key.toLowerCase() === 'a') { ev.preventDefault(); selectNodes(store.doc.nodes.map((n) => n.id)); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && store.selection) {
@@ -228,13 +221,31 @@ async function openLink() {
   try { doc = await decodeDoc(m[1]); } catch { toast('That link does not hold a flow'); return false; }
   const name = doc.name || 'Untitled flow';
   if (!await replaceable(`Open "${name}" from the link`)) return true;
-  load(doc); canvas.fit(); toast(`Opened "${name}" from the link`);
+  setFile(null); load(doc); canvas.fit(); toast(`Opened "${name}" from the link`);
   return true;
 }
 window.addEventListener('hashchange', openLink);
 
 {
-  const saved = restore(), wasDirty = restoreDirty();   // read the flag before load() resets it
-  if (saved) { load(saved); canvas.fit(); if (wasDirty) { setDirty(true); emit(); } }
-  if (!await openLink() && !saved) $('loadExample').click();
+  const saved = restore(), wasDirty = restoreDirty(), last = restoreFile();   // read the flags before load() resets them
+  const info = await project.detect();
+  if (info) {
+    try { if (localStorage.getItem('playthrough.sideHidden') === '1') document.body.classList.add('side-hidden'); } catch {}
+    $('projectToggle').hidden = false;
+    $('projectToggle').classList.toggle('on', !document.body.classList.contains('side-hidden'));
+    $('saveDoc').title = 'Write the flow to its file (⌘S)';
+  }
+  const known = last && info?.flows.some((f) => f.file === last.file) ? last : null;
+  if (saved && (wasDirty || !info)) {
+    // Unsaved work, or no project at all: the autosaved copy is the newest thing there is.
+    load(saved); canvas.fit();
+    if (known) setFile(known.file, known.mtime);
+    if (wasDirty) { setDirty(true); emit(); }
+  } else if (info) {
+    // Clean, in a project: read the last flow (or the first) fresh, so a pull since the last visit shows up.
+    const file = known?.file ?? info.flows[0]?.file;
+    if (file) await project.open(file, { quiet: true });
+  }
+  const empty = !store.doc.nodes.length && !store.doc.scenarios.length;
+  if (!await openLink() && empty && !info) $('loadExample').click();
 }

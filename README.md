@@ -16,8 +16,9 @@ produces is the spec.
 No build step, no dependencies. Node 22 or newer and this checkout.
 
 ```bash
-npm start            # http://localhost:8095/
-npm test             # the interpreter and the condition language
+npm start                  # http://localhost:8095/, one flow at a time
+npm start -- ./specs       # the same page over a project folder (see "A team and a folder")
+npm test                   # the interpreter, the condition language, the project folder
 ```
 
 The page opens on the example, a order intake flow with four scenarios. One of them fails on
@@ -102,12 +103,37 @@ scenario for the else branch" is the sentence you want before the code exists.
 | double-click a node | edit its label |
 | Esc | clear the selection |
 | ? | this table, in the page |
+| ⌘S | save |
 | drop a `.json` file on the page | open it |
+
+## A team and a folder
+
+A team has more than one feature, and every feature has a flow. Give the server a folder and the
+page becomes a project:
+
+```bash
+npm start -- ./specs       # or PLAYTHROUGH_DIR=./specs npm start; npm run start:example for a demo
+```
+
+Every `*.json` in the folder is a flow. A sidebar lists them with their pass count (`3/4`), a ⚠
+when the drawing has problems, and *no scenarios* when nobody has written any yet. Click one to
+open it. **+ Flow** starts a new file; **Save** (or ⌘S) writes the open flow back to its file,
+and a flow that came in through **New**, **Open…**, **Example** or a link is added to the folder
+the first time it is saved. The × on a row deletes the file. An optional `project.json` with a
+`name` names the project; otherwise the folder does. **Flows** in the header hides the sidebar.
+
+Put the folder in git. That is the whole collaboration story, on purpose: the pull request is
+the review, `git log` is the history, and a merge conflict in a flow file is a real disagreement
+about the design. The page notices when a file changed on disk since it was opened, a pull for
+instance, and asks before writing over it. The server is only ever a way for the page to reach
+the folder; it holds nothing itself. There are no accounts, and two people editing the same flow
+at the same moment will find out when the second one saves.
 
 ## The file
 
-**Save** downloads the flow as JSON; **Open…** reads one back, and so does dropping the file
-anywhere on the page. The browser also keeps the current flow between reloads, but that is not a
+Without a project folder, **Save** downloads the flow as JSON; **Open…** reads one back, and so
+does dropping the file anywhere on the page. In a project, Save writes the file in place and
+*Download as JSON* under **Share ▾** does what Save used to. The browser also keeps the current flow between reloads, but that is not a
 file: a dot next to **Save** (and in the tab title) means the flow has changed since it was last
 saved or opened, and the page will say so before you close it or replace it with **New** or
 **Example**.
@@ -146,12 +172,15 @@ See `examples/order.json` for the whole thing.
 lib/expr.mjs     the condition language: tokenizer, parser, evaluator, name check
 lib/run.mjs      the interpreter: run, verdict, runAll (with coverage), lint
 lib/markdown.mjs the flow as a Markdown spec, for Share ▾
-ui/store.mjs     the document, selection, undo, autosave
+lib/project.mjs  a folder of flows: list with pass counts, read, write without clobbering
+ui/store.mjs     the document, selection, undo, autosave, which project file is open
 ui/canvas.mjs    the SVG drawing and its pointer interactions
 ui/inspector.mjs the side panel for whatever is selected
 ui/table.mjs     the scenario spreadsheet
+ui/project.mjs   the project sidebar and the calls to the folder API
+ui/dialog.mjs    ask, notice, prompt, toast: the page's own dialogs
 ui/app.mjs       header, keyboard, play, boot
-serve.mjs        a static file server, because ES modules will not load over file://
+serve.mjs        a static file server, plus GET/PUT/POST/DELETE /api/flows over the folder
 ```
 
 `lib/` has no DOM in it and is what the tests exercise. Everything in `ui/` re-renders from the

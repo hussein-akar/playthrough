@@ -10,6 +10,7 @@
   "description": "Draw the flow of a feature before it exists, list the scenarios you would have put in a spreadsheet, and play each one through the drawing to see where it goes. No dependencies on purpose.",
   "scripts": {
     "start": "node serve.mjs",
+    "start:example": "node serve.mjs examples",
     "test": "node --test test/*.test.mjs"
   }
 }
