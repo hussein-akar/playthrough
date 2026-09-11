@@ -28,4 +28,8 @@ createServer(async (req, res) => {
     res.writeHead(404, { 'content-type': 'text/plain' });
     res.end('not found');
   }
+}).on('error', (err) => {
+  if (err.code !== 'EADDRINUSE') throw err;
+  console.error(`playthrough · port ${port} is already in use; stop what is on it, or pick another: PORT=${port + 1} npm start`);
+  process.exit(1);
 }).listen(port, () => console.log(`playthrough · http://localhost:${port}/`));

@@ -3,6 +3,7 @@
 import { runAll, lint } from '../lib/run.mjs';
 
 const KEY = 'playthrough.doc';
+const DIRTY = 'playthrough.dirty';
 
 export const uid = (p) => p + Math.random().toString(36).slice(2, 8);
 
@@ -18,6 +19,7 @@ export const store = {
   playhead: null,           // when animating: number of steps revealed
   results: null,            // from runAll
   problems: [],             // from lint
+  dirty: false,             // changed since the last Save / Open / Example / New (autosave does not count)
   undo: [], redo: [],
   listeners: new Set(),
 };
@@ -36,8 +38,12 @@ export function commit(mutate, { quiet = false } = {}) {
   mutate(store.doc);
   recompute();
   save();
+  setDirty(true);
   emit();
 }
+
+/** Dirty means "not in a file yet"; it survives a reload with the autosaved doc. */
+export function setDirty(v) { store.dirty = v; try { localStorage.setItem(DIRTY, v ? '1' : ''); } catch {} }
 
 /** A snapshot before a drag, so the whole drag is one undo step. */
 export function mark() { store.undo.push(JSON.stringify(store.doc)); store.redo = []; }
@@ -46,20 +52,24 @@ export function undo() {
   if (!store.undo.length) return;
   store.redo.push(JSON.stringify(store.doc));
   store.doc = JSON.parse(store.undo.pop());
+  setDirty(true);
   afterLoad();
 }
 export function redo() {
   if (!store.redo.length) return;
   store.undo.push(JSON.stringify(store.doc));
   store.doc = JSON.parse(store.redo.pop());
+  setDirty(true);
   afterLoad();
 }
 
+/** A whole new document (New, Open…, Example, a dropped file, a link): clean until edited. */
 export function load(doc, { keepHistory = false } = {}) {
   store.doc = normalize(doc);
   if (!keepHistory) { store.undo = []; store.redo = []; }
   store.selection = null;
   store.playhead = null;
+  setDirty(false);
   afterLoad();
 }
 
@@ -78,6 +88,7 @@ export function exists(sel) {
 
 export function save() { try { localStorage.setItem(KEY, JSON.stringify(store.doc)); } catch {} }
 export function restore() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch { return null; } }
+export function restoreDirty() { try { return localStorage.getItem(DIRTY) === '1'; } catch { return false; } }
 
 /** Tolerate hand-written files: missing lists, missing ids, stray fields. */
 export function normalize(doc) {
