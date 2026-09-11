@@ -1,14 +1,25 @@
 // The spreadsheet, kept: one row per scenario, a column per input, then what should happen. The
 // verdict sits at the end of the row and updates as you type, because the run is free.
 import { store, commit, select, uid } from './store.mjs';
-import { inputControl } from './inspector.mjs';
+import { inputControl, editing } from './inspector.mjs';
 
 const table = document.getElementById('table');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
+// What the table's columns and rows are built from. While this is unchanged (a selection change,
+// a keystroke, an undo of a value) the existing rows are patched in place; rebuilding them would
+// pull the control out from under the pointer, and a click on a button in an unselected row
+// would be lost to the rebuild that selecting the row triggers.
+let shape = '';
+function shapeOf(doc) {
+  return JSON.stringify([doc.scenarios.map((s) => s.id), doc.inputs.map((i) => [i.name, i.type, i.values]), doc.state.map((f) => f.name), doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label)]);
+}
+
 export function render() {
-  if (table.contains(document.activeElement)) { patch(); return; }
   const { doc, results, selection } = store;
+  const key = shapeOf(doc);
+  if ((key === shape && table.querySelector('tr[data-row]')) || editing(table)) { patch(); return; }
+  shape = key;
   if (!doc.scenarios.length) {
     table.innerHTML = `<tr><td class="empty">No scenarios yet. Add one and fill in its inputs; the row turns green or red as you type.</td></tr>`;
     return;
@@ -52,15 +63,27 @@ function status(s, results) {
   return `<span class="status bad">${r.result.error ? '⚠ stuck' : '✗ fail'}</span><span class="why">${esc(first.message)}</span>${more}`;
 }
 
-/** Only the computed cells, so the input being typed into keeps its focus. */
+/** The computed cells and every control the user is not typing into, so focus is kept. */
 function patch() {
   const { doc, results, selection } = store;
+  const bool = (v) => { const t = String(v ?? '').trim().toLowerCase(); return ['true', 'yes', '1'].includes(t) ? 'true' : ['false', 'no', '0'].includes(t) ? 'false' : ''; };
   for (const tr of table.querySelectorAll('tr[data-row]')) {
     const s = doc.scenarios.find((s) => s.id === tr.dataset.row);
     if (!s) continue;
     tr.classList.toggle('active', selection?.type === 'scenario' && selection.id === s.id);
     tr.querySelector('td.expect').innerHTML = chips(s, results);
     tr.querySelector('td.result').innerHTML = status(s, results);
+    for (const c of tr.querySelectorAll('input, select')) {
+      if (c === document.activeElement) continue;
+      const d = c.dataset;
+      let v;
+      if (d.f === 'name') v = s.name;
+      else if (d.f === 'end') v = s.expect.end ?? '';
+      else if (d.input) { v = s.inputs[d.input] ?? ''; if (doc.inputs.find((i) => i.name === d.input)?.type === 'boolean') v = bool(v); }
+      else if (d.state) v = s.expect.state?.[d.state] ?? '';
+      else continue;
+      if (c.value !== String(v)) c.value = String(v);
+    }
   }
 }
 
@@ -89,6 +112,7 @@ table.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-act]');
   if (!b) return;
   const id = b.closest('tr').dataset.row;
+  b.blur();
   if (b.dataset.act === 'rm') { commit((doc) => { doc.scenarios = doc.scenarios.filter((s) => s.id !== id); }); if (store.selection?.id === id) select(null); }
   if (b.dataset.act === 'dup') {
     const nid = uid('s');

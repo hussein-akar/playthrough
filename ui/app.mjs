@@ -20,7 +20,7 @@ function renderHeader() {
   const p = results?.passed ?? 0;
   const problems = store.problems.length;
   $('summary').innerHTML = n
-    ? `${n} scenario${n === 1 ? '' : 's'} · <b class="${p === n ? 'ok' : 'bad'}">${p} pass</b>${n - p ? ` · <b class="bad">${n - p} fail</b>` : ''}${problems ? ` · <b class="bad">${problems} drawing problem${problems === 1 ? '' : 's'}</b>` : ''}`
+    ? `${n} scenario${n === 1 ? '' : 's'} · <b class="ok">${p} pass</b>${n - p ? ` · <b class="bad">${n - p} fail</b>` : ''}${problems ? ` · <b class="bad">${problems} drawing problem${problems === 1 ? '' : 's'}</b>` : ''}`
     : `${doc.nodes.length} node${doc.nodes.length === 1 ? '' : 's'}${problems ? ` · <b class="bad">${problems} drawing problem${problems === 1 ? '' : 's'}</b>` : ''}`;
   $('undo').disabled = !store.undo.length;
   $('redo').disabled = !store.redo.length;

@@ -7,11 +7,13 @@ import { knownNames } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+/** True while the user is typing in a control inside `node`; a focused button does not count. */
+export const editing = (node) => { const a = document.activeElement; return node.contains(a) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName); };
 const opt = (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
 
 export function render() {
   // Never rebuild under the user's cursor: a keystroke commits, and the commit re-renders.
-  if (el.contains(document.activeElement) && document.activeElement !== el) { patchVerdict(); return; }
+  if (editing(el)) { patchVerdict(); return; }
   const { doc, selection } = store;
   if (!selection) el.innerHTML = flowView(doc);
   else if (selection.type === 'node') el.innerHTML = nodeView(doc, doc.nodes.find((n) => n.id === selection.id));
@@ -69,7 +71,7 @@ function nodeView(doc, n) {
     ${n.kind === 'action' ? `
     <h2>Sets <span class="muted">· state this action leaves behind</span></h2>
     ${sets}
-    <div class="actions"><button class="small" data-act="add-set" ${doc.state.length ? '' : 'disabled title="Declare a state field on the flow first"'}>+ Set a field</button></div>` : ''}
+    <div class="actions"><button class="small" data-act="add-set" ${!doc.state.length ? 'disabled title="Declare a state field on the flow first"' : doc.state.every((f) => f.name in (n.set ?? {})) ? 'disabled title="Every state field is already set here"' : ''}>+ Set a field</button></div>` : ''}
     <div class="field" style="margin-top: 12px"><label>Note</label><textarea data-node="note" style="font-family: inherit" placeholder="Anything the team should know">${esc(n.note ?? '')}</textarea></div>
     <div class="actions"><button class="small danger" data-act="rm-node">Delete node</button></div>`;
 }
@@ -193,12 +195,13 @@ el.addEventListener('click', (ev) => {
   if (act === 'rm-input') commit((doc) => { doc.inputs.splice(Number(b.closest('[data-input]').dataset.input), 1); });
   if (act === 'add-state') commit((doc) => { doc.state.push({ name: `field${doc.state.length + 1}`, initial: null }); });
   if (act === 'rm-state') commit((doc) => { doc.state.splice(Number(b.closest('[data-state]').dataset.state), 1); });
-  if (act === 'add-set') commit((doc) => { const n = doc.nodes.find((n) => n.id === sel.id); n.set ??= {}; const free = doc.state.find((f) => !(f.name in n.set)) ?? doc.state[0]; n.set[free.name] = ''; });
+  if (act === 'add-set') commit((doc) => { const n = doc.nodes.find((n) => n.id === sel.id); n.set ??= {}; const free = doc.state.find((f) => !(f.name in n.set)); if (free) n.set[free.name] = ''; });
   if (act === 'rm-set') commit((doc) => { const n = doc.nodes.find((n) => n.id === sel.id); const entries = Object.entries(n.set ?? {}); entries.splice(Number(b.closest('[data-set]').dataset.set), 1); n.set = Object.fromEntries(entries); });
   if (act === 'rm-node') { commit((doc) => { doc.nodes = doc.nodes.filter((n) => n.id !== sel.id); doc.edges = doc.edges.filter((e) => e.from !== sel.id && e.to !== sel.id); }); select(null); }
   if (act === 'rm-edge') { commit((doc) => { doc.edges = doc.edges.filter((e) => e.id !== sel.id); }); select(null); }
   if (act === 'rm-scn') { commit((doc) => { doc.scenarios = doc.scenarios.filter((s) => s.id !== sel.id); }); select(null); }
   if (act === 'dup-scn') { const id = uid('s'); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const i = doc.scenarios.indexOf(s); doc.scenarios.splice(i + 1, 0, { ...structuredClone(s), id, name: s.name + ' (copy)' }); }); select({ type: 'scenario', id }); }
   if (act === 'play') el.dispatchEvent(new CustomEvent('play', { bubbles: true }));
+  b.blur();
   render();
 });
