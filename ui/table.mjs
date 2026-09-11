@@ -34,7 +34,7 @@ export function render() {
       <td class="muted">${k + 1}</td>
       <td><input type="text" class="name" data-f="name" value="${esc(s.name)}" placeholder="what is being tried"></td>
       ${doc.inputs.map((i) => `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`)}</td>`).join('')}
-      <td class="expect">${chips(s, results)}</td>
+      <td class="expect actions">${chips(s, results)}</td>
       <td class="expect"><select data-f="end"><option value="">any</option>${ends.map((e) => `<option value="${esc(e)}" ${s.expect.end === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></td>
       ${doc.state.map((f) => `<td class="expect"><input type="text" class="st expr" data-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}" placeholder="*, null, value"></td>`).join('')}
       <td class="result">${status(s, results)}</td>
@@ -52,7 +52,7 @@ function chips(s, results) {
   const extra = r?.verdict.issues.filter((i) => i.kind === 'extra-action').map((i) => i.action) ?? [];
   const want = s.expect.actions ?? [];
   if (!want.length && !extra.length) return `<span class="muted">click row to choose</span>`;
-  return `<div class="chips">${want.map((a) => `<span class="chip ${missing.has(a) ? 'missing' : ''}">${esc(a)}</span>`).join('')}${extra.map((a) => `<span class="chip extra" title="happened, not expected">+ ${esc(a)}</span>`).join('')}</div>`;
+  return `<div class="chips">${want.map((a) => `<span class="chip ${missing.has(a) ? 'missing' : ''}" title="${esc(a)}">${esc(a)}</span>`).join('')}${extra.map((a) => `<span class="chip extra" title="happened, not expected">+ ${esc(a)}</span>`).join('')}</div>`;
 }
 
 function status(s, results) {
@@ -65,7 +65,7 @@ function status(s, results) {
   const rest = issues.length <= 1 ? ''
     : open ? `<ul class="issues">${issues.slice(1).map((i) => `<li>${esc(i.message)}</li>`).join('')}</ul><span class="why more" data-act="more">show less</span>`
     : ` <span class="why more" data-act="more" title="Show every issue">+${issues.length - 1} more</span>`;
-  return `<span class="status bad">${r.result.error ? '⚠ stuck' : '✗ fail'}</span><span class="why">${esc(issues[0].message)}</span>${accept}${rest}`;
+  return `<span class="status ${r.result.error ? 'stuck' : 'bad'}">${r.result.error ? '⚠ stuck' : '✗ fail'}</span><span class="why">${esc(issues[0].message)}</span>${accept}${rest}`;
 }
 
 /**
