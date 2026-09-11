@@ -124,7 +124,7 @@ Every `*.json` in the folder is a flow. A sidebar lists them with their pass cou
 when the drawing has problems, and *no scenarios* when nobody has written any yet. Click one to
 open it. **+ Flow** starts a new file; **Save** (or ⌘S) writes the open flow back to its file,
 and a flow that came in through **New**, **Open…**, **Example** or a link is added to the folder
-the first time it is saved. The × on a row deletes the file. An optional `project.json` with a
+the first time it is saved. On a row, ✎ renames the file (the flow keeps its own name) and × deletes it. An optional `project.json` with a
 `name` names the project; otherwise the folder does. **Flows** in the header hides the sidebar.
 
 Put the folder in git. That is the whole collaboration story, on purpose: the pull request is

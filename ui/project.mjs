@@ -101,6 +101,23 @@ export async function create() {
   }
 }
 
+/** Another file name for a flow, made from what is typed the way a new file's name is. */
+export async function rename(file) {
+  const current = file.replace(/\.json$/, '');
+  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. The flow keeps its own name.', value: current, ok: 'Rename' });
+  if (name == null) return;
+  try {
+    const { file: to, mtime } = await call('POST', `/api/flows/${encodeURIComponent(file)}/rename`, { name });
+    if (to === file) return;
+    if (store.file === file) { setFile(to, mtime); emit(); }
+    toast(`Renamed to ${to}`);
+    refresh();
+  } catch (e) {
+    if (e.code === 'EXISTS') notice('That name is taken', `${e.message}. Pick another.`);
+    else notice(`Could not rename ${file}`, e.message);
+  }
+}
+
 export async function remove(file) {
   const ok = await ask({ title: `Delete ${file}?`, body: 'The file is removed from the folder. If the folder is in git, the history still has it.', ok: 'Delete', danger: true });
   if (!ok) return;
@@ -131,7 +148,7 @@ export function render() {
     return `<li class="${active ? 'active' : ''}${f.broken ? ' broken' : ''}" data-file="${esc(f.file)}" title="${esc(f.file)}">
       <span class="name">${esc(name)}${active && store.dirty ? '<i class="dot" title="Changed since the last save"></i>' : ''}</span>
       <span class="status">${status}</span>
-      <button class="link rm" data-rm="${esc(f.file)}" title="Delete ${esc(f.file)}" aria-label="Delete">×</button>
+      <span class="tools"><button class="link rn" data-rn="${esc(f.file)}" title="Rename ${esc(f.file)}" aria-label="Rename">✎</button><button class="link rm" data-rm="${esc(f.file)}" title="Delete ${esc(f.file)}" aria-label="Delete">×</button></span>
     </li>`;
   };
   const unfiled = !cur && (store.doc.nodes.length || store.doc.scenarios.length)
@@ -146,6 +163,8 @@ export function render() {
 el.addEventListener('click', async (ev) => {
   const rm = ev.target.closest('[data-rm]');
   if (rm) return remove(rm.dataset.rm);
+  const rn = ev.target.closest('[data-rn]');
+  if (rn) return rename(rn.dataset.rn);
   if (ev.target.closest('#newFlow')) return create();
   const li = ev.target.closest('li[data-file]');
   if (!li || li.classList.contains('broken')) return;

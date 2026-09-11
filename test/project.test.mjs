@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openProject, listFlows, readFlow, writeFlow, deleteFlow, fileFor, isFlowFile } from '../lib/project.mjs';
+import { openProject, listFlows, readFlow, writeFlow, deleteFlow, renameFlow, fileFor, isFlowFile } from '../lib/project.mjs';
 
 const fresh = () => mkdtemp(join(tmpdir(), 'playthrough-'));
 const example = JSON.parse(await readFile(new URL('../examples/order.json', import.meta.url), 'utf8'));
@@ -40,6 +40,21 @@ test('list shows each flow with its counts, and a broken file as broken', async 
   assert.equal(g.passed, 3);          // one fails on purpose
   assert.equal(flows[1].scenarios, 0);
   assert.match(flows[0].broken, /JSON/);
+});
+
+test('rename makes the file name from the new name, keeps the mtime, and will not land on another file', async () => {
+  const dir = await fresh();
+  const mtime = await writeFlow(dir, 'old-name.json', { name: 'Old name' });
+  await writeFlow(dir, 'taken.json', { name: 'Taken' });
+  const r = await renameFlow(dir, 'old-name.json', 'New Name!');
+  assert.equal(r.file, 'new-name.json');
+  assert.equal(Math.round(r.mtime), Math.round(mtime));
+  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['new-name.json', 'taken.json']);
+  assert.equal((await readFlow(dir, 'new-name.json')).doc.name, 'Old name');   // the flow's own name is not the file's
+  await assert.rejects(renameFlow(dir, 'new-name.json', 'taken'), (e) => e.code === 'EXISTS');
+  assert.deepEqual(await renameFlow(dir, 'new-name.json', 'new name'), { file: 'new-name.json', mtime: r.mtime });   // same name: nothing happens
+  await assert.rejects(renameFlow(dir, 'missing.json', 'x'), (e) => e.code === 'ENOENT');
+  await assert.rejects(renameFlow(dir, '../x.json', 'x'), (e) => e.code === 'BADNAME');
 });
 
 test('write refuses to clobber a file that changed since it was read', async () => {

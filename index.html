@@ -116,9 +116,11 @@
   #project li .status { flex: none; font-size: var(--fs-xs); font-family: var(--mono); font-variant-numeric: tabular-nums; }
   #project li .status .ok { color: var(--ok); }
   #project li .status .bad { color: var(--bad); }
-  #project li .rm { flex: none; width: 16px; height: 16px; display: none; color: var(--faint); font-size: 14px; }
-  #project li:hover .rm { display: inline-flex; }
-  #project li .rm:hover { color: var(--bad); }
+  #project li .tools { flex: none; display: none; gap: 2px; }
+  #project li:hover .tools { display: inline-flex; }
+  #project li .tools button { width: 18px; height: 16px; color: var(--faint); font-size: 13px; }
+  #project li .tools .rn:hover { color: var(--accent); }
+  #project li .tools .rm:hover { color: var(--bad); }
   #project li:hover .status { display: none; }
   #project .empty { margin: 8px 14px; line-height: 1.5; }
   #project .foot { margin: auto 14px 10px; padding-top: 10px; font-size: var(--fs-xs); }

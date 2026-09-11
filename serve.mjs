@@ -6,7 +6,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, relative } from 'node:path';
-import { openProject, listFlows, readFlow, writeFlow, deleteFlow, fileFor } from './lib/project.mjs';
+import { openProject, listFlows, readFlow, writeFlow, deleteFlow, renameFlow, fileFor } from './lib/project.mjs';
 
 const root = new URL('.', import.meta.url).pathname;
 const port = Number(process.env.PORT ?? 8095);
@@ -28,12 +28,12 @@ const types = {
 const send = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(body)); };
 const readBody = (req) => new Promise((resolve, reject) => { let s = ''; req.on('data', (c) => { s += c; }).on('end', () => resolve(s)).on('error', reject); });
 
-/** GET /api/project · GET|PUT|DELETE /api/flows/:file · POST /api/flows (a new file for a name). */
+/** GET /api/project · GET|PUT|DELETE /api/flows/:file · POST /api/flows (a new file for a name) · POST /api/flows/:file/rename. */
 async function api(req, res, url) {
   if (!project) return send(res, 404, { error: 'no project folder: start the server with one, e.g. npm start -- ./specs' });
-  const m = /^\/api\/(project|flows)(?:\/([^/]+))?$/.exec(url.pathname);
+  const m = /^\/api\/(project|flows)(?:\/([^/]+))?(?:\/(rename))?$/.exec(url.pathname);
   if (!m) return send(res, 404, { error: 'no such route' });
-  const [, what, file] = m;
+  const [, what, file, verb] = m;
   try {
     if (what === 'project' && req.method === 'GET') return send(res, 200, { name: project.name, dir: shownDir, flows: await listFlows(project.dir) });
     if (what === 'flows' && !file && req.method === 'POST') {
@@ -42,6 +42,11 @@ async function api(req, res, url) {
       const mtime = await writeFlow(project.dir, f, { ...(doc ?? {}), name: name || doc?.name || '' }, { mustBeNew: true });
       return send(res, 201, { file: f, mtime });
     }
+    if (what === 'flows' && file && verb === 'rename' && req.method === 'POST') {
+      const { name } = JSON.parse(await readBody(req) || '{}');
+      return send(res, 200, await renameFlow(project.dir, decodeURIComponent(file), name));
+    }
+    if (verb) return send(res, 404, { error: 'no such route' });
     if (what === 'flows' && file && req.method === 'GET') return send(res, 200, await readFlow(project.dir, file));
     if (what === 'flows' && file && req.method === 'PUT') {
       const { doc, ifMtime } = JSON.parse(await readBody(req) || '{}');
