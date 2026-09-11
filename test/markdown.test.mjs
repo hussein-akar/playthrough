@@ -25,8 +25,8 @@ it('decisions list their branches, else last as drawn', () => {
 it('the scenario table carries inputs, expectations and the verdict', () => {
   const md = toMarkdown(doc);
   assert.ok(md.includes('3 of 4 pass.'));
-  assert.ok(md.includes('| Scenario | `type` | `isExpress` | Expected actions | Lands on | `deliveryDate` | Result |'));
-  assert.ok(md.includes('| Subscription with express shipping | Subscription | true | Create Shipment, Set express delivery date, Create Invoice, Publish Subscription/Preorder received event | Done | * | ✅ pass |'));
+  assert.ok(md.includes('| Scenario | Tags | `type` | `isExpress` | Expected actions | Lands on | `deliveryDate` | Result |'));
+  assert.ok(md.includes('| Subscription with express shipping | `happy path` | Subscription | true | Create Shipment, Set express delivery date, Create Invoice, Publish Subscription/Preorder received event | Done | * | ✅ pass |'));
   const rows = md.split('\n').filter((l) => l.startsWith('| ') && /(✅|❌)/.test(l));
   assert.equal(rows.length, 4);
   assert.match(rows[3], /❌ fail: expected "Trigger Post Processing" to happen; it did not; /);

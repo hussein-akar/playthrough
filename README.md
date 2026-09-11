@@ -81,6 +81,11 @@ scenario fails and it is the drawing that is right, **Use this run as the expect
 *accept run* in the row) copies what actually happened into the expectation. In the table, Enter
 on the last row starts the next scenario and *+N more* opens the full list of issues.
 
+A scenario can carry **tags**, comma-separated in its row or its panel: `edge`, a ticket number,
+whose case it is. Every tag shows above the table with its pass count, and clicking one narrows
+the table to it (a row added while narrowed gets the tag). The Markdown export carries the tags
+and ends the scenario table with a tally per tag.
+
 **Coverage** dims every node and edge that no scenario touches. In a review, "nobody wrote a
 scenario for the else branch" is the sentence you want before the code exists.
 
@@ -158,6 +163,7 @@ The shape is small enough to write by hand or generate:
   "edges":  [{ "id": "e3", "from": "express", "to": "setdate", "when": "isExpress" },
              { "id": "e4", "from": "express", "to": "keepnull", "else": true }],
   "scenarios": [{ "name": "Subscription with express shipping",
+                  "tags": ["happy path"],
                   "inputs": { "type": "Subscription", "isExpress": true },
                   "expect": { "actions": ["Create Shipment", "Set express delivery date"],
                               "end": "Done", "state": { "deliveryDate": "*" } } }]

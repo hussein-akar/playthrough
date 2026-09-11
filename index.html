@@ -230,6 +230,15 @@
   #scenarios .bar { display: flex; align-items: center; gap: 10px; flex: none; height: 36px; padding: 0 var(--s3); border-bottom: 1px solid var(--line); }
   #scenarios .bar h2 { margin: 0; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
   #scenarios .bar .muted { font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #scenarios .bar #tagBar { display: flex; align-items: center; gap: 4px; margin-left: auto; min-width: 0; overflow: hidden; }
+  #scenarios .bar #tagBar:empty { display: none; }
+  #tagBar .tag { height: 20px; padding: 0 8px; border: 1px solid transparent; border-radius: 10px; background: var(--line-2); font-size: var(--fs-xs); font-weight: 500; }
+  #tagBar .tag b { margin-left: 4px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #tagBar .tag b.ok { color: var(--ok); }
+  #tagBar .tag b.bad { color: var(--bad); }
+  #tagBar .tag:hover { border-color: var(--line-strong); }
+  #tagBar .tag.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  #tagBar .link { margin-left: 4px; font-size: var(--fs-xs); white-space: nowrap; }
   #scenarios .scroll { flex: 1; min-height: 0; overflow: auto; }
   #table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); }
   #table th, #table td { height: 32px; padding: 2px 8px; border-bottom: 1px solid var(--line-2); text-align: left; vertical-align: middle; white-space: nowrap; }
@@ -246,6 +255,7 @@
   #table td select { padding-right: 22px; }
   #table td input.name { width: 180px; min-width: 160px; }
   #table td input.st { width: 96px; min-width: 0; }
+  #table td input.tags { width: 150px; min-width: 110px; }
   #table td.actions { width: 55%; min-width: 240px; white-space: normal; }
   #table .chips { display: flex; flex-wrap: wrap; gap: 2px 4px; padding: 1px 0; }
   #table .chip { display: inline-block; max-width: 180px; height: 18px; padding: 0 8px; border-radius: 9px; background: var(--line-2); font-size: var(--fs-xs); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -367,6 +377,7 @@
       <h2>Scenarios</h2>
       <button id="addScenario" class="small primary">+ Scenario</button>
       <span class="muted">Each row is played through the flow as you type. Click a row to see its path.</span>
+      <div id="tagBar" title="Tags · click one to narrow the table"></div>
     </div>
     <div class="scroll"><table id="table"></table></div>
   </section>

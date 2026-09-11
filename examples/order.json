@@ -34,13 +34,13 @@
     { "id": "e11", "from": "post", "to": "done" }
   ],
   "scenarios": [
-    { "id": "s1", "name": "Subscription with express shipping", "inputs": { "type": "Subscription", "isExpress": true },
+    { "id": "s1", "name": "Subscription with express shipping", "tags": ["happy path"], "inputs": { "type": "Subscription", "isExpress": true },
       "expect": { "actions": ["Create Shipment", "Set express delivery date", "Create Invoice", "Publish Subscription/Preorder received event"], "end": "Done", "state": { "deliveryDate": "*" } } },
-    { "id": "s2", "name": "Preorder, nothing to rush", "inputs": { "type": "Preorder", "isExpress": false },
+    { "id": "s2", "name": "Preorder, nothing to rush", "tags": ["happy path"], "inputs": { "type": "Preorder", "isExpress": false },
       "expect": { "actions": ["Create Shipment", "Keep delivery date null", "Create Invoice", "Publish Subscription/Preorder received event"], "end": "Done", "state": { "deliveryDate": "null" } } },
-    { "id": "s3", "name": "Refund goes to post processing", "inputs": { "type": "Refund", "isExpress": true },
+    { "id": "s3", "name": "Refund goes to post processing", "tags": ["happy path", "post processing"], "inputs": { "type": "Refund", "isExpress": true },
       "expect": { "actions": ["Create Shipment", "Set express delivery date", "Create Invoice", "Trigger Post Processing"], "end": "Done", "state": { "deliveryDate": "*" } } },
-    { "id": "s4", "name": "Wholesale (someone assumed post processing)", "inputs": { "type": "Wholesale", "isExpress": false },
+    { "id": "s4", "name": "Wholesale (someone assumed post processing)", "tags": ["assumption", "post processing"], "inputs": { "type": "Wholesale", "isExpress": false },
       "expect": { "actions": ["Create Shipment", "Keep delivery date null", "Create Invoice", "Trigger Post Processing"], "end": "Done" } }
   ]
 }

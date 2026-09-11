@@ -17,6 +17,7 @@ export const store = {
   selection: null,          // { type: 'node'|'edge'|'scenario', id } — a node selection may carry `ids` for a group; `id` is its first member
   view: { x: 40, y: 40, k: 1 },
   showCoverage: false,
+  tagFilter: null,          // a tag the scenario table is narrowed to, or null for every row
   playhead: null,           // when animating: number of steps revealed
   results: null,            // from runAll
   problems: [],             // from lint
@@ -124,8 +125,25 @@ export function normalize(doc) {
   for (const k of ['inputs', 'state', 'nodes', 'edges', 'scenarios']) if (!Array.isArray(d[k])) d[k] = [];
   for (const n of d.nodes) { n.id ??= uid('n'); n.kind ??= 'action'; n.label ??= ''; n.x ??= 0; n.y ??= 0; }
   for (const e of d.edges) { e.id ??= uid('e'); e.when ??= ''; }
-  for (const s of d.scenarios) { s.id ??= uid('s'); s.name ??= ''; s.inputs ??= {}; s.expect ??= {}; s.expect.actions ??= []; s.expect.state ??= {}; }
+  for (const s of d.scenarios) { s.id ??= uid('s'); s.name ??= ''; s.inputs ??= {}; s.expect ??= {}; s.expect.actions ??= []; s.expect.state ??= {}; s.tags = parseTags(Array.isArray(s.tags) ? s.tags.join(',') : s.tags); }
   return d;
+}
+
+/** "edge, PROJ-12 ,edge" → ["edge", "PROJ-12"]: comma-separated, trimmed, no repeats, order kept. */
+export function parseTags(text) {
+  const out = [];
+  for (const t of String(text ?? '').split(',')) { const v = t.trim(); if (v && !out.includes(v)) out.push(v); }
+  return out;
+}
+
+/** Every tag in the document with how its scenarios did, in first-seen order. */
+export function tagSummary(doc, results) {
+  const map = new Map();
+  for (const s of doc.scenarios ?? []) {
+    const r = results?.results.find((x) => x.scenario.id === s.id);
+    for (const t of s.tags ?? []) { const e = map.get(t) ?? { tag: t, total: 0, passed: 0 }; e.total++; if (r?.verdict.pass) e.passed++; map.set(t, e); }
+  }
+  return [...map.values()];
 }
 
 /** The result for the selected scenario, if a scenario is selected. */

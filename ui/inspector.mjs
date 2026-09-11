@@ -1,7 +1,7 @@
 // The side panel: whatever is selected, editable. Nothing selected shows the flow itself, which
 // is where inputs and state fields are declared, because the guards can only mention what is
 // declared here.
-import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName } from './store.mjs';
+import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check } from '../lib/expr.mjs';
 import { knownNames } from '../lib/run.mjs';
@@ -120,6 +120,7 @@ function scenarioView(doc, s) {
   return `
     <h2>Scenario</h2>
     <div class="field"><label>Name</label><input type="text" data-scn="name" value="${esc(s.name)}"></div>
+    <div class="field"><label>Tags <span class="muted">· comma-separated; the table can be narrowed to one</span></label><input type="text" data-scn="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12"></div>
     <h2>Inputs</h2>
     ${doc.inputs.map((i) => `<div class="field"><label>${esc(i.name)}</label>${inputControl(i, s.inputs[i.name], `data-scn-input="${esc(i.name)}"`)}</div>`).join('') || '<div class="muted">The flow declares no inputs yet.</div>'}
     <h2>Expected actions <span class="muted">· in flow order; ✓ happened in the last run</span></h2>
@@ -282,7 +283,7 @@ el.addEventListener('input', (ev) => {
   if (d.doc) return commit((doc) => { doc[d.doc] = t.value; });
   if (d.node) return commit((doc) => { const n = doc.nodes.find((n) => n.id === store.selection.id); n[d.node] = t.value; });
   if (d.edge === 'when' || d.edge === 'label') return commit((doc) => { const e = doc.edges.find((e) => e.id === store.selection.id); e[d.edge] = t.value; });
-  if (d.scn) return commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); if (d.scn === 'end') s.expect.end = t.value; else s[d.scn] = t.value; });
+  if (d.scn) return commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); if (d.scn === 'end') s.expect.end = t.value; else if (d.scn === 'tags') s.tags = parseTags(t.value); else s[d.scn] = t.value; });
   if (d.scnInput) return commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); s.inputs[d.scnInput] = t.value; });
   if (d.scnState) return commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); s.expect.state ??= {}; s.expect.state[d.scnState] = t.value; });
   // Renaming an input or a state field carries every mention of it along, in the same commit, so

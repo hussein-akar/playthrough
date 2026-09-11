@@ -1,9 +1,10 @@
 // The spreadsheet, kept: one row per scenario, a column per input, then what should happen. The
 // verdict sits at the end of the row and updates as you type, because the run is free.
-import { store, commit, select, uid } from './store.mjs';
+import { store, commit, select, emit, uid, parseTags, tagSummary } from './store.mjs';
 import { inputControl, editing, acceptRun } from './inspector.mjs';
 
 const table = document.getElementById('table');
+const tagBar = document.getElementById('tagBar');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const expanded = new Set();   // scenario ids whose result cell shows every issue, not just the first
 
@@ -18,6 +19,7 @@ function shapeOf(doc) {
 
 export function render() {
   const { doc, results, selection } = store;
+  renderTagBar();
   const key = shapeOf(doc);
   if ((key === shape && table.querySelector('tr[data-row]')) || editing(table)) { patch(); return; }
   shape = key;
@@ -27,12 +29,13 @@ export function render() {
   }
   const ends = doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label);
   let html = `<thead><tr><th>#</th><th>Scenario</th>${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}
-    <th class="expect">expected actions</th><th class="expect">lands on</th>${doc.state.map((f) => `<th class="expect">${esc(f.name)}</th>`).join('')}<th>result</th><th></th></tr></thead><tbody>`;
+    <th>tags</th><th class="expect">expected actions</th><th class="expect">lands on</th>${doc.state.map((f) => `<th class="expect">${esc(f.name)}</th>`).join('')}<th>result</th><th></th></tr></thead><tbody>`;
   doc.scenarios.forEach((s, k) => {
     const active = selection?.type === 'scenario' && selection.id === s.id;
     html += `<tr class="row ${active ? 'active' : ''}" data-row="${s.id}">
       <td class="muted">${k + 1}</td>
       <td><input type="text" class="name" data-f="name" value="${esc(s.name)}" placeholder="what is being tried"></td>
+      <td><input type="text" class="tags" data-f="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12" title="Tags, comma-separated"></td>
       ${doc.inputs.map((i) => `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`)}</td>`).join('')}
       <td class="expect actions">${chips(s, results)}</td>
       <td class="expect"><select data-f="end"><option value="">any</option>${ends.map((e) => `<option value="${esc(e)}" ${s.expect.end === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></td>
@@ -42,7 +45,34 @@ export function render() {
     </tr>`;
   });
   table.innerHTML = html + '</tbody>';
+  narrow();
 }
+
+/** Rows outside the tag filter are hidden, not rebuilt, so the filter is free to flick on and off. */
+function narrow() {
+  const { doc, tagFilter } = store;
+  if (tagFilter && !doc.scenarios.some((s) => s.tags?.includes(tagFilter))) { store.tagFilter = null; }   // the last row with that tag went away
+  for (const tr of table.querySelectorAll('tr[data-row]')) {
+    const s = doc.scenarios.find((s) => s.id === tr.dataset.row);
+    tr.hidden = Boolean(store.tagFilter) && !(s?.tags ?? []).includes(store.tagFilter);
+  }
+}
+
+/** Every tag, with its pass count; the active one narrows the table. Nothing is shown when nobody tagged anything. */
+function renderTagBar() {
+  const { doc, results, tagFilter } = store;
+  const tags = tagSummary(doc, results);
+  const html = !tags.length ? '' : tags.map((t) => `<button class="chip tag ${t.tag === tagFilter ? 'on' : ''}" data-tag="${esc(t.tag)}" title="${t.tag === tagFilter ? 'Show every scenario' : `Only the scenarios tagged ${esc(t.tag)}`}">${esc(t.tag)} <b class="${t.passed === t.total ? 'ok' : 'bad'}">${t.passed}/${t.total}</b></button>`).join('')
+    + (tagFilter ? `<button class="link" data-tag="" title="Show every scenario">show all</button>` : '');
+  if (tagBar.written !== html) { tagBar.innerHTML = html; tagBar.written = html; }
+}
+tagBar.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-tag]');
+  if (!b) return;
+  b.blur();
+  store.tagFilter = b.dataset.tag && b.dataset.tag !== store.tagFilter ? b.dataset.tag : null;
+  emit();
+});
 
 function resultFor(s, results) { return results?.results.find((r) => r.scenario.id === s.id); }
 
@@ -81,11 +111,13 @@ function patch() {
     if (!s) continue;
     tr.classList.toggle('active', selection?.type === 'scenario' && selection.id === s.id);
     for (const [sel, html] of [['td.expect', chips(s, results)], ['td.result', status(s, results)]]) { const td = tr.querySelector(sel); if (td.written !== html) { td.innerHTML = html; td.written = html; } }
+    tr.hidden = Boolean(store.tagFilter) && !(s.tags ?? []).includes(store.tagFilter);
     for (const c of tr.querySelectorAll('input, select')) {
       if (c === document.activeElement) continue;
       const d = c.dataset;
       let v;
       if (d.f === 'name') v = s.name;
+      else if (d.f === 'tags') v = (s.tags ?? []).join(', ');
       else if (d.f === 'end') v = s.expect.end ?? '';
       else if (d.input) { v = s.inputs[d.input] ?? ''; if (doc.inputs.find((i) => i.name === d.input)?.type === 'boolean') v = bool(v); }
       else if (d.state) v = s.expect.state?.[d.state] ?? '';
@@ -104,6 +136,7 @@ table.addEventListener('input', (ev) => {
   commit((doc) => {
     const s = doc.scenarios.find((s) => s.id === id);
     if (t.dataset.f === 'name') s.name = t.value;
+    else if (t.dataset.f === 'tags') s.tags = parseTags(t.value);
     else if (t.dataset.f === 'end') s.expect.end = t.value;
     else if (t.dataset.input) s.inputs[t.dataset.input] = t.value;
     else if (t.dataset.state) { s.expect.state ??= {}; s.expect.state[t.dataset.state] = t.value; }
@@ -142,7 +175,9 @@ table.addEventListener('keydown', (ev) => {
 export function addScenario() {
   const id = uid('s');
   if (editing(table)) document.activeElement.blur();   // else the guard above would keep the new row from being built
-  commit((doc) => { doc.scenarios.push({ id, name: `Scenario ${doc.scenarios.length + 1}`, inputs: {}, expect: { actions: [], state: {} } }); });
+  // A row added while the table is narrowed to a tag gets that tag, so it does not vanish from view.
+  const tags = store.tagFilter ? [store.tagFilter] : [];
+  commit((doc) => { doc.scenarios.push({ id, name: `Scenario ${doc.scenarios.length + 1}`, tags, inputs: {}, expect: { actions: [], state: {} } }); });
   select({ type: 'scenario', id });
   table.querySelector(`tr[data-row="${id}"] input.name`)?.focus();
 }
