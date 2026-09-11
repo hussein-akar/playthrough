@@ -162,6 +162,28 @@
   #zoom .pct { min-width: 42px; text-align: center; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   #zoom .sep { width: 1px; height: 18px; background: var(--line); margin: 0 3px; }
   #stage #hint { right: 320px; }
+  /* ---- panel & table ---- */
+  input.invalid, input.expr.invalid { border-color: var(--bad); }
+  input.invalid:focus { outline-color: #f7d0d0; }
+  #inspector .errs { margin: -3px 0 8px; }
+  #inspector .errs:empty { display: none; }
+  #inspector .errs > div { font-size: 12px; margin-top: 3px; }
+  #inspector .errs .warn { color: var(--warn); }
+  #inspector .checks label > span:first-of-type { flex: 1; }
+  #inspector .checks .did { font-family: var(--mono); font-size: 11px; flex: 0 0 auto; }
+  #inspector .checks .did.yes { color: var(--ok); }
+  #inspector .checks .did.no { color: var(--bad); opacity: .75; }
+  #inspector .verdict .step { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+  #inspector .verdict .step:hover { color: var(--accent); }
+  #inspector .verdict .step.stuck { color: var(--bad); font-weight: 600; }
+  #inspector .verdict .accept { margin-top: 8px; }
+  td.result .more { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+  td.result .more:hover { color: var(--accent); }
+  td.result ul.issues { margin: 3px 0 0; padding-left: 16px; color: var(--muted); white-space: normal; max-width: 460px; }
+  td.result button.accept { margin-left: 8px; font-size: 11px; white-space: nowrap; }
+  tr.row td.tools button { opacity: .35; transition: opacity .1s; }
+  tr.row:hover td.tools button, tr.row.active td.tools button, tr.row td.tools button:focus { opacity: 1; }
+  tr.row td.tools button:hover { border-color: var(--accent); background: #eef3ff; }
 </style>
 </head>
 <body>

@@ -1,10 +1,11 @@
 // The spreadsheet, kept: one row per scenario, a column per input, then what should happen. The
 // verdict sits at the end of the row and updates as you type, because the run is free.
 import { store, commit, select, uid } from './store.mjs';
-import { inputControl, editing } from './inspector.mjs';
+import { inputControl, editing, acceptRun } from './inspector.mjs';
 
 const table = document.getElementById('table');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const expanded = new Set();   // scenario ids whose result cell shows every issue, not just the first
 
 // What the table's columns and rows are built from. While this is unchanged (a selection change,
 // a keystroke, an undo of a value) the existing rows are patched in place; rebuilding them would
@@ -58,12 +59,20 @@ function status(s, results) {
   const r = resultFor(s, results);
   if (!r) return '';
   if (r.verdict.pass) return `<span class="status ok">✓ pass</span>`;
-  const first = r.verdict.issues[0];
-  const more = r.verdict.issues.length > 1 ? ` <span class="why">+${r.verdict.issues.length - 1} more</span>` : '';
-  return `<span class="status bad">${r.result.error ? '⚠ stuck' : '✗ fail'}</span><span class="why">${esc(first.message)}</span>${more}`;
+  const issues = r.verdict.issues, open = expanded.has(s.id);
+  // A stuck run has nothing worth accepting; its trouble is in the drawing, not the expectation.
+  const accept = r.result.error ? '' : `<button class="small accept" data-act="accept" title="Use this run as the expectation: what happened becomes what is expected">accept run</button>`;
+  const rest = issues.length <= 1 ? ''
+    : open ? `<ul class="issues">${issues.slice(1).map((i) => `<li>${esc(i.message)}</li>`).join('')}</ul><span class="why more" data-act="more">show less</span>`
+    : ` <span class="why more" data-act="more" title="Show every issue">+${issues.length - 1} more</span>`;
+  return `<span class="status bad">${r.result.error ? '⚠ stuck' : '✗ fail'}</span><span class="why">${esc(issues[0].message)}</span>${accept}${rest}`;
 }
 
-/** The computed cells and every control the user is not typing into, so focus is kept. */
+/**
+ * The computed cells and every control the user is not typing into, so focus is kept. A cell is
+ * only rewritten when its markup changed: the click that selected a row must land on the same
+ * button it was pressed on.
+ */
 function patch() {
   const { doc, results, selection } = store;
   const bool = (v) => { const t = String(v ?? '').trim().toLowerCase(); return ['true', 'yes', '1'].includes(t) ? 'true' : ['false', 'no', '0'].includes(t) ? 'false' : ''; };
@@ -71,8 +80,7 @@ function patch() {
     const s = doc.scenarios.find((s) => s.id === tr.dataset.row);
     if (!s) continue;
     tr.classList.toggle('active', selection?.type === 'scenario' && selection.id === s.id);
-    tr.querySelector('td.expect').innerHTML = chips(s, results);
-    tr.querySelector('td.result').innerHTML = status(s, results);
+    for (const [sel, html] of [['td.expect', chips(s, results)], ['td.result', status(s, results)]]) { const td = tr.querySelector(sel); if (td.written !== html) { td.innerHTML = html; td.written = html; } }
     for (const c of tr.querySelectorAll('input, select')) {
       if (c === document.activeElement) continue;
       const d = c.dataset;
@@ -119,10 +127,21 @@ table.addEventListener('click', (ev) => {
     commit((doc) => { const s = doc.scenarios.find((s) => s.id === id); doc.scenarios.splice(doc.scenarios.indexOf(s) + 1, 0, { ...structuredClone(s), id: nid, name: s.name + ' (copy)' }); });
     select({ type: 'scenario', id: nid });
   }
+  if (b.dataset.act === 'accept') acceptRun(id);
+  if (b.dataset.act === 'more') { if (expanded.has(id)) expanded.delete(id); else expanded.add(id); patch(); }
+});
+
+// Enter in the last row's name starts the next scenario, the way a spreadsheet would; Escape just
+// stops editing (the row stays selected, so the panel keeps showing it).
+table.addEventListener('keydown', (ev) => {
+  const t = ev.target;
+  if (ev.key === 'Escape' && editing(table)) { ev.stopPropagation(); t.blur(); return; }
+  if (ev.key === 'Enter' && t.dataset.f === 'name' && !t.closest('tr[data-row]')?.nextElementSibling) { ev.preventDefault(); addScenario(); }
 });
 
 export function addScenario() {
   const id = uid('s');
+  if (editing(table)) document.activeElement.blur();   // else the guard above would keep the new row from being built
   commit((doc) => { doc.scenarios.push({ id, name: `Scenario ${doc.scenarios.length + 1}`, inputs: {}, expect: { actions: [], state: {} } }); });
   select({ type: 'scenario', id });
   table.querySelector(`tr[data-row="${id}"] input.name`)?.focus();

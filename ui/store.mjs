@@ -94,3 +94,29 @@ export function activeRun() {
   if (store.selection?.type !== 'scenario' || !store.results) return null;
   return store.results.results.find((r) => r.scenario.id === store.selection.id) ?? null;
 }
+
+/**
+ * Rename an input or state field everywhere the document mentions it: edge guards, the `set`
+ * expressions and field names on nodes, the inputs and expected state of every scenario. Pure:
+ * mutates and returns `doc`, so a caller wraps it in one `commit` and the rename is one undo step.
+ * Nothing happens for a malformed new name, so a half-typed name never scrambles the guards.
+ */
+export function renameName(doc, from, to) {
+  if (!from || from === to || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(to)) return doc;
+  const rekey = (o) => { if (!o || !(from in o)) return o; const out = {}; for (const [k, v] of Object.entries(o)) out[k === from ? to : k] = v; return out; };
+  for (const e of doc.edges ?? []) if (e.when) e.when = rewrite(e.when, from, to);
+  for (const n of doc.nodes ?? []) if (n.set) { n.set = rekey(n.set); for (const k of Object.keys(n.set)) n.set[k] = rewrite(n.set[k] ?? '', from, to); }
+  for (const s of doc.scenarios ?? []) { s.inputs = rekey(s.inputs); if (s.expect) s.expect.state = rekey(s.expect.state); }
+  return doc;
+}
+
+/**
+ * `from` becomes `to` in an expression wherever it stands as a whole identifier, or as the head
+ * of a dotted one (`who.role` follows a rename of `who`). Quoted strings and numbers pass through,
+ * and `subtype` is left alone when `type` is renamed: the match is on identifier boundaries, not
+ * on substrings.
+ */
+export function rewrite(src, from, to) {
+  return String(src).replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[0-9][A-Za-z0-9_.]*|[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*/g,
+    (m) => /^[A-Za-z_]/.test(m) && m.split('.')[0] === from ? to + m.slice(from.length) : m);
+}
