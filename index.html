@@ -138,6 +138,30 @@
   td .why { color: var(--muted); font-weight: 400; margin-left: 6px; }
   td.tools { text-align: right; }
   .empty { padding: 20px; color: var(--muted); }
+
+  /* ---- canvas ---- */
+  #stage { background-size: 20px 20px; }
+  #stage svg .node { cursor: grab; }
+  #stage svg.moving, #stage svg.moving .node { cursor: grabbing; }
+  #stage svg.connecting, #stage svg.connecting .node, #stage svg.connecting .port { cursor: crosshair; }
+  .node:hover .box { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .18)); }
+  .node:hover:not(.selected):not(.on):not(.stuck) .box { stroke-width: 2.5; }
+  .node.target .box { stroke: var(--accent); stroke-width: 3; fill: #eef3ff; }
+  .port { transition: r .08s; }
+  .port:hover { r: 8; }
+  .edge:hover path.wire { stroke-width: 2.5; }
+  .edge:hover:not(.on):not(.selected) path.wire { stroke: var(--muted); }
+  .edge:hover .label rect { stroke: #9aa3af; }
+  .edge:hover:not(.selected):not(.on) .label rect { fill: #fafbfc; }
+  .badge { pointer-events: none; }
+  .badge circle { stroke: white; stroke-width: 2; }
+  .badge.stuck circle { fill: var(--bad); }
+  .empty-hint text { fill: var(--muted); font-size: 13px; text-anchor: middle; pointer-events: none; }
+  .empty-hint text.big { font-size: 17px; font-weight: 600; fill: var(--ink); }
+  #zoom { position: absolute; bottom: 8px; right: 10px; display: flex; gap: 4px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  #zoom .pct { min-width: 42px; text-align: center; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #zoom .sep { width: 1px; height: 18px; background: var(--line); margin: 0 3px; }
+  #stage #hint { right: 320px; }
 </style>
 </head>
 <body>
@@ -167,6 +191,15 @@
       <button class="small" data-add="end"><i class="dot" style="background: var(--end)"></i>End</button>
     </div>
     <div id="lint"></div>
+    <div id="zoom">
+      <button class="small icon" data-zoom="out" title="Zoom out">−</button>
+      <span id="zoomPct" class="pct" title="Zoom">100%</span>
+      <button class="small icon" data-zoom="in" title="Zoom in">+</button>
+      <button class="small" data-zoom="fit" title="Fit the drawing to the window (F)">Fit</button>
+      <button class="small" data-zoom="reset" title="Back to 1:1">1:1</button>
+      <span class="sep"></span>
+      <button class="small" data-zoom="tidy" title="Lay the flow out left to right from the start node">Tidy</button>
+    </div>
     <div id="hint">Drag the empty canvas to pan, wheel to zoom, double-click to add an action. Drag from a node's ○ port onto another node to connect them. Delete removes the selection.</div>
   </div>
 
