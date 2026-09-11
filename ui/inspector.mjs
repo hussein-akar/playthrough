@@ -56,6 +56,7 @@ function flowView(doc) {
 function nodeView(doc, n) {
   if (!n) return '';
   const known = knownNames(doc);
+  const setBlock = !doc.state.length ? 'Declare a state field on the flow first (click the empty canvas).' : doc.state.every((f) => f.name in (n.set ?? {})) ? 'Every state field is already set here.' : '';
   const sets = Object.entries(n.set ?? {}).map(([field, src], k) => {
     const errs = (doc.state.some((f) => f.name === field) ? [] : [`${field} is not a declared state field`]).concat(check(String(src ?? ''), known));
     return `<div class="row" data-set="${k}">
@@ -71,7 +72,7 @@ function nodeView(doc, n) {
     ${n.kind === 'action' ? `
     <h2>Sets <span class="muted">· state this action leaves behind</span></h2>
     ${sets}
-    <div class="actions"><button class="small" data-act="add-set" ${!doc.state.length ? 'disabled title="Declare a state field on the flow first"' : doc.state.every((f) => f.name in (n.set ?? {})) ? 'disabled title="Every state field is already set here"' : ''}>+ Set a field</button></div>` : ''}
+    <div class="actions"><button class="small" data-act="add-set" ${setBlock ? 'disabled' : ''}>+ Set a field</button>${setBlock ? `<span class="muted">${setBlock}</span>` : ''}</div>` : ''}
     <div class="field" style="margin-top: 12px"><label>Note</label><textarea data-node="note" style="font-family: inherit" placeholder="Anything the team should know">${esc(n.note ?? '')}</textarea></div>
     <div class="actions"><button class="small danger" data-act="rm-node">Delete node</button></div>`;
 }
