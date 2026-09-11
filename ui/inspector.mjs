@@ -36,7 +36,7 @@ function flowView(doc) {
   const state = doc.state.map((f, k) => `
     <div class="row" data-state="${k}">
       <input type="text" data-f="name" value="${esc(f.name)}" placeholder="field">
-      <input type="text" class="expr" data-f="initial" value="${esc(f.initial ?? '')}" placeholder="initial (blank = null)">
+      <input type="text" class="expr" data-f="initial" value="${esc(f.initial ?? '')}" placeholder="initial value" title="The value before any action sets it. Blank means null.">
       <button class="icon danger" data-act="rm-state" title="Remove">×</button>
     </div>`).join('');
   return `

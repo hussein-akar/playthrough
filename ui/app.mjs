@@ -111,6 +111,24 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'f') canvas.fit();
 });
 
+// ---- side panel width ---------------------------------------------------------------------------
+
+{
+  const key = 'playthrough.panelWidth', bar = $('panelResizer');
+  const apply = (w) => { w = Math.max(300, Math.min(w, window.innerWidth - 480)); document.body.style.setProperty('--panel-w', `${w}px`); bar.style.right = `${w - 3}px`; return w; };
+  let width = apply(Number(localStorage.getItem(key)) || 400);
+  bar.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    bar.setPointerCapture(ev.pointerId); bar.classList.add('on');
+    const startX = ev.clientX, startW = width;
+    const move = (e) => { width = apply(startW + startX - e.clientX); render(); };
+    const up = () => { bar.classList.remove('on'); bar.removeEventListener('pointermove', move); localStorage.setItem(key, String(width)); };
+    bar.addEventListener('pointermove', move);
+    bar.addEventListener('pointerup', up, { once: true });
+  });
+  window.addEventListener('resize', () => { width = apply(width); });
+}
+
 // ---- boot -------------------------------------------------------------------------------------
 
 const saved = restore();
