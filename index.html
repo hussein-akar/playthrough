@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playthrough</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --line: #d9dde3; --ink: #1c2430; --muted: #6b7583;
+    --accent: #2f6fed; --ok: #1f9d55; --bad: #d64545; --warn: #d98c0d;
+    --start: #1f9d55; --action: #2f6fed; --decision: #d98c0d; --end: #4b5563;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background: var(--bg); display: grid; grid-template-rows: 44px 1fr 280px; grid-template-columns: 1fr 340px; height: 100vh; overflow: hidden; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header .brand { font-weight: 700; letter-spacing: .02em; margin-right: 8px; }
+  header .brand span { color: var(--accent); }
+  header .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+  header .spacer { flex: 1; }
+  header .summary { color: var(--muted); }
+  header .summary b { color: var(--ink); }
+  header .summary b.bad { color: var(--bad); }
+  header .summary b.ok { color: var(--ok); }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button:hover { border-color: #b9c0ca; background: #fafbfc; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  button.primary:hover { background: #245cd0; }
+  button.small { padding: 2px 7px; font-size: 12px; }
+  button.icon { padding: 2px 6px; }
+  button.danger { color: var(--bad); }
+  button.toggle.on { background: #e8efff; border-color: var(--accent); color: var(--accent); }
+  input[type=text], input[type=number], select, textarea { border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; background: white; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #c9d8fb; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 54px; font-family: var(--mono); font-size: 12px; }
+  input.expr { font-family: var(--mono); font-size: 12px; }
+  .err { color: var(--bad); font-size: 12px; margin-top: 3px; }
+
+  #stage { position: relative; overflow: hidden; background: var(--bg);
+    background-image: radial-gradient(circle, #d6dae0 1px, transparent 1px); background-size: 24px 24px; }
+  #stage svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  #stage svg.dragging { cursor: grabbing; }
+  #palette { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  #palette .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  #hint { position: absolute; bottom: 8px; left: 12px; color: var(--muted); font-size: 12px; pointer-events: none; }
+  #lint { position: absolute; top: 10px; right: 10px; max-width: 360px; background: #fff7e6; border: 1px solid #f0d49a; border-radius: 8px; padding: 6px 10px; font-size: 12px; display: none; }
+  #lint.show { display: block; }
+  #lint div { cursor: pointer; padding: 2px 0; }
+  #lint div:hover { text-decoration: underline; }
+
+  /* nodes */
+  .node { cursor: pointer; }
+  .node .box { fill: white; stroke-width: 1.5; }
+  .node.start .box { stroke: var(--start); }
+  .node.action .box { stroke: var(--action); }
+  .node.decision .box { stroke: var(--decision); fill: #fffaf0; }
+  .node.end .box { stroke: var(--end); }
+  .node text { font-size: 13px; fill: var(--ink); pointer-events: none; }
+  .node .kind { font-size: 10px; fill: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .node.selected .box { stroke-width: 3; }
+  .node.hit .box { filter: drop-shadow(0 0 0 transparent); }
+  .node.on .box { stroke: var(--accent); stroke-width: 3; fill: #eef3ff; }
+  .node.on.decision .box { stroke: var(--accent); }
+  .node.stuck .box { stroke: var(--bad); stroke-width: 3; fill: #fff0f0; }
+  .node.untouched .box { stroke-dasharray: 4 4; opacity: .55; }
+  .node.untouched text { opacity: .6; }
+  .port { fill: white; stroke: #9aa3af; stroke-width: 1.5; cursor: crosshair; }
+  .port:hover { fill: var(--accent); stroke: var(--accent); }
+  .badge circle { fill: var(--accent); }
+  .badge text { fill: white !important; font-size: 10px; font-weight: 700; text-anchor: middle; }
+  .setbadge { font-size: 11px; fill: var(--muted); font-family: var(--mono); }
+
+  /* edges */
+  .edge path.wire { fill: none; stroke: #9aa3af; stroke-width: 1.6; }
+  .edge path.grab { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+  .edge.selected path.wire { stroke: var(--ink); stroke-width: 2.5; }
+  .edge.on path.wire { stroke: var(--accent); stroke-width: 3; }
+  .edge.untouched path.wire { stroke-dasharray: 5 5; opacity: .5; }
+  .edge .label rect { fill: white; stroke: var(--line); rx: 4; }
+  .edge .label text { font-size: 11px; font-family: var(--mono); fill: var(--ink); }
+  .edge.else .label text { font-style: italic; color: var(--muted); }
+  .edge.on .label rect { stroke: var(--accent); }
+  .edge.bad .label rect { stroke: var(--bad); }
+  .edge.bad .label text { fill: var(--bad); }
+  .edge.selected .label rect { stroke: var(--ink); }
+  .connecting { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 4; pointer-events: none; }
+
+  /* inspector */
+  #inspector { background: var(--panel); border-left: 1px solid var(--line); overflow: auto; padding: 12px 14px; }
+  #inspector h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 0 6px; }
+  #inspector h2:first-child { margin-top: 0; }
+  #inspector .field { margin-bottom: 9px; }
+  #inspector label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  #inspector .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  #inspector .row > * { flex: 1; min-width: 0; }
+  #inspector .row > button { flex: 0 0 auto; }
+  #inspector .checks label { display: flex; gap: 6px; align-items: center; color: var(--ink); font-size: 13px; margin: 3px 0; }
+  #inspector .checks input { width: auto; }
+  #inspector .muted { color: var(--muted); font-size: 12px; }
+  #inspector .verdict { border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 12px; }
+  #inspector .verdict.ok { background: #e9f7ee; color: #14602f; }
+  #inspector .verdict.bad { background: #fdeaea; color: #8a1f1f; }
+  #inspector .verdict ul { margin: 4px 0 0; padding-left: 16px; }
+  #inspector .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  #inspector code { font-family: var(--mono); font-size: 12px; background: #f1f3f6; padding: 1px 4px; border-radius: 3px; }
+
+  /* scenarios */
+  #scenarios { grid-column: 1 / -1; background: var(--panel); border-top: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  #scenarios .bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  #scenarios .bar h2 { font-size: 13px; margin: 0; margin-right: 6px; }
+  #scenarios .bar .muted { color: var(--muted); font-size: 12px; }
+  #scenarios .scroll { overflow: auto; flex: 1; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #eceff3; vertical-align: middle; white-space: nowrap; }
+  th { position: sticky; top: 0; background: #fafbfc; color: var(--muted); font-weight: 600; font-size: 11.5px; z-index: 1; border-bottom: 1px solid var(--line); }
+  th.group { color: var(--ink); }
+  th.expect { background: #fbfaf5; }
+  td.expect { background: #fdfcf8; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: #f7f9fc; }
+  tr.row.active td { background: #e8efff; }
+  td input[type=text], td select { width: auto; min-width: 70px; padding: 2px 6px; }
+  td input.name { min-width: 180px; }
+  td input.st { min-width: 60px; width: 90px; }
+  td .chips { display: flex; gap: 4px; flex-wrap: wrap; max-width: 420px; white-space: normal; }
+  td .chip { background: #eef1f5; border-radius: 10px; padding: 0 7px; font-size: 11.5px; }
+  td .chip.missing { background: #fdeaea; color: #8a1f1f; text-decoration: line-through; }
+  td .chip.extra { background: #fff3d6; color: #7a4d00; }
+  td .status { font-weight: 600; }
+  td .status.ok { color: var(--ok); }
+  td .status.bad { color: var(--bad); }
+  td .why { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  td.tools { text-align: right; }
+  .empty { padding: 20px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">Play<span>through</span></div>
+    <input id="docName" type="text" placeholder="Flow name" style="width: 260px">
+    <div class="sep"></div>
+    <button id="newDoc">New</button>
+    <button id="openDoc">Open…</button>
+    <button id="saveDoc">Save</button>
+    <button id="loadExample">Example</button>
+    <div class="sep"></div>
+    <button id="undo" title="⌘Z">Undo</button>
+    <button id="redo" title="⇧⌘Z">Redo</button>
+    <div class="sep"></div>
+    <button id="coverage" class="toggle" title="Dim what no scenario touches">Coverage</button>
+    <div class="spacer"></div>
+    <div class="summary" id="summary"></div>
+  </header>
+
+  <div id="stage">
+    <svg id="canvas"></svg>
+    <div id="palette">
+      <button class="small" data-add="start"><i class="dot" style="background: var(--start)"></i>Start</button>
+      <button class="small" data-add="action"><i class="dot" style="background: var(--action)"></i>Action</button>
+      <button class="small" data-add="decision"><i class="dot" style="background: var(--decision)"></i>Decision</button>
+      <button class="small" data-add="end"><i class="dot" style="background: var(--end)"></i>End</button>
+    </div>
+    <div id="lint"></div>
+    <div id="hint">Drag the empty canvas to pan, wheel to zoom, double-click to add an action. Drag from a node's ○ port onto another node to connect them. Delete removes the selection.</div>
+  </div>
+
+  <aside id="inspector"></aside>
+
+  <section id="scenarios">
+    <div class="bar">
+      <h2>Scenarios</h2>
+      <button id="addScenario" class="small primary">+ Scenario</button>
+      <span class="muted">Each row is played through the flow as you type. Click a row to see its path.</span>
+    </div>
+    <div class="scroll"><table id="table"></table></div>
+  </section>
+
+  <input id="fileInput" type="file" accept="application/json,.json" hidden>
+  <script type="module" src="ui/app.mjs"></script>
+</body>
+</html>

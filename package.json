@@ -1,0 +1,15 @@
+{
+  "name": "playthrough",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "description": "Draw the flow of a feature before it exists, list the scenarios you would have put in a spreadsheet, and play each one through the drawing to see where it goes. No dependencies on purpose.",
+  "scripts": {
+    "start": "node serve.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}
