@@ -54,7 +54,12 @@ every guard, set and scenario cell that mentioned it, in one undoable step.
 The canvas has a zoom corner (−, +, fit, 1:1, with the current percentage) and a **Tidy**
 button that lays the flow out left to right from the start node, in one undoable step. Nodes
 snap to a 20px grid while dragging (hold Alt for free placement); arrow keys nudge the selected
-node by one grid step, Shift by five. Double-click a node to edit its label straight away.
+nodes by one grid step, Shift by five. Double-click a node to edit its label straight away.
+
+Several nodes can be selected at once: Shift-click adds a node or takes it out, Shift-drag on
+empty canvas catches every node the band touches, and ⌘A takes them all. Dragging any node of the
+selection moves the whole of it, the arrow keys nudge it, Delete removes it with the edges that
+touched it, and the panel offers *Align left* and *Align top*. Each of these is one undo step.
 
 ## Playing a scenario
 
@@ -85,7 +90,10 @@ scenario for the else branch" is the sentence you want before the code exists.
 | drag empty canvas · wheel | pan · zoom |
 | double-click empty canvas | add an action node there |
 | drag from a node's ○ port onto a node | connect them |
-| Delete / Backspace | remove the selected node, edge or scenario |
+| Shift-click a node · Shift-drag empty canvas | add to the selection · rubber-band select |
+| ⌘A | select every node |
+| drag a selected node | move the whole selection together |
+| Delete / Backspace | remove the selected nodes, edge or scenario |
 | ⌘Z · ⇧⌘Z | undo · redo |
 | Space, with a scenario selected | play it step by step |
 | F | fit the drawing to the window |

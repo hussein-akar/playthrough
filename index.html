@@ -103,6 +103,8 @@
   #stage svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
   #stage svg.dragging, #stage svg.moving, #stage svg.moving .node { cursor: grabbing; }
   #stage svg.connecting, #stage svg.connecting .node, #stage svg.connecting .port { cursor: crosshair; }
+  #stage svg.selecting { cursor: crosshair; }
+  .marquee { fill: rgba(47, 111, 237, .08); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
   #palette, #zoom, #lint { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
   #palette, #zoom { display: flex; align-items: center; gap: 2px; padding: 3px; }
   #palette { top: 10px; left: 10px; }
@@ -154,6 +156,7 @@
   .edge path.grab { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
   .edge:hover path.wire { stroke: var(--muted); stroke-width: 2.2; }
   .edge.selected path.wire { stroke: var(--ink); stroke-width: 2.5; }
+  .edge.linked path.wire { stroke: var(--accent); stroke-width: 2.2; }
   .edge.on path.wire { stroke: var(--accent); stroke-width: 3; }
   .edge.untouched path.wire { stroke-dasharray: 5 5; opacity: .5; }
   .edge .label rect { fill: #fff; stroke: var(--line); rx: 4; }
@@ -184,6 +187,10 @@
   #inspector .checks .did.no { color: var(--bad); opacity: .75; }
   #inspector .muted { font-size: var(--fs-sm); line-height: 1.5; }
   #inspector .actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-top: var(--s3); }
+  #inspector .group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  #inspector .group button { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+  #inspector .group button .x { margin-left: 2px; padding: 0 2px; color: var(--muted); }
+  #inspector .group button .x:hover { color: var(--bad); }
   #inspector .verdict { margin-top: 6px; padding: 8px 10px; border: 1px solid; border-radius: var(--r1); font-size: var(--fs-sm); line-height: 1.55; }
   #inspector .verdict.ok { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok-ink); }
   #inspector .verdict.bad { background: var(--bad-soft); border-color: var(--bad-line); color: var(--bad-ink); }
@@ -320,7 +327,7 @@
       <span class="sep"></span>
       <button class="small" data-zoom="tidy" title="Lay the flow out left to right from the start node">Tidy</button>
     </div>
-    <div id="hint">Drag to pan · wheel to zoom · double-click to add an action · drag a node's ○ port onto another node to connect them · Delete removes the selection</div>
+    <div id="hint">Drag to pan · wheel to zoom · double-click to add an action · drag a node's ○ port onto another node to connect them · Shift-click or Shift-drag to select several · Delete removes the selection</div>
   </div>
 
   <div id="panelResizer" class="resizer" title="Drag to resize the panel"></div>
@@ -349,7 +356,10 @@
         <tr><td><kbd>drag</kbd> empty canvas · <kbd>wheel</kbd></td><td>pan · zoom</td></tr>
         <tr><td><kbd>double-click</kbd> empty canvas</td><td>add an action node there</td></tr>
         <tr><td><kbd>drag</kbd> from a node's ○ port onto a node</td><td>connect them</td></tr>
-        <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected node, edge or scenario</td></tr>
+        <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node · <kbd>Shift</kbd>+<kbd>drag</kbd> empty canvas</td><td>add to the selection · rubber-band select</td></tr>
+        <tr><td><kbd>⌘A</kbd></td><td>select every node</td></tr>
+        <tr><td><kbd>drag</kbd> a selected node</td><td>move the whole selection together</td></tr>
+        <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected nodes, edge or scenario</td></tr>
         <tr><td><kbd>⌘Z</kbd> · <kbd>⇧⌘Z</kbd></td><td>undo · redo</td></tr>
         <tr><td><kbd>Space</kbd>, with a scenario selected</td><td>play it step by step</td></tr>
         <tr><td><kbd>F</kbd></td><td>fit the drawing to the window</td></tr>

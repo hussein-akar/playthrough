@@ -1,7 +1,8 @@
 // The side panel: whatever is selected, editable. Nothing selected shows the flow itself, which
 // is where inputs and state fields are declared, because the guards can only mention what is
 // declared here.
-import { store, commit, select, uid, activeRun, renameName } from './store.mjs';
+import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName } from './store.mjs';
+import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check } from '../lib/expr.mjs';
 import { knownNames } from '../lib/run.mjs';
 
@@ -20,6 +21,7 @@ export function render() {
   if (editing(el)) { patchLive(); return; }
   const { doc, selection } = store;
   if (!selection) el.innerHTML = flowView(doc);
+  else if (selection.type === 'node' && selection.ids) el.innerHTML = groupView(doc, selection.ids);
   else if (selection.type === 'node') el.innerHTML = nodeView(doc, doc.nodes.find((n) => n.id === selection.id));
   else if (selection.type === 'edge') el.innerHTML = edgeView(doc, doc.edges.find((e) => e.id === selection.id));
   else if (selection.type === 'scenario') el.innerHTML = scenarioView(doc, doc.scenarios.find((s) => s.id === selection.id));
@@ -79,6 +81,20 @@ function nodeView(doc, n) {
     <div class="actions"><button class="small" data-act="add-set" ${setBlock ? 'disabled' : ''}>+ Set a field</button>${setBlock ? `<span class="muted">${setBlock}</span>` : ''}</div>` : ''}
     <div class="field" style="margin-top: 12px"><label>Note</label><textarea data-node="note" style="font-family: inherit" placeholder="Anything the team should know">${esc(n.note ?? '')}</textarea></div>
     <div class="actions"><button class="small danger" data-act="rm-node">Delete node</button></div>`;
+}
+
+/** Several nodes at once: what they are, and the few things that make sense to do to all of them. */
+function groupView(doc, ids) {
+  const nodes = ids.map((id) => doc.nodes.find((n) => n.id === id)).filter(Boolean);
+  return `
+    <h2>${nodes.length} nodes selected</h2>
+    <div class="group">${nodes.map((n) => `<button class="small" data-one="${esc(n.id)}" title="Select only this node"><i class="dot" style="background: var(--${n.kind})"></i>${esc(n.label || '(untitled)')}<span class="x" data-drop="${esc(n.id)}" title="Take out of the selection">×</span></button>`).join('')}</div>
+    <p class="muted">Drag any of them to move them together. Arrow keys nudge the group. Shift-click a node to add or remove it; Shift-drag on the canvas to catch more.</p>
+    <div class="actions">
+      <button class="small" data-act="align-left" title="Line them up on the leftmost one">Align left</button>
+      <button class="small" data-act="align-top" title="Line them up on the topmost one">Align top</button>
+      <button class="small danger" data-act="rm-group">Delete ${nodes.length} nodes</button>
+    </div>`;
 }
 
 function edgeView(doc, e) {
@@ -311,6 +327,10 @@ el.addEventListener('change', (ev) => {
 el.addEventListener('click', (ev) => {
   const step = ev.target.closest('[data-step]');
   if (step) return select({ type: 'node', id: step.dataset.step });
+  const drop = ev.target.closest('[data-drop]');
+  if (drop) return selectNodes(selectedNodeIds().filter((id) => id !== drop.dataset.drop));
+  const one = ev.target.closest('[data-one]');
+  if (one) return select({ type: 'node', id: one.dataset.one });
   const b = ev.target.closest('[data-act]');
   if (!b) return;
   const act = b.dataset.act;
@@ -321,6 +341,9 @@ el.addEventListener('click', (ev) => {
   if (act === 'rm-state') commit((doc) => { doc.state.splice(Number(b.closest('[data-state]').dataset.state), 1); });
   if (act === 'add-set') commit((doc) => { const n = doc.nodes.find((n) => n.id === sel.id); n.set ??= {}; const free = doc.state.find((f) => !(f.name in n.set)); if (free) n.set[free.name] = ''; });
   if (act === 'rm-set') commit((doc) => { const n = doc.nodes.find((n) => n.id === sel.id); const entries = Object.entries(n.set ?? {}); entries.splice(Number(b.closest('[data-set]').dataset.set), 1); n.set = Object.fromEntries(entries); });
+  if (act === 'align-left') alignSelected('left');
+  if (act === 'align-top') alignSelected('top');
+  if (act === 'rm-group') return deleteSelectedNodes();
   if (act === 'rm-node') { commit((doc) => { doc.nodes = doc.nodes.filter((n) => n.id !== sel.id); doc.edges = doc.edges.filter((e) => e.from !== sel.id && e.to !== sel.id); }); select(null); }
   if (act === 'rm-edge') { commit((doc) => { doc.edges = doc.edges.filter((e) => e.id !== sel.id); }); select(null); }
   if (act === 'rm-scn') { commit((doc) => { doc.scenarios = doc.scenarios.filter((s) => s.id !== sel.id); }); select(null); }

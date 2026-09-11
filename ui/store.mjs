@@ -13,7 +13,7 @@ export function emptyDoc(name = 'Untitled flow') {
 
 export const store = {
   doc: emptyDoc(),
-  selection: null,          // { type: 'node'|'edge'|'scenario', id }
+  selection: null,          // { type: 'node'|'edge'|'scenario', id } — a node selection may carry `ids` for a group; `id` is its first member
   view: { x: 40, y: 40, k: 1 },
   showCoverage: false,
   playhead: null,           // when animating: number of steps revealed
@@ -74,16 +74,34 @@ export function load(doc, { keepHistory = false } = {}) {
 }
 
 function afterLoad() {
-  if (store.selection && !exists(store.selection)) store.selection = null;
+  pruneSelection();
   recompute(); save(); emit();
 }
 
 export function select(sel) { store.selection = sel; store.playhead = null; emit(); }
 
+/** Select a group of nodes: one is a plain node selection, several carry `ids`, none clears it. */
+export function selectNodes(ids) {
+  ids = [...new Set(ids)].filter((id) => store.doc.nodes.some((n) => n.id === id));
+  select(!ids.length ? null : ids.length === 1 ? { type: 'node', id: ids[0] } : { type: 'node', id: ids[0], ids });
+}
+/** Every selected node id; empty unless nodes are selected. */
+export function selectedNodeIds() { const s = store.selection; return s?.type !== 'node' ? [] : (s.ids ?? [s.id]); }
+export function isSelectedNode(id) { return selectedNodeIds().includes(id); }
+
 export function exists(sel) {
   if (!sel) return false;
   const list = sel.type === 'node' ? store.doc.nodes : sel.type === 'edge' ? store.doc.edges : store.doc.scenarios;
   return list.some((x) => x.id === sel.id);
+}
+
+/** After undo, a load or a delete some selected nodes may be gone: keep the ones that remain. */
+function pruneSelection() {
+  const s = store.selection;
+  if (s?.type === 'node' && s.ids) {
+    const ids = s.ids.filter((id) => store.doc.nodes.some((n) => n.id === id));
+    store.selection = !ids.length ? null : ids.length === 1 ? { type: 'node', id: ids[0] } : { type: 'node', id: ids[0], ids };
+  } else if (s && !exists(s)) store.selection = null;
 }
 
 export function save() { try { localStorage.setItem(KEY, JSON.stringify(store.doc)); } catch {} }

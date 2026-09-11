@@ -2,7 +2,7 @@
 // scenario's path is painted over it in the accent colour, step by step, and whatever no scenario
 // ever reaches can be dimmed. Everything is re-rendered from the document on every change: the
 // drawings this is for are dozens of nodes, not thousands.
-import { store, commit, mark, select, uid, activeRun, emit } from './store.mjs';
+import { store, commit, mark, select, selectNodes, selectedNodeIds, isSelectedNode, uid, activeRun, emit } from './store.mjs';
 
 const svg = document.getElementById('canvas');
 const zoomPct = document.getElementById('zoomPct');
@@ -56,6 +56,7 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 // ---- render -----------------------------------------------------------------------------------
 
 let connecting = null; // { from, x, y, over }
+let marquee = null;    // { x0, y0, x1, y1 } in world coordinates while a rubber band is being drawn
 
 export function render() {
   const { doc, view, selection, showCoverage, results, problems, playhead } = store;
@@ -78,6 +79,8 @@ export function render() {
   const untouchedE = new Set(showCoverage && results ? results.coverage.untouchedEdges : []);
   const badN = new Set(problems.filter((p) => p.node).map((p) => p.node));
   const badE = new Set(problems.filter((p) => p.edge).map((p) => p.edge));
+  const selN = new Set(selectedNodeIds());
+  const group = selN.size > 1;
 
   let out = `<defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3af"/></marker>
@@ -91,7 +94,8 @@ export function render() {
     const { d, mid } = edgePath(a, b);
     const sel = selection?.type === 'edge' && selection.id === e.id;
     const on = edgesOn.has(e.id);
-    const cls = ['edge', sel && 'selected', on && 'on', e.else && 'else', untouchedE.has(e.id) && 'untouched', badE.has(e.id) && 'bad'].filter(Boolean).join(' ');
+    const linked = group && selN.has(e.from) && selN.has(e.to);
+    const cls = ['edge', sel && 'selected', linked && 'linked', on && 'on', e.else && 'else', untouchedE.has(e.id) && 'untouched', badE.has(e.id) && 'bad'].filter(Boolean).join(' ');
     const full = e.else ? 'else' : (e.when?.trim() || e.label || '');
     const text = full.length > 34 ? full.slice(0, 32) + '…' : full;
     const marker = sel ? 'arrow-sel' : on ? 'arrow-on' : 'arrow';
@@ -105,7 +109,7 @@ export function render() {
 
   for (const n of doc.nodes) {
     const g = gs.get(n.id);
-    const sel = selection?.type === 'node' && selection.id === n.id;
+    const sel = selN.has(n.id);
     const steps = nodeSteps.get(n.id);
     const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', untouchedN.has(n.id) && 'untouched', badN.has(n.id) && 'bad', connecting?.over === n.id && 'target'].filter(Boolean).join(' ');
     out += `<g class="${cls}" data-node="${n.id}">${shape(n, g)}`;
@@ -131,6 +135,10 @@ export function render() {
     const a = gs.get(connecting.from);
     if (a) out += `<path class="connecting" d="M${a.x + a.w},${a.cy} L${connecting.x},${connecting.y}"/>`;
   }
+  if (marquee) {
+    const r = rectOf(marquee);
+    out += `<rect class="marquee" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/>`;
+  }
   out += `</g>`;
 
   if (!doc.nodes.length) {
@@ -148,8 +156,14 @@ function toWorld(ev) {
   return { x: (ev.clientX - r.left - store.view.x) / store.view.k, y: (ev.clientY - r.top - store.view.y) / store.view.k };
 }
 const snap = (v) => Math.round(v / GRID) * GRID;
+const rectOf = ({ x0, y0, x1, y1 }) => ({ x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) });
+/** The nodes whose box overlaps the rubber band. Touching is enough: nobody wants to cover a whole box to catch it. */
+function nodesIn(m) {
+  const r = rectOf(m);
+  return store.doc.nodes.filter((n) => { const g = geom(n); return g.x < r.x + r.w && g.x + g.w > r.x && g.y < r.y + r.h && g.y + g.h > r.y; }).map((n) => n.id);
+}
 
-let drag = null; // { mode: 'pan'|'node'|'connect', ... }
+let drag = null; // { mode: 'pan'|'node'|'connect'|'marquee'|'none', ... }
 
 svg.addEventListener('pointerdown', (ev) => {
   if (ev.button !== 0) return;
@@ -164,12 +178,26 @@ svg.addEventListener('pointerdown', (ev) => {
     svg.classList.add('connecting');
     render();
   } else if (nodeEl) {
-    const node = store.doc.nodes.find((n) => n.id === nodeEl.dataset.node);
-    drag = { mode: 'node', id: node.id, ox: w.x - node.x, oy: w.y - node.y, moved: false };
-    if (!(store.selection?.type === 'node' && store.selection.id === node.id)) select({ type: 'node', id: node.id });
+    const id = nodeEl.dataset.node;
+    if (ev.shiftKey) {
+      // Shift-click adds a node to the group or takes it out again; nothing moves.
+      const ids = selectedNodeIds();
+      selectNodes(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+      drag = { mode: 'none' };
+      return;
+    }
+    // Pressing a node that is already in the group keeps the group, so the whole of it can be dragged.
+    if (!isSelectedNode(id)) select({ type: 'node', id });
+    const nodes = selectedNodeIds().map((nid) => { const n = store.doc.nodes.find((x) => x.id === nid); return { id: nid, x: n.x, y: n.y }; });
+    drag = { mode: 'node', start: w, nodes, moved: false };
   } else if (edgeEl) {
     select({ type: 'edge', id: edgeEl.dataset.edge });
     drag = { mode: 'none' };
+  } else if (ev.shiftKey) {
+    marquee = { x0: w.x, y0: w.y, x1: w.x, y1: w.y };
+    drag = { mode: 'marquee', add: selectedNodeIds() };
+    svg.classList.add('selecting');
+    render();
   } else {
     drag = { mode: 'pan', sx: ev.clientX, sy: ev.clientY, vx: store.view.x, vy: store.view.y, moved: false };
     svg.classList.add('dragging');
@@ -193,8 +221,15 @@ svg.addEventListener('pointermove', (ev) => {
   } else if (drag.mode === 'node') {
     if (!drag.moved) { drag.moved = true; mark(); svg.classList.add('moving'); }
     // Positions land on the grid unless Alt is held, which is the escape hatch for fine placement.
+    // Every node in the group moves by the same offset from where it started, so the group keeps its shape.
     const place = ev.altKey ? Math.round : snap;
-    commit((d) => { const n = d.nodes.find((n) => n.id === drag.id); n.x = place(w.x - drag.ox); n.y = place(w.y - drag.oy); }, { quiet: true });
+    const dx = w.x - drag.start.x, dy = w.y - drag.start.y;
+    commit((d) => {
+      for (const s of drag.nodes) { const n = d.nodes.find((n) => n.id === s.id); if (n) { n.x = place(s.x + dx); n.y = place(s.y + dy); } }
+    }, { quiet: true });
+  } else if (drag.mode === 'marquee') {
+    marquee.x1 = w.x; marquee.y1 = w.y;
+    render();
   } else if (drag.mode === 'connect') {
     connecting.x = w.x; connecting.y = w.y;
     connecting.over = nodeUnder(ev, connecting.from);
@@ -204,8 +239,14 @@ svg.addEventListener('pointermove', (ev) => {
 
 svg.addEventListener('pointerup', (ev) => {
   if (!drag) return;
-  svg.classList.remove('dragging', 'moving', 'connecting');
+  svg.classList.remove('dragging', 'moving', 'connecting', 'selecting');
   if (drag.mode === 'pan' && !drag.moved) select(null);
+  if (drag.mode === 'marquee') {
+    // Shift-drag from empty canvas adds what the band touches to whatever was already selected.
+    const caught = nodesIn(marquee);
+    marquee = null;
+    selectNodes([...drag.add, ...caught]);
+  }
   if (drag.mode === 'connect') {
     const to = nodeUnder(ev, connecting.from);
     const from = connecting.from;
@@ -225,7 +266,7 @@ svg.addEventListener('dblclick', (ev) => {
   if (nodeEl) {
     // The node is already selected by the pointerdown; the inspector has rendered its fields by
     // the time the next tick runs, so put the cursor straight into the label.
-    if (!(store.selection?.type === 'node' && store.selection.id === nodeEl.dataset.node)) select({ type: 'node', id: nodeEl.dataset.node });
+    if (!(store.selection?.type === 'node' && !store.selection.ids && store.selection.id === nodeEl.dataset.node)) select({ type: 'node', id: nodeEl.dataset.node });
     setTimeout(() => { const el = document.querySelector('#inspector [data-node="label"]'); if (el) { el.focus(); el.select?.(); } }, 0);
     return;
   }
@@ -260,18 +301,19 @@ for (const b of document.querySelectorAll('#zoom [data-zoom]')) b.addEventListen
   else if (z === 'tidy') tidy();
 });
 
-// Arrow keys nudge the selected node one grid step (five with Shift). The snapshot is taken on the
+// Arrow keys nudge the selected nodes one grid step (five with Shift). The snapshot is taken on the
 // first press and the rest are quiet, so holding a key down is one undo step, like a drag.
 let nudging = false;
 window.addEventListener('keydown', (ev) => {
   const t = ev.target;
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t?.tagName) || t?.isContentEditable) return;
   const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key];
-  if (!dir || ev.metaKey || ev.ctrlKey || store.selection?.type !== 'node') return;
+  const ids = selectedNodeIds();
+  if (!dir || ev.metaKey || ev.ctrlKey || !ids.length) return;
   ev.preventDefault();
-  const step = GRID * (ev.shiftKey ? 5 : 1), id = store.selection.id;
+  const step = GRID * (ev.shiftKey ? 5 : 1);
   if (!nudging) { nudging = true; mark(); }
-  commit((d) => { const n = d.nodes.find((n) => n.id === id); if (n) { n.x = snap(n.x) + dir[0] * step; n.y = snap(n.y) + dir[1] * step; } }, { quiet: true });
+  commit((d) => { for (const n of d.nodes) if (ids.includes(n.id)) { n.x = snap(n.x) + dir[0] * step; n.y = snap(n.y) + dir[1] * step; } }, { quiet: true });
 });
 window.addEventListener('keyup', () => { nudging = false; });
 
@@ -361,3 +403,23 @@ export function tidy() {
 }
 
 window.addEventListener('resize', render);
+
+/** Line the selected nodes up on their leftmost edge or their topmost edge, in one undo step. */
+export function alignSelected(axis) {
+  const ids = selectedNodeIds();
+  if (ids.length < 2) return;
+  const key = axis === 'left' ? 'x' : 'y';
+  commit((d) => {
+    const picked = d.nodes.filter((n) => ids.includes(n.id));
+    const v = Math.min(...picked.map((n) => n[key]));
+    for (const n of picked) n[key] = v;
+  });
+}
+
+/** Remove every selected node and each edge that touched one of them, in one undo step. */
+export function deleteSelectedNodes() {
+  const ids = new Set(selectedNodeIds());
+  if (!ids.size) return;
+  commit((d) => { d.nodes = d.nodes.filter((n) => !ids.has(n.id)); d.edges = d.edges.filter((e) => !ids.has(e.from) && !ids.has(e.to)); });
+  select(null);
+}

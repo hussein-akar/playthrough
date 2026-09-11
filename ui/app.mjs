@@ -1,4 +1,4 @@
-import { store, subscribe, commit, load, restore, restoreDirty, setDirty, undo, redo, select, emit } from './store.mjs';
+import { store, subscribe, commit, load, restore, restoreDirty, setDirty, undo, redo, select, selectNodes, emit } from './store.mjs';
 import { toMarkdown } from '../lib/markdown.mjs';
 import * as canvas from './canvas.mjs';
 import * as inspector from './inspector.mjs';
@@ -182,11 +182,12 @@ document.addEventListener('keydown', (ev) => {
   const mod = ev.metaKey || ev.ctrlKey;
   if (mod && ev.key.toLowerCase() === 'z') { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); return; }
   if (typing) return;
+  if (mod && ev.key.toLowerCase() === 'a') { ev.preventDefault(); selectNodes(store.doc.nodes.map((n) => n.id)); return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && store.selection) {
     ev.preventDefault();
     const sel = store.selection;
+    if (sel.type === 'node') return canvas.deleteSelectedNodes();
     commit((d) => {
-      if (sel.type === 'node') { d.nodes = d.nodes.filter((n) => n.id !== sel.id); d.edges = d.edges.filter((e) => e.from !== sel.id && e.to !== sel.id); }
       if (sel.type === 'edge') d.edges = d.edges.filter((e) => e.id !== sel.id);
       if (sel.type === 'scenario') d.scenarios = d.scenarios.filter((s) => s.id !== sel.id);
     });
