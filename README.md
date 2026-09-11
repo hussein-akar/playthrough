@@ -45,6 +45,17 @@ deliveryDate == null
 
 Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons and arithmetic are all there is.
 
+The panel checks a condition or a set expression as you type: a name nobody declared or a
+missing bracket shows up under the field at once. Renaming an input or a state field rewrites
+every guard, set and scenario cell that mentioned it, in one undoable step.
+
+## Drawing
+
+The canvas has a zoom corner (−, +, fit, 1:1, with the current percentage) and a **Tidy**
+button that lays the flow out left to right from the start node, in one undoable step. Nodes
+snap to a 20px grid while dragging (hold Alt for free placement); arrow keys nudge the selected
+node by one grid step, Shift by five. Double-click a node to edit its label straight away.
+
 ## Playing a scenario
 
 At each node the runner looks at the edges leaving it. Exactly one must match: the one whose
@@ -57,6 +68,12 @@ needs to see.
 A scenario passes when every expected action happened, nothing unexpected happened, it landed
 where it said it would, and each expected state field holds. In the expected-state cell, `*`
 means *any value but null*, `null` means null, anything else is compared to the value.
+
+In the scenario panel, expected actions are listed in the order the flow meets them, each marked
+✓ or ✗ for the last run, and every step of the result path is a link to its node. When a
+scenario fails and it is the drawing that is right, **Use this run as the expectation** (or
+*accept run* in the row) copies what actually happened into the expectation. In the table, Enter
+on the last row starts the next scenario and *+N more* opens the full list of issues.
 
 **Coverage** dims every node and edge that no scenario touches. In a review, "nobody wrote a
 scenario for the else branch" is the sentence you want before the code exists.
@@ -72,6 +89,9 @@ scenario for the else branch" is the sentence you want before the code exists.
 | ⌘Z · ⇧⌘Z | undo · redo |
 | Space, with a scenario selected | play it step by step |
 | F | fit the drawing to the window |
+| arrow keys · ⇧ arrow keys | nudge the selected node one grid step · five |
+| Alt while dragging a node | place it off the grid |
+| double-click a node | edit its label |
 | Esc | clear the selection |
 | ? | this table, in the page |
 | drop a `.json` file on the page | open it |
