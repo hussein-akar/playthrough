@@ -138,6 +138,33 @@
   td .why { color: var(--muted); font-weight: 400; margin-left: 6px; }
   td.tools { text-align: right; }
   .empty { padding: 20px; color: var(--muted); }
+
+  /* ---- app ---- */
+  #saveDoc.dirty::after { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); margin-left: 6px; vertical-align: 1px; }
+  header .menu { position: relative; }
+  header .menu summary { list-style: none; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 10px; cursor: pointer; user-select: none; }
+  header .menu summary::-webkit-details-marker { display: none; }
+  header .menu summary:hover, header .menu[open] summary { border-color: #b9c0ca; background: #fafbfc; }
+  header .menu .items { position: absolute; top: 32px; left: 0; z-index: 20; min-width: 180px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.1); }
+  header .menu .items button { border: 0; text-align: left; border-radius: 5px; padding: 6px 10px; white-space: nowrap; }
+  header .menu .items button:hover { background: #eef1f5; }
+  dialog { border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 320px; max-width: 520px; box-shadow: 0 12px 40px rgba(0,0,0,.18); color: var(--ink); }
+  dialog::backdrop { background: rgba(28,36,48,.35); }
+  dialog h3 { margin: 0 0 8px; font-size: 14px; }
+  dialog #modalBody { color: var(--muted); white-space: pre-wrap; }
+  dialog #modalBody textarea { width: 100%; min-height: 160px; margin-top: 8px; color: var(--ink); }
+  dialog .buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  dialog .buttons button.danger { border-color: var(--bad); background: var(--bad); color: white; }
+  dialog table.keys td { padding: 3px 10px 3px 0; border: 0; white-space: normal; }
+  dialog table.keys td:first-child { color: var(--muted); }
+  kbd { font: 11px var(--mono); background: #f1f3f6; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink); }
+  #drop { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; background: rgba(47,111,237,.12); border: 3px dashed var(--accent); pointer-events: none; }
+  #drop.show { display: flex; }
+  #drop div { background: var(--panel); border-radius: 10px; padding: 14px 22px; font-size: 15px; color: var(--accent); box-shadow: 0 4px 14px rgba(0,0,0,.1); }
+  #toasts { position: fixed; left: 50%; bottom: 296px; transform: translateX(-50%); z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+  #toasts .toast { background: var(--ink); color: white; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.2); animation: toast-in .18s ease-out; }
+  #toasts .toast.out { opacity: 0; transition: opacity .3s; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 </style>
 </head>
 <body>
@@ -154,8 +181,16 @@
     <button id="redo" title="⇧⌘Z">Redo</button>
     <div class="sep"></div>
     <button id="coverage" class="toggle" title="Dim what no scenario touches">Coverage</button>
+    <details id="share" class="menu">
+      <summary title="Copy the flow as text or as a link">Share ▾</summary>
+      <div class="items">
+        <button id="copyMarkdown">Copy as Markdown</button>
+        <button id="copyLink">Copy link</button>
+      </div>
+    </details>
     <div class="spacer"></div>
     <div class="summary" id="summary"></div>
+    <button id="help" class="icon" title="Keyboard shortcuts (?)">?</button>
   </header>
 
   <div id="stage">
@@ -181,6 +216,34 @@
     </div>
     <div class="scroll"><table id="table"></table></div>
   </section>
+
+  <dialog id="modal">
+    <form method="dialog">
+      <h3 id="modalTitle"></h3>
+      <div id="modalBody"></div>
+      <div class="buttons"><button id="modalCancel" value="cancel">Cancel</button><button id="modalOk" value="ok" class="primary">OK</button></div>
+    </form>
+  </dialog>
+  <dialog id="helpDialog">
+    <form method="dialog">
+      <h3>Keys</h3>
+      <table class="keys">
+        <tr><td><kbd>drag</kbd> empty canvas · <kbd>wheel</kbd></td><td>pan · zoom</td></tr>
+        <tr><td><kbd>double-click</kbd> empty canvas</td><td>add an action node there</td></tr>
+        <tr><td><kbd>drag</kbd> from a node's ○ port onto a node</td><td>connect them</td></tr>
+        <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected node, edge or scenario</td></tr>
+        <tr><td><kbd>⌘Z</kbd> · <kbd>⇧⌘Z</kbd></td><td>undo · redo</td></tr>
+        <tr><td><kbd>Space</kbd>, with a scenario selected</td><td>play it step by step</td></tr>
+        <tr><td><kbd>F</kbd></td><td>fit the drawing to the window</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>clear the selection</td></tr>
+        <tr><td><kbd>?</kbd></td><td>this list</td></tr>
+        <tr><td>drop a <code>.json</code> file on the page</td><td>open it</td></tr>
+      </table>
+      <div class="buttons"><button value="close" class="primary">Close</button></div>
+    </form>
+  </dialog>
+  <div id="drop"><div>Drop the flow file to open it</div></div>
+  <div id="toasts"></div>
 
   <input id="fileInput" type="file" accept="application/json,.json" hidden>
   <script type="module" src="ui/app.mjs"></script>

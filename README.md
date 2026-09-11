@@ -72,11 +72,25 @@ scenario for the else branch" is the sentence you want before the code exists.
 | ⌘Z · ⇧⌘Z | undo · redo |
 | Space, with a scenario selected | play it step by step |
 | F | fit the drawing to the window |
+| Esc | clear the selection |
+| ? | this table, in the page |
+| drop a `.json` file on the page | open it |
 
 ## The file
 
-**Save** downloads the flow as JSON; **Open…** reads one back. The browser also keeps the current
-flow between reloads. The shape is small enough to write by hand or generate:
+**Save** downloads the flow as JSON; **Open…** reads one back, and so does dropping the file
+anywhere on the page. The browser also keeps the current flow between reloads, but that is not a
+file: a dot next to **Save** (and in the tab title) means the flow has changed since it was last
+saved or opened, and the page will say so before you close it or replace it with **New** or
+**Example**.
+
+**Share ▾** has two ways out that need no file. *Copy as Markdown* puts the flow on the clipboard
+as a spec: inputs, state, every decision with its branches, and the scenario table with each row's
+current pass or fail, ready for a ticket or a pull request. *Copy link* puts the whole flow in the
+URL (compressed, nothing leaves the browser); whoever opens the link gets the flow, and the page
+drops the hash once it has read it. Flows too big for a link are told so; use **Save**.
+
+The shape is small enough to write by hand or generate:
 
 ```json
 {
@@ -103,6 +117,7 @@ See `examples/order.json` for the whole thing.
 ```
 lib/expr.mjs     the condition language: tokenizer, parser, evaluator, name check
 lib/run.mjs      the interpreter: run, verdict, runAll (with coverage), lint
+lib/markdown.mjs the flow as a Markdown spec, for Share ▾
 ui/store.mjs     the document, selection, undo, autosave
 ui/canvas.mjs    the SVG drawing and its pointer interactions
 ui/inspector.mjs the side panel for whatever is selected
