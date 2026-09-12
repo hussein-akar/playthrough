@@ -12,6 +12,9 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 export const editing = (node) => { const a = document.activeElement; return node.contains(a) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName); };
 const opt = (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** Up and down arrows for the k-th of n rows, greyed at the ends. */
+const mover = (act, k, n) => `<span class="mover"><button class="icon" data-act="${act}" data-dir="-1" title="Move up" ${k === 0 ? 'disabled' : ''}>↑</button><button class="icon" data-act="${act}" data-dir="1" title="Move down" ${k === n - 1 ? 'disabled' : ''}>↓</button></span>`;
+const swap = (list, k, dir) => { const j = k + dir; if (j < 0 || j >= list.length) return; [list[k], list[j]] = [list[j], list[k]]; };
 const RESERVED = new Set(['and', 'or', 'not', 'in', 'true', 'false', 'null', 'where']);   // the words of the condition language, which a name cannot be
 
 export function render() {
@@ -40,7 +43,7 @@ function flowView(doc) {
     <div class="row" data-input="${k}">
       <input type="text" data-f="name" data-check value="${esc(i.name)}" placeholder="name">
       <select data-f="type">${['enum', 'boolean', 'number', 'text', 'list'].map((t) => opt(t, i.type)).join('')}</select>
-      <button class="icon danger" data-act="rm-input" title="Remove">×</button>
+      ${mover('mv-input', k, doc.inputs.length)}<button class="icon danger" data-act="rm-input" title="Remove">×</button>
     </div><div class="errs"></div>
     ${i.type === 'enum' ? `<div class="field" data-input="${k}"><input type="text" data-f="values" data-check value="${esc((i.values ?? []).join(', '))}" placeholder="values, comma separated"><div class="errs"></div></div>` : ''}
     ${i.type === 'list' ? `<div class="fields" data-input="${k}">
@@ -48,7 +51,7 @@ function flowView(doc) {
         <input type="text" data-f="fname" data-check value="${esc(f.name)}" placeholder="field">
         <select data-f="ftype">${['enum', 'boolean', 'number', 'text'].map((t) => opt(t, f.type)).join('')}</select>
         ${f.type === 'enum' ? `<input type="text" data-f="fvalues" value="${esc((f.values ?? []).join(', '))}" placeholder="values">` : ''}
-        <button class="icon danger" data-act="rm-field" title="Remove">×</button>
+        ${mover('mv-field', j, i.fields.length)}<button class="icon danger" data-act="rm-field" title="Remove">×</button>
       </div><div class="errs"></div>`).join('')}
       <div class="actions"><button class="small" data-act="add-field">+ Field</button><span class="muted">a record of each list item; a scenario writes items as <code>status=OPEN, linked=yes</code>, one per line</span></div>
     </div>` : ''}`).join('');
@@ -56,7 +59,7 @@ function flowView(doc) {
     <div class="row" data-state="${k}">
       <input type="text" data-f="name" data-check value="${esc(f.name)}" placeholder="field">
       <input type="text" class="expr" data-f="initial" data-check value="${esc(f.initial ?? '')}" placeholder="initial value" title="The value before any action sets it. Blank means null.">
-      <button class="icon danger" data-act="rm-state" title="Remove">×</button>
+      ${mover('mv-state', k, doc.state.length)}<button class="icon danger" data-act="rm-state" title="Remove">×</button>
     </div><div class="errs"></div>`).join('');
   return `
     <h2>Flow</h2>
@@ -457,6 +460,9 @@ el.addEventListener('click', (ev) => {
   if (act === 'rm-rec') { const box = b.closest('[data-records]'), i = store.doc.inputs.find((x) => x.name === box.dataset.records), fields = (i?.fields ?? []).filter((f) => f.name), k = Number(b.closest('[data-rec]').dataset.rec); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const have = parseRecords(s.inputs[i.name], fields); have.splice(k, 1); s.inputs[i.name] = recordsText(have, fields); }); }
   if (act === 'records-text') recordsAsText.add(b.dataset.list);
   if (act === 'records-form') recordsAsText.delete(b.dataset.list);
+  if (act === 'mv-input') commit((doc) => swap(doc.inputs, Number(b.closest('[data-input]').dataset.input), Number(b.dataset.dir)));
+  if (act === 'mv-state') commit((doc) => swap(doc.state, Number(b.closest('[data-state]').dataset.state), Number(b.dataset.dir)));
+  if (act === 'mv-field') commit((doc) => swap(doc.inputs[Number(b.closest('[data-input]').dataset.input)].fields, Number(b.closest('[data-lf]').dataset.lf), Number(b.dataset.dir)));
   if (act === 'add-field') commit((doc) => { const i = doc.inputs[Number(b.closest('[data-input]').dataset.input)]; i.fields ??= []; i.fields.push({ name: `field${i.fields.length + 1}`, type: 'text' }); });
   if (act === 'rm-field') commit((doc) => { const i = doc.inputs[Number(b.closest('[data-input]').dataset.input)]; i.fields.splice(Number(b.closest('[data-lf]').dataset.lf), 1); });
   if (act === 'add-state') commit((doc) => { doc.state.push({ name: `field${doc.state.length + 1}`, initial: null }); });

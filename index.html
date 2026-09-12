@@ -270,6 +270,10 @@
   #inspector .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
   #inspector .row > * { flex: 1; min-width: 0; }
   #inspector .row > button { flex: 0 0 auto; }
+  #inspector .row > .mover { flex: 0 0 auto; display: inline-flex; }
+  #inspector .mover button { width: 18px; height: var(--ctl); padding: 0; border-color: transparent; background: transparent; color: var(--faint); font-size: 12px; }
+  #inspector .mover button:hover:not(:disabled) { color: var(--ink); background: var(--line-2); }
+  #inspector .mover button:disabled { opacity: .3; }
   #inspector .errs { margin: -2px 0 8px; }
   /* The status colour of an edge: a row of small swatches, the chosen one tinted. */
   #inspector .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
