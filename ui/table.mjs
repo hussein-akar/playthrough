@@ -2,6 +2,7 @@
 // verdict sits at the end of the row and updates as you type, because the run is free.
 import { store, commit, select, emit, uid, parseTags, tagSummary } from './store.mjs';
 import { inputControl, editing, acceptRun } from './inspector.mjs';
+import { parseRecords } from '../lib/run.mjs';
 
 const table = document.getElementById('table');
 const tagBar = document.getElementById('tagBar');
@@ -38,7 +39,7 @@ export function render() {
       <td class="muted">${k + 1}</td>
       <td><input type="text" class="name" data-f="name" value="${esc(s.name)}" placeholder="what is being tried"></td>
       ${tagged ? `<td><input type="text" class="tags" data-f="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12" title="Tags, comma-separated"></td>` : ''}
-      ${doc.inputs.map((i) => `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`, true)}</td>`).join('')}
+      ${doc.inputs.map((i) => (i.type === 'list' ? `<td class="list" data-list="${esc(i.name)}">${listCell(i, s)}</td>` : `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`, true)}</td>`)).join('')}
       <td class="expect actions">${chips(s, results)}</td>
       <td class="expect"><select data-f="end"><option value="">any</option>${ends.map((e) => `<option value="${esc(e)}" ${s.expect.end === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></td>
       ${doc.state.map((f) => `<td class="expect"><input type="text" class="st expr" data-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}" placeholder="*, null, value, == 1" title="* any value · null · the value · a check such as == 1, size > 0, count(notices where linked) == 1"></td>`).join('')}
@@ -78,6 +79,22 @@ tagBar.addEventListener('click', (ev) => {
 
 function resultFor(s, results) { return results?.results.find((r) => r.scenario.id === s.id); }
 
+/**
+ * A list input's records, one chip each, read only: text with newlines in it does not fit a
+ * table cell, so the records are edited in the panel, where each is a row of controls. Clicking
+ * the cell selects the row, which shows them.
+ */
+function listCell(i, s) {
+  const value = s.inputs[i.name];
+  let records;
+  try { records = parseRecords(value, i.fields ?? []); }
+  catch (e) { return `<span class="bad" title="${esc(e.message)}">could not be read · fix in the panel</span>`; }
+  if (!records.length) return `<span class="muted" title="Click the row and add records in the panel">no records</span>`;
+  const word = (v) => (v == null || v === '' ? '∅' : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v));
+  const fields = (i.fields ?? []).map((f) => f.name);
+  return `<div class="chips recs" title="${esc(fields.join(' · '))} · edit in the panel">${records.map((r) => `<span class="chip" title="${esc(fields.map((f) => `${f}=${word(r[f])}`).join(', '))}">${esc(fields.map((f) => word(r[f])).join(' · '))}</span>`).join('')}</div>`;
+}
+
 function chips(s, results) {
   const r = resultFor(s, results);
   const missing = new Set(r?.verdict.issues.filter((i) => i.kind === 'missing-action').map((i) => i.action));
@@ -112,7 +129,8 @@ function patch() {
     const s = doc.scenarios.find((s) => s.id === tr.dataset.row);
     if (!s) continue;
     tr.classList.toggle('active', selection?.type === 'scenario' && selection.id === s.id);
-    for (const [sel, html] of [['td.expect', chips(s, results)], ['td.result', status(s, results)]]) { const td = tr.querySelector(sel); if (td.written !== html) { td.innerHTML = html; td.written = html; } }
+    const cells = [['td.expect', chips(s, results)], ['td.result', status(s, results)], ...doc.inputs.filter((i) => i.type === 'list').map((i) => [`td[data-list="${CSS.escape(i.name)}"]`, listCell(i, s)])];
+    for (const [sel, html] of cells) { const td = tr.querySelector(sel); if (td && td.written !== html) { td.innerHTML = html; td.written = html; } }
     tr.hidden = Boolean(store.tagFilter) && !(s.tags ?? []).includes(store.tagFilter);
     for (const c of tr.querySelectorAll('input, select')) {
       if (c === document.activeElement) continue;

@@ -15,6 +15,8 @@ const loadFolded = () => { folded.clear(); try { for (const f of JSON.parse(loca
 const saveFolded = () => { try { localStorage.setItem(foldKey(), JSON.stringify([...folded])); } catch {} };
 const folderOf = (file) => (file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '');
 const leaf = (path) => path.split('/').pop();
+/** A group's folder name is kept as typed, less anything a path segment cannot hold (the same rule as the server's). */
+const folderName = (x) => String(x ?? '').replace(/[^A-Za-z0-9 ._-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/^[^A-Za-z0-9]+/, '');
 
 /** Handlers the app plugs in: how to fit the canvas, how to ask before dropping unsaved work. */
 export const hooks = { fit() {}, replaceable: async () => true };
@@ -104,7 +106,7 @@ export async function renameProject(name) {
 /** A fresh, empty flow, in `folder` (the root by default). */
 export async function create(folder = '') {
   if (!await hooks.replaceable('start a new flow')) return;
-  const name = await prompt({ title: 'New flow', body: `A new file in ${project.info.dir}${folder ? `/${folder}` : ''}. A / in the name puts the flow in a group, made if it is not there yet: billing/refund intake.`, placeholder: 'What the feature is called', ok: 'Create' });
+  const name = await prompt({ title: 'New flow', body: `A new file in ${project.info.dir}${folder ? `/${folder}` : ''}. A / in the name puts the flow in a group, made if it is not there yet: Billing/refund intake.`, placeholder: 'What the feature is called', ok: 'Create' });
   if (name == null) return;
   try {
     const { file, mtime } = await call('POST', '/api/flows', { name, doc: {}, folder });
@@ -120,7 +122,7 @@ export async function create(folder = '') {
 /** Another file name for a flow, made from what is typed the way a new file's name is; slashes move it into folders. */
 export async function rename(file) {
   const current = leaf(file).replace(/\.json$/, '');
-  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. A / puts it in a group, billing/intake, made if it is not there yet. The flow keeps its own name.', value: current, ok: 'Rename' });
+  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. A / puts it in a group, Billing/intake, made if it is not there yet. The flow keeps its own name.', value: current, ok: 'Rename' });
   if (name == null) return;
   return move(file, { name });
 }
@@ -141,18 +143,18 @@ async function move(file, { name = leaf(file).replace(/\.json$/, ''), folder = n
 
 /** A new group (a folder on disk), under `parent` (the root by default). */
 export async function createFolder(parent = '') {
-  const name = await prompt({ title: 'New group', body: `A folder in ${project.info.dir}${parent ? `/${parent}` : ''} to keep related flows together. Its name is made lower-case, words joined by dashes; a / nests groups.`, placeholder: 'Group name', ok: 'Create' });
+  const name = await prompt({ title: 'New group', body: `A folder in ${project.info.dir}${parent ? `/${parent}` : ''} to keep related flows together, named as you type it; a / nests groups.`, placeholder: 'Group name', ok: 'Create' });
   if (name == null) return;
-  const slug = name.split('/').map((x) => x.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')).filter(Boolean).join('/');
-  if (!slug) return;
-  const path = parent ? `${parent}/${slug}` : slug;
+  const clean = name.split('/').map(folderName).filter(Boolean).join('/');
+  if (!clean) return notice('Not a name a folder can have', 'Use letters, digits, spaces, dots, dashes or underscores.');
+  const path = parent ? `${parent}/${clean}` : clean;
   try { await call('POST', '/api/folders', { path }); folded.delete(path); saveFolded(); toast(`Created ${path}/`); refresh(); }
   catch (e) { notice('Could not create the folder', e.message); }
 }
 
 /** Another name for a group, made the way a new group's is; everything in it comes along, and the open flow's path follows. */
 export async function renameFolder(path) {
-  const name = await prompt({ title: `Rename the group ${path}/`, body: 'The folder name is made from this: lower-case, words joined by dashes. A / moves it under other groups, billing/holds. The flows in it come along.', value: leaf(path), ok: 'Rename' });
+  const name = await prompt({ title: `Rename the group ${path}/`, body: 'The folder is named as you type it. A / moves it under other groups, Billing/Holds. The flows in it come along.', value: leaf(path), ok: 'Rename' });
   if (name == null) return;
   return moveFolder(path, { name });
 }

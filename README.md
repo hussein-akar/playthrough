@@ -177,8 +177,8 @@ a group dragged onto another group moves there, a group with everything in it; d
 list's empty space it goes back to the root. Each flow shows its pass count (`3/4`), a ⚠ when the drawing
 has problems, and *no scenarios* when nobody has written any yet. Click one to open it. **+ Flow**
 starts a new file, and a `/` in its name puts it in a group, made if it is not there yet
-(`billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty
-group; **Save** (or ⌘S) writes the open flow back to its file, and a flow that came in through
+(`Billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty
+group, named as you type it; **Save** (or ⌘S) writes the open flow back to its file, and a flow that came in through
 **New**, **Open…**, **Import**, a preset or a link is added to the folder the first time it is saved. On a
 row, ✎ renames the file (a `/` moves it; the flow keeps its own name) and × deletes it; a group's
 ✎ renames the folder, with everything in it coming along (a `/` moves it under other groups), and

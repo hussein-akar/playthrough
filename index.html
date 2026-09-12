@@ -319,7 +319,8 @@
   #inspector .records .rec.head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #inspector .records .rec.head > .x { flex: 0 0 var(--ctl); }
   #inspector .records .actions { margin-top: 2px; }
-  #table input.records { font-family: var(--mono); font-size: var(--fs-xs); }
+  #table td.list { max-width: 260px; white-space: normal; }
+  #table .chips.recs .chip { font-family: var(--mono); background: var(--panel-2); border: 1px solid var(--line-2); }
   /* The flow in the panel: a card per section, its items as rows. */
   #inspector .card { margin: 0 0 12px; padding: 10px 12px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
   #inspector .card .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
