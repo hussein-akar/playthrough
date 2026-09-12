@@ -67,8 +67,7 @@ export function edgePath(a, b, fromSide, toSide, shape, via) {
   const na = NORMAL[fs], nb = NORMAL[ts];
   if (shape === 'square') {
     const pts = via ? viaRoute(p, q, na, nb, via) : squareRoute(p, q, na, nb, a, b);
-    // The pill rides the wire at the point nearest the pull, so it stays under the pointer while the wire is dragged.
-    return { d: rounded(pts), mid: via ? nearestOn(pts, via) : midOf(pts), pts };
+    return { d: rounded(pts), mid: midOf(pts), pts };
   }
   if (via) {
     const d1 = reach(p, via), d2 = reach(via, q), len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
@@ -139,18 +138,6 @@ function viaRoute(p, q, na, nb, V) {
   else mids = [{ x: a.x, y: V.y }, { x: b.x, y: V.y }];
   const pts = [p, a, ...mids, b, q].filter((c, i, all) => !i || Math.abs(c.x - all[i - 1].x) > 0.01 || Math.abs(c.y - all[i - 1].y) > 0.01);
   return pts.filter((c, i) => !i || i === pts.length - 1 || !((pts[i - 1].x === c.x && c.x === pts[i + 1].x) || (pts[i - 1].y === c.y && c.y === pts[i + 1].y)));
-}
-
-/** The point on a polyline nearest to V. */
-function nearestOn(pts, V) {
-  let best = [pts[0].x, pts[0].y], bd = Infinity;
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1], b = pts[i], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1;
-    const t = Math.max(0, Math.min(1, ((V.x - a.x) * dx + (V.y - a.y) * dy) / l2));
-    const x = a.x + dx * t, y = a.y + dy * t, d = Math.hypot(V.x - x, V.y - y);
-    if (d < bd) { bd = d; best = [x, y]; }
-  }
-  return best;
 }
 
 /** A polyline as a path whose corners are rounded off, as far as the runs on either side allow. */
@@ -243,8 +230,10 @@ export function render() {
     const tip = label && (when || e.else) ? `${label} · ${e.else ? 'else' : when}` : full;
     out += `<g class="${cls}" data-edge="${e.id}"><title>${esc(tip)}</title><path class="grab" d="${d}"/><path class="wire" d="${d}" marker-end="url(#${marker})"/>`;
     if (text) {
-      const w = text.length * 6.6 + 14;
-      out += `<g class="label"><rect x="${mid[0] - w / 2}" y="${mid[1] - 10}" width="${w}" height="20"/><text x="${mid[0]}" y="${mid[1] + 4}" text-anchor="middle">${esc(text)}</text></g>`;
+      // The pill sits on the wire's middle unless it has been moved, in which case it keeps that
+      // distance from the middle and follows the wire around.
+      const w = text.length * 6.6 + 14, at = e.labelOff ? [mid[0] + e.labelOff.dx, mid[1] + e.labelOff.dy] : mid;
+      out += `<g class="label"><rect x="${at[0] - w / 2}" y="${at[1] - 10}" width="${w}" height="20"/><text x="${at[0]}" y="${at[1] + 4}" text-anchor="middle">${esc(text)}</text></g>`;
     }
     out += `</g>`;
   }
@@ -437,9 +426,10 @@ svg.addEventListener('pointerdown', (ev) => {
   } else if (edgeEl) {
     const id = edgeEl.dataset.edge;
     // Pressing a wire selects it and picks it up in the same gesture: moving the pointer pulls the
-    // wire through wherever it is dropped, a plain click just selects.
+    // wire through wherever it is dropped, a plain click just selects. Pressing its pill picks up
+    // the pill alone, so the label can be moved clear of whatever it sits on.
     if (!(store.selection?.type === 'edge' && store.selection.id === id)) select({ type: 'edge', id });
-    drag = { mode: 'bend', id, start: w, moved: false };
+    drag = { mode: ev.target.closest('.label') ? 'label' : 'bend', id, start: w, moved: false };
   } else {
     // Dragging on empty canvas draws a rubber band. Shift keeps what was already selected and adds
     // to it; without Shift a plain click clears the selection, as it always did.
@@ -533,6 +523,10 @@ function dragTo(ev) {
     if (!drag.moved) { if (Math.hypot(w.x - drag.start.x, w.y - drag.start.y) * store.view.k < 3) return; drag.moved = true; mark(); svg.classList.add('moving'); }
     const e = store.doc.edges.find((e) => e.id === drag.id);
     if (e) { const place = ev.altKey ? Math.round : snap; e.via = { x: place(w.x), y: place(w.y) }; render(); }
+  } else if (drag.mode === 'label') {
+    if (!drag.moved) { if (Math.hypot(w.x - drag.start.x, w.y - drag.start.y) * store.view.k < 3) return; drag.moved = true; mark(); svg.classList.add('moving'); }
+    const e = store.doc.edges.find((e) => e.id === drag.id), a = e && geom(store.doc.nodes.find((n) => n.id === e.from)), b = e && geom(store.doc.nodes.find((n) => n.id === e.to));
+    if (a && b) { const { mid } = edgePath(a, b, e.fromSide, e.toSide, e.shape, e.via); e.labelOff = { dx: Math.round(w.x - mid[0]), dy: Math.round(w.y - mid[1]) }; render(); }
   } else if (drag.mode === 'marquee') {
     marquee.x1 = w.x; marquee.y1 = w.y;
     if (!drag.moved && Math.abs(w.x - marquee.x0) * store.view.k + Math.abs(w.y - marquee.y0) * store.view.k > 3) { drag.moved = true; svg.classList.add('selecting'); }
@@ -551,7 +545,7 @@ function endDrag(ev, cancelled) {
   drag = null;
   if (panRaf) { cancelAnimationFrame(panRaf); panRaf = 0; }
   svg.classList.remove('dragging', 'moving', 'connecting', 'selecting');
-  if ((d.mode === 'node' || d.mode === 'bend') && d.moved) commit(() => {}, { quiet: true });   // the change is in place; now tell everyone
+  if ((d.mode === 'node' || d.mode === 'bend' || d.mode === 'label') && d.moved) commit(() => {}, { quiet: true });   // the change is in place; now tell everyone
   if (d.mode === 'marquee') {
     const caught = d.moved && !cancelled ? nodesIn(marquee) : [];
     marquee = null;
@@ -589,9 +583,10 @@ window.addEventListener('pointercancel', (ev) => endDrag(ev, true));
 svg.addEventListener('dblclick', (ev) => {
   const edgeEl = ev.target.closest('[data-edge]');
   if (edgeEl) {
-    // A double-click straightens a wire that was pulled.
-    const id = edgeEl.dataset.edge;
-    if (store.doc.edges.find((e) => e.id === id)?.via) commit((d) => { delete d.edges.find((e) => e.id === id).via; });
+    // A double-click on the pill puts it back on the wire; on the wire, it straightens a pull.
+    const id = edgeEl.dataset.edge, e = store.doc.edges.find((e) => e.id === id);
+    if (ev.target.closest('.label')) { if (e?.labelOff) commit((d) => { delete d.edges.find((e) => e.id === id).labelOff; }); }
+    else if (e?.via) commit((d) => { delete d.edges.find((e) => e.id === id).via; });
     return;
   }
   const nodeEl = ev.target.closest('[data-node]');
@@ -881,7 +876,7 @@ export function tidy() {
     for (const n of d.nodes) { const p = pos.get(n.id); if (p) { n.x = p.x; n.y = p.y - minY + 40; } }
     const bypass = new Set(chains.map((c) => `${c.from}>${c.to}`));
     for (const e of d.edges) {
-      delete e.fromSide; delete e.toSide; delete e.via;
+      delete e.fromSide; delete e.toSide; delete e.via; delete e.labelOff;
       if (bypass.has(`${e.from}>${e.to}`)) { e.fromSide = 'bottom'; e.toSide = 'bottom'; }
     }
   });
