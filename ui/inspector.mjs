@@ -238,7 +238,7 @@ function scenarioView(doc, s) {
     <h2>Expected landing</h2>
     <div class="field"><select data-scn="end"><option value="">(any end)</option>${ends.map((e) => opt(e, s.expect.end ?? '')).join('')}</select></div>
     ${doc.state.length ? `<h2>Expected state</h2>
-    ${doc.state.map((f) => `<div class="field"><label>${esc(f.name)} <span class="muted">· <code>*</code> any value, <code>null</code>, or the value</span></label><input type="text" class="expr" data-scn-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}"></div>`).join('')}` : ''}
+    ${doc.state.map((f) => `<div class="field"><label>${esc(f.name)} <span class="muted">· <code>*</code> any value, <code>null</code>, the value, or a check: <code>== 1</code>, <code>size &gt; 0</code>, <code>count(notices where linked) == 1</code></span></label><input type="text" class="expr" data-scn-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}"></div>`).join('')}` : ''}
     <div class="field" style="margin-top: 12px"><label>Note</label><textarea data-scn="note" style="font-family: inherit" placeholder="Why this scenario exists">${esc(s.note ?? '')}</textarea></div>
     <h2>Result</h2>
     <div id="verdict">${verdictHtml()}</div>

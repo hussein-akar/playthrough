@@ -44,8 +44,8 @@ amount > 100 and not blocked
 deliveryDate == null
 ```
 
-Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons and arithmetic are all there is,
-plus two words for lists.
+Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons, arithmetic and `a ?? b` (b
+when a is blank) are all there is, plus two words for lists.
 
 A list input holds records: it is declared with its fields (`notices`, with `status` an enum of
 OPEN, CLOSED, CANCELLED and `linked` a boolean), and a scenario writes the records one per line,
@@ -110,7 +110,11 @@ needs to see.
 
 A scenario passes when every expected action happened, nothing unexpected happened, it landed
 where it said it would, and each expected state field holds. In the expected-state cell, `*`
-means *any value but null*, `null` means null, anything else is compared to the value.
+means *any value but null*, `null` means null, and a plain value is compared to the value. A
+cell can also be a check: `== 1` or `> 100` on the value (for a list, on how many records it
+has), `size == 1`, `count(notices where linked) == 1`, `notices where status == OPEN` (some
+record matches), or the name of an input, meaning "the same as that input". Inside a check,
+`it`, `value`, `size` and `count` name the field's value and its count.
 
 In the scenario panel, expected actions are listed in the order the flow meets them, each marked
 ✓ or ✗ for the last run, and every step of the result path is a link to its node. When a

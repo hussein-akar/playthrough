@@ -41,7 +41,7 @@ export function render() {
       ${doc.inputs.map((i) => `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`, true)}</td>`).join('')}
       <td class="expect actions">${chips(s, results)}</td>
       <td class="expect"><select data-f="end"><option value="">any</option>${ends.map((e) => `<option value="${esc(e)}" ${s.expect.end === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></td>
-      ${doc.state.map((f) => `<td class="expect"><input type="text" class="st expr" data-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}" placeholder="*, null, value"></td>`).join('')}
+      ${doc.state.map((f) => `<td class="expect"><input type="text" class="st expr" data-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}" placeholder="*, null, value, == 1" title="* any value · null · the value · a check such as == 1, size > 0, count(notices where linked) == 1"></td>`).join('')}
       <td class="result">${status(s, results)}</td>
       <td class="tools"><button class="icon" data-act="dup" title="Duplicate">⧉</button> <button class="icon danger" data-act="rm" title="Delete">×</button></td>
     </tr>`;

@@ -82,3 +82,11 @@ it('the checker knows the fields of a list inside where', () => {
   assert.deepEqual(check('kept where status == OPEN', known, lists), [], 'a list held in state may use any list field');
   assert.deepEqual(check('count(nothing)', known, lists), ["unknown name 'nothing'"]);
 });
+
+it('?? falls back when the left is blank, and binds tightly', () => {
+  const s = { ...scope, inputs: { ...scope.inputs, blank: null, notices: null } };
+  assert.equal(test('blank ?? 5 == 5', s), true);
+  assert.equal(test('amount ?? 0 == 250', s), true);
+  assert.equal(test('(blank ?? 1) * 2 == 2', s), true);
+  assert.equal(test('count(notices ?? []) == 0', s), true, 'an empty list literal is a fine fallback');
+});

@@ -148,3 +148,21 @@ it('a field used outside where gets told how a list is narrowed', async () => {
   assert.match(msgs[0], /field of a notices record/);
   assert.match(msgs[0], /notices where status/);
 });
+
+it('an expected-state cell may be a check on the value or the count', async () => {
+  const { stateMatches } = await import('../lib/run.mjs');
+  const scope = { inputs: { pendingOrders: [{ status: 'OPEN' }, { status: 'CLOSED' }] }, state: { notices: [{ status: 'OPEN' }], amount: 250 }, enums: new Set(['OPEN', 'CLOSED']) };
+  const list = scope.state.notices;
+  assert.equal(stateMatches('1', list, scope), true, 'a number is still the count');
+  assert.equal(stateMatches('== 1', list, scope), true);
+  assert.equal(stateMatches('> 1', list, scope), false);
+  assert.equal(stateMatches('size == 1', list, scope), true);
+  assert.equal(stateMatches('count(notices where status == OPEN) == 1', list, scope), true);
+  assert.equal(stateMatches('notices where status == CLOSED', list, scope), false, 'no record matches');
+  assert.equal(stateMatches('pendingOrders', list, scope), false, 'not the same as the input any more');
+  assert.equal(stateMatches('pendingOrders', scope.inputs.pendingOrders, scope), true);
+  assert.equal(stateMatches('> 100', 250, scope), true);
+  assert.equal(stateMatches('value > 300', 250, scope), false);
+  assert.equal(stateMatches('pending', 'pending', scope), true, 'a plain word is a value');
+  assert.equal(stateMatches('*', list, scope), true);
+});
