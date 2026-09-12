@@ -68,16 +68,18 @@ $('docName').addEventListener('input', (ev) => commit((d) => { d.name = ev.targe
 $('projectName').addEventListener('change', (ev) => project.renameProject(ev.target.value));
 $('projectName').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.target.blur(); });
 /** New/Example throw the current drawing away; when it is not in a file yet, ask first. */
+/** Before something replaces what is on the page: fine unless it has unsaved changes, then a short question. `what` is a verb phrase, "Open another flow". */
 async function replaceable(what) {
   if (!store.dirty || !store.doc.nodes.length) return true;
-  return ask({ title: `${what} and drop the unsaved changes?`, body: `"${store.doc.name || 'Untitled flow'}" has changes that are not in a file. Save first if you want to keep them.`, ok: what, danger: true });
+  const name = store.doc.name || 'Untitled flow';
+  return ask({ title: 'Drop the unsaved changes?', body: `"${name.length > 40 ? `${name.slice(0, 38)}…` : name}" has changes that are not in a file. ${what[0].toUpperCase() + what.slice(1)} anyway, or cancel and save first.`, ok: 'Drop changes', danger: true });
 }
 project.hooks.fit = canvas.fit;
 project.hooks.replaceable = replaceable;
 // New, Open… and Example put an unfiled flow on the page; in a project, Save then adds it to the folder.
-$('newDoc').addEventListener('click', async () => { if (await replaceable('Start a new flow')) { setFile(null); load({ name: 'Untitled flow' }); canvas.fit(); } });
+$('newDoc').addEventListener('click', async () => { if (await replaceable('start a new flow')) { setFile(null); load({ name: 'Untitled flow' }); canvas.fit(); } });
 $('loadExample').addEventListener('click', async () => {
-  if (!await replaceable('Load the example')) return;
+  if (!await replaceable('load the example')) return;
   const doc = await (await fetch('examples/order.json')).json();
   setFile(null); load(doc); canvas.fit();
 });
@@ -99,7 +101,7 @@ $('saveDoc').addEventListener('click', save);
 $('openDoc').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files[0]; if (f) await openFile(f); ev.target.value = ''; });
 async function openFile(file) {
-  if (!await replaceable(`Open ${file.name}`)) return;
+  if (!await replaceable('open the file')) return;
   try { const doc = JSON.parse(await file.text()); setFile(null); load(doc); canvas.fit(); toast(`Opened ${file.name}`); }
   catch (e) { notice('Could not read that file', `${file.name}: ${e.message}`); }
 }
@@ -249,7 +251,7 @@ async function openLink() {
   let doc;
   try { doc = await decodeDoc(m[1]); } catch { toast('That link does not hold a flow'); return false; }
   const name = doc.name || 'Untitled flow';
-  if (!await replaceable(`Open "${name}" from the link`)) return true;
+  if (!await replaceable('open the flow from the link')) return true;
   setFile(null); load(doc); canvas.fit(); toast(`Opened "${name}" from the link`);
   return true;
 }

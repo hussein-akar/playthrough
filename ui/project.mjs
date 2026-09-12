@@ -43,7 +43,7 @@ export async function refresh() {
 
 /** Open a flow from the folder, replacing what is on the page. */
 export async function open(file, { quiet = false } = {}) {
-  if (!await hooks.replaceable(`Open ${file}`)) return false;
+  if (!await hooks.replaceable('open the other flow')) return false;
   try {
     const { doc, mtime } = await call('GET', `/api/flows/${encodeURIComponent(file)}`);
     setFile(file, mtime); load(doc); hooks.fit();
@@ -103,7 +103,7 @@ export async function renameProject(name) {
 
 /** A fresh, empty flow, in `folder` (the root by default). */
 export async function create(folder = '') {
-  if (!await hooks.replaceable('Start a new flow')) return;
+  if (!await hooks.replaceable('start a new flow')) return;
   const name = await prompt({ title: 'New flow', body: `A new file in ${project.info.dir}${folder ? `/${folder}` : ''}. A / in the name puts the flow in a group, made if it is not there yet: billing/refund intake.`, placeholder: 'What the feature is called', ok: 'Create' });
   if (name == null) return;
   try {
