@@ -152,7 +152,7 @@
   #palette .shape { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
   #palette hr { margin: 6px 4px; border: 0; border-top: 1px solid var(--line-2); }
   #palette .gear { width: 100%; height: 52px; cursor: pointer; }
-  #palette .gear .shape { width: 26px; height: 26px; color: var(--muted); stroke-linecap: round; stroke-width: 1.7; }
+  #palette .gear .shape { width: 20px; height: 20px; margin: 4px 0 2px; color: var(--muted); stroke-linecap: round; stroke-width: 1.8; }
   #palette .gear:hover .shape { color: var(--ink); }
   #palette .shape .fill { fill: currentColor; stroke: none; }
   #palette [data-add="start"] .shape { color: var(--start); }
@@ -170,6 +170,7 @@
   #ctx button kbd { font: var(--fs-xs) var(--font); color: var(--muted); }
   #ctx hr { margin: 4px 0; border: 0; border-top: 1px solid var(--line-2); }
   #ctx .dot { width: 14px; height: 9px; border: 1.5px solid currentColor; border-radius: 3px; }
+  #ctx svg.cog { width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   #ctx .dot.start, #ctx .dot.end { border-radius: 5px; }
   #ctx .dot.start { color: var(--start); } #ctx .dot.action { color: var(--action); } #ctx .dot.decision { color: var(--decision); } #ctx .dot.end { color: var(--end); }
   /* The shape being dragged in from the palette, drawn at the canvas's zoom under the pointer. */
