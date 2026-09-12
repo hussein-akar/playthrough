@@ -26,7 +26,7 @@ export function render() {
   if (sheet.open && !editing(sheet)) sheet.querySelector('.body').innerHTML = settingsView(store.doc);
   if (editing(el)) { patchLive(); return; }
   const { doc, selection } = store;
-  if (!selection) el.innerHTML = flowView(doc);
+  if (!selection) el.innerHTML = '';
   else if (selection.type === 'node' && selection.ids) el.innerHTML = groupView(doc, selection.ids);
   else if (selection.type === 'node') el.innerHTML = nodeView(doc, doc.nodes.find((n) => n.id === selection.id));
   else if (selection.type === 'edge') el.innerHTML = edgeView(doc, doc.edges.find((e) => e.id === selection.id));
@@ -51,7 +51,8 @@ export function openSettings(focus = '') {
 }
 sheet.querySelector('[data-act="close-settings"]').addEventListener('click', () => sheet.close());
 sheet.addEventListener('close', () => render());
-document.getElementById('flowSettings').addEventListener('click', openSettings);
+document.getElementById('paletteSettings').addEventListener('click', () => openSettings());
+document.addEventListener('flow-settings', () => openSettings());   // the canvas's right-click menu
 
 // ---- views ------------------------------------------------------------------------------------
 // A control with `data-check` is validated by `problemsOf`; its messages go into the `.errs` box
@@ -70,26 +71,6 @@ const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n}
 
 const CHEATSHEET = `<div class="muted">Guards read like <code>type in [Subscription, Refund]</code>, <code>isExpress</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
     <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
-
-/** Nothing selected: the flow at a glance as cards; any row, pencil or Add opens the settings sheet on that item. */
-function flowView(doc) {
-  const detail = (i) => i.type === 'enum' ? `enum · ${(i.values ?? []).map(esc).join(', ')}` : i.type === 'list' ? `list · ${(i.fields ?? []).map((f) => esc(f.name)).join(', ') || 'no fields yet'}` : esc(i.type);
-  const card = (title, hint, items, empty, add, addLabel, focus) => `
-    <section class="card">
-      <div class="head"><h3>${title}</h3><span class="count">${items.length}</span><button class="icon pencil" data-act="open-settings" data-focus="${focus}" title="Edit in flow settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2z"/></svg></button></div>
-      ${items.length ? items.join('') : `<div class="muted empty">${empty}</div>`}
-      <div class="foot"><button class="small" data-act="${add}">${addLabel}</button></div>
-    </section>`;
-  const inputs = doc.inputs.map((i, k) => `<button class="item" data-act="open-settings" data-focus="input:${k}"><span class="name">${esc(i.name) || '<i>unnamed</i>'}</span><span class="detail">${detail(i)}</span><span class="chev">›</span></button>`);
-  const state = doc.state.map((f, k) => `<button class="item" data-act="open-settings" data-focus="state:${k}"><span class="name">${esc(f.name) || '<i>unnamed</i>'}</span><span class="detail">${f.initial == null || String(f.initial).trim() === '' ? 'null at first' : `${esc(f.initial)} at first`}</span><span class="chev">›</span></button>`);
-  return `
-    <h2>Flow</h2>
-    <div class="field"><label>Name</label><input type="text" data-doc="name" value="${esc(doc.name)}"></div>
-    <div class="field"><label>What this flow is about</label><textarea data-doc="description" style="font-family: inherit">${esc(doc.description)}</textarea></div>
-    ${card('Inputs', '', inputs, 'No inputs yet. A guard can only mention what is declared here.', 'add-input-open', '+ Input', 'input:last')}
-    ${card('State', '', state, 'No state fields. Add one when an action needs to leave something behind that a scenario can check.', 'add-state-open', '+ State field', 'state:last')}
-    <section class="card"><div class="head"><h3>Conditions</h3></div>${CHEATSHEET}</section>`;
-}
 
 /** The flow settings sheet: the schema a scenario is written against, with room to edit it. */
 function settingsView(doc) {
@@ -518,10 +499,6 @@ for (const r of roots) r.addEventListener('click', (ev) => {
   if (!b) return;
   const act = b.dataset.act;
   const sel = store.selection;
-  if (act === 'flow-settings') return openSettings();
-  if (act === 'open-settings') return openSettings(b.dataset.focus);
-  if (act === 'add-input-open') { commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); }); return openSettings('input:last'); }
-  if (act === 'add-state-open') { commit((doc) => { doc.state.push({ name: `field${doc.state.length + 1}`, initial: null }); }); return openSettings('state:last'); }
   if (act === 'add-input') commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); });
   if (act === 'rm-input') commit((doc) => { doc.inputs.splice(Number(b.closest('[data-input]').dataset.input), 1); });
   if (act === 'add-rec') { const box = b.closest('[data-records]'), i = store.doc.inputs.find((x) => x.name === box.dataset.records), fields = (i?.fields ?? []).filter((f) => f.name); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const have = parseRecords(s.inputs[i.name], fields); have.push(Object.fromEntries(fields.map((f) => [f.name, f.type === 'enum' ? f.values?.[0] ?? '' : f.type === 'boolean' ? false : '']))); s.inputs[i.name] = recordsText(have, fields); }); }

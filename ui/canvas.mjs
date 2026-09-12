@@ -1028,6 +1028,8 @@ svg.addEventListener('contextmenu', (ev) => {
       '-',
       { act: 'paste', label: 'Paste', key: '⌘V', off: !clipboard },
       { act: 'select-all', label: 'Select all', key: '⌘A', off: !store.doc.nodes.length },
+      '-',
+      { act: 'settings', label: 'Flow settings…' },
     ]);
   }
 });
@@ -1040,6 +1042,7 @@ ctx.addEventListener('click', (ev) => {
   if (act.startsWith('add:')) addNode(act.slice(4), snap(at.x - OFFSET.x), snap(at.y - OFFSET.y));
   else if (act === 'paste') paste(at);
   else if (act === 'select-all') selectNodes(store.doc.nodes.map((n) => n.id));
+  else if (act === 'settings') document.dispatchEvent(new Event('flow-settings'));
   else if (act === 'copy') copySelection();
   else if (act === 'cut') cutSelection();
   else if (act === 'duplicate') duplicateSelection();

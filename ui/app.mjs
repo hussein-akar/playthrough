@@ -9,6 +9,8 @@ import * as project from './project.mjs';
 const $ = (id) => document.getElementById(id);
 
 subscribe(() => {
+  // The panel is for what is selected; with nothing selected the drawing has the width.
+  document.body.classList.toggle('panel-hidden', !store.selection);
   canvas.render();
   inspector.render();
   table.render();

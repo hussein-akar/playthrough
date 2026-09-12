@@ -34,6 +34,8 @@
   html, body { height: 100%; margin: 0; }
   body { font: var(--fs)/1.45 var(--font); color: var(--ink); background: var(--bg); display: grid; grid-template-rows: var(--header-h) 1fr var(--table-h); grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); height: 100vh; overflow: hidden; --side-w: 0px; }
   body.has-project:not(.side-hidden) { --side-w: 220px; }
+  body.panel-hidden { --panel-w: 0px; }   /* nothing selected: the panel is away and the drawing has the width */
+  body.panel-hidden #inspector { display: none; }
   code, kbd { font-family: var(--mono); font-size: var(--fs-sm); }
   code { background: var(--line-2); padding: 1px 4px; border-radius: 3px; }
   kbd { font-size: var(--fs-xs); background: var(--line-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink); }
@@ -146,6 +148,10 @@
   #palette button:focus-visible { outline: none; box-shadow: var(--ring); }
   #palette button span { font-size: var(--fs-xs); color: var(--muted); line-height: 1.2; }
   #palette .shape { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+  #palette hr { margin: 6px 4px; border: 0; border-top: 1px solid var(--line-2); }
+  #palette .gear { width: 100%; height: 52px; cursor: pointer; }
+  #palette .gear .shape { width: 30px; height: 30px; color: var(--muted); stroke-linecap: round; }
+  #palette .gear:hover .shape { color: var(--ink); }
   #palette .shape .fill { fill: currentColor; stroke: none; }
   #palette [data-add="start"] .shape { color: var(--start); }
   #palette [data-add="action"] .shape { color: var(--action); }
@@ -401,21 +407,6 @@
   dialog.sheet .fields { margin: -2px 0 12px 20px; padding-left: 12px; border-left: 2px solid var(--line); }
   dialog.sheet .actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
   dialog.sheet .actions .muted, dialog.sheet .muted { font-size: var(--fs-sm); line-height: 1.5; }
-  /* The panel's flow view: a card per section, its items as rows that open the settings sheet. */
-  #inspector .card { margin: 14px 0; padding: 10px 12px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
-  #inspector .card .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  #inspector .card .head h3 { flex: 1; margin: 0; font-size: var(--fs); font-weight: 600; }
-  #inspector .card .head .count { min-width: 18px; height: 18px; padding: 0 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); font-size: var(--fs-xs); line-height: 16px; text-align: center; color: var(--muted); }
-  #inspector .card .head .pencil { width: 24px; height: 24px; color: var(--muted); }
-  #inspector .card .head .pencil svg { width: 14px; height: 14px; }
-  #inspector .card .item { display: flex; align-items: center; gap: 8px; width: 100%; height: auto; margin-bottom: 4px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r1); background: var(--panel); text-align: left; font-weight: 400; white-space: normal; }
-  #inspector .card .item:hover { border-color: var(--accent-line); background: var(--accent-soft); }
-  #inspector .card .item .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  #inspector .card .item .detail { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted); }
-  #inspector .card .item .chev { flex: 0 0 auto; color: var(--faint); }
-  #inspector .card .empty { padding: 2px 0 6px; }
-  #inspector .card .foot { display: flex; justify-content: flex-end; margin-top: 6px; }
-  #inspector .card > .muted { line-height: 1.5; }
   dialog table.keys { border-collapse: collapse; font-size: var(--fs); }
   dialog table.keys td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
   dialog table.keys tr:last-child td { border-bottom: 0; }
@@ -449,7 +440,6 @@
   <header>
     <div class="brand">Play<span>through</span></div>
     <input id="docName" class="title" type="text" placeholder="Untitled flow" title="Flow name">
-    <button id="flowSettings" class="icon" title="Flow settings: inputs and state" aria-label="Flow settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M3.6 12.4l1.2-1.2M11.2 4.8l1.2-1.2"/></svg></button>
     <div class="group" aria-label="File">
       <button id="newDoc">New</button>
       <button id="openDoc">Open…</button>
@@ -499,6 +489,10 @@
           <svg class="shape" viewBox="0 0 32 32"><rect x="3" y="9" width="26" height="14" rx="7"/><rect class="fill" x="13.5" y="13.5" width="5" height="5" rx="1"/></svg><span>End</span>
         </button>
       </div>
+      <hr>
+      <button id="paletteSettings" class="gear" title="Flow settings: inputs and state">
+        <svg class="shape" viewBox="0 0 32 32"><circle cx="16" cy="16" r="4"/><path d="M16 4v3.5M16 24.5V28M4 16h3.5M24.5 16H28M7.5 7.5l2.5 2.5M22 22l2.5 2.5M7.5 24.5 10 22M22 10l2.5-2.5"/></svg><span>Settings</span>
+      </button>
     </div>
     <div id="ghost" hidden></div>
     <div id="edgebar" hidden>
@@ -565,7 +559,8 @@
         <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node</td><td>add it to the selection, or take it out</td></tr>
         <tr><td><kbd>⌘A</kbd></td><td>select every node</td></tr>
         <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>
-        <tr><td><kbd>right-click</kbd></td><td>a menu: add a shape or paste on empty canvas; copy, cut, duplicate or delete a node</td></tr>
+        <tr><td><kbd>right-click</kbd></td><td>a menu: add a shape, paste or open the flow settings on empty canvas; copy, cut, duplicate or delete a node</td></tr>
+        <tr><td><kbd>click</kbd> empty canvas</td><td>clear the selection · the side panel goes away until something is selected</td></tr>
         <tr><td><kbd>drag</kbd> a selected node</td><td>move the whole selection together</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected nodes, edge or scenario</td></tr>
         <tr><td><kbd>⌘Z</kbd> · <kbd>⇧⌘Z</kbd></td><td>undo · redo</td></tr>
