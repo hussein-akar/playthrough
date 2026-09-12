@@ -116,7 +116,7 @@ function edgeView(doc, e) {
       <div class="swatches">${[['smooth', 'Smooth'], ['square', 'Square']].map(([v, l]) => `<button class="swatch none${(e.shape === 'square' ? 'square' : 'smooth') === v ? ' on' : ''}" data-act="edge-shape" data-shape="${v}">${l}</button>`).join('')}</div>
     </div>
     <div class="field"><label>Colour <span class="muted">· a status for the branch</span></label>
-      <div class="swatches">${[['', 'None'], ['success', 'Success'], ['failed', 'Failed'], ['warning', 'Warning'], ['info', 'Info']].map(([c, l]) => `<button class="swatch ${c ? `c-${c}` : 'none'}${(e.color ?? '') === c ? ' on' : ''}" data-act="edge-color" data-color="${c}"><i></i>${l}</button>`).join('')}</div>
+      <div class="swatches">${[['', 'None'], ['success', 'Success'], ['failed', 'Failed'], ['warning', 'Warning'], ['info', 'Info']].map(([c, l]) => `<button class="swatch ${c ? `c-${c}` : 'none'}${(e.color ?? '') === c ? ' on' : ''}" data-act="edge-color" data-color="${c}" title="${l}"><i></i></button>`).join('')}</div>
     </div>
     <div class="actions"><button class="small danger" data-act="rm-edge">Delete edge</button></div>`;
 }

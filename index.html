@@ -269,7 +269,8 @@
   #inspector .errs { margin: -2px 0 8px; }
   /* The status colour of an edge: a row of small swatches, the chosen one tinted. */
   #inspector .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
-  #inspector .swatch { height: 24px; padding: 0 8px 0 6px; font-size: var(--fs-sm); font-weight: 400; color: var(--muted); }
+  #inspector .swatch { height: 24px; padding: 0 8px; font-size: var(--fs-sm); font-weight: 400; color: var(--muted); }
+  #inspector .swatch:has(> i:only-child) { width: 28px; padding: 0; }   /* a colour is just its dot; the name is the tooltip */
   #inspector .swatch i { width: 10px; height: 10px; border-radius: 50%; background: var(--sw); }
   #inspector .swatch.none i { background: none; border: 1.5px solid var(--faint); }
   #inspector .swatch.c-success { --sw: var(--ok); } #inspector .swatch.c-failed { --sw: var(--bad); } #inspector .swatch.c-warning { --sw: var(--warn); } #inspector .swatch.c-info { --sw: var(--accent); }
