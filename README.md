@@ -3,7 +3,7 @@
 **Draw the feature before it exists. Then play your scenarios through the drawing.**
 
 A team designing a feature draws a flow on a whiteboard and lists the cases in a spreadsheet:
-*if the order type is Subscription and there is express shipping, then…* The drawing and the spreadsheet
+*if the order came from the app and there is a coupon, then…* The drawing and the spreadsheet
 never meet, so nobody notices the case that no branch handles, or the two branches that both
 claim the same case, until the code is written and a tester finds it.
 
@@ -18,11 +18,13 @@ No build step, no dependencies. Node 22 or newer and this checkout.
 ```bash
 npm start                  # http://localhost:8095/, one flow at a time
 npm start -- ./specs       # the same page over a project folder (see "A team and a folder")
-npm test                   # the interpreter, the condition language, the project folder
+npm run start:example      # the page over the Advanced preset: six flows in three groups
+npm test                   # the interpreter, the condition language, the project folder, the presets
 ```
 
-The page opens on the example, a order intake flow with four scenarios. One of them fails on
-purpose: somebody assumed an wholesale order goes to post-processing, and the drawing says otherwise.
+The page opens on a shop's checkout, a flow with four scenarios. One of them fails on purpose:
+somebody assumed a phone order gets a confirmation email, and the drawing says it prints a
+receipt. **Template ▾** holds the presets, a small shop and a bigger one (see "Templates").
 
 ## What a flow is made of
 
@@ -38,8 +40,8 @@ purpose: somebody assumed an wholesale order goes to post-processing, and the dr
 Conditions read like the sentence in the spreadsheet:
 
 ```
-type in [Subscription, Preorder, Wholesale]
-isExpress
+channel in [Web, App, Marketplace]
+hasCoupon
 amount > 100 and not blocked
 deliveryDate == null
 ```
@@ -47,22 +49,22 @@ deliveryDate == null
 Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons, arithmetic and `a ?? b` (b
 when a is blank) are all there is, plus two words for lists.
 
-A list input holds records: it is declared with its fields (`notices`, with `status` an enum of
-OPEN, CLOSED, CANCELLED and `linked` a boolean), and a scenario writes the records one per line,
-`status=OPEN, linked=yes`, or just the values in field order, `OPEN, yes`. A state field whose
-initial value is `notices` starts as a copy of it; an action narrows it with `where`, and a guard
-measures it with `count`:
+A list input holds records: it is declared with its fields (`lines`, with `status` an enum of
+PICKED, SHORT, CANCELLED and `gift` a boolean), and a scenario writes the records one per line,
+`status=PICKED, gift=yes`, or just the values in field order, `PICKED, yes`. A state field whose
+initial value is `lines` starts as a copy of it, and `lines where gift` as the gift lines only;
+an action narrows it further with `where`, and a guard measures it with `count`:
 
 ```
-kept = kept where status != CANCELLED          an action's set
+kept = kept where status != CANCELLED         an action's set
 count(kept) == 0                              a guard
-count(kept where linked) > 1
+count(kept where gift) > 1
 ```
 
 Inside `where`, a bare word is first a field of the record being looked at. An empty list is
-false, so `kept where linked` alone reads "some kept notice is linked". A scenario's expected
+false, so `kept where gift` alone reads "some kept line is a gift". A scenario's expected
 state for a list is a count, `*` for some, or `null` for none. The filters in the drawing are
-then really exercised: how many notices remain is worked out, not typed in.
+then really exercised: how many lines remain is worked out, not typed in.
 
 Beside the condition on an edge sits an *insert…* menu with every declared input and state
 field, each enum's values and the operators: a pick lands at the cursor, so a guard is assembled
@@ -112,7 +114,7 @@ A scenario passes when every expected action happened, nothing unexpected happen
 where it said it would, and each expected state field holds. In the expected-state cell, `*`
 means *any value but null*, `null` means null, and a plain value is compared to the value. A
 cell can also be a check: `== 1` or `> 100` on the value (for a list, on how many records it
-has), `size == 1`, `count(notices where linked) == 1`, `notices where status == OPEN` (some
+has), `size == 1`, `count(lines where gift) == 1`, `lines where status == PICKED` (some
 record matches), or the name of an input, meaning "the same as that input". Inside a check,
 `it`, `value`, `size` and `count` name the field's value and its count.
 
@@ -176,7 +178,7 @@ has problems, and *no scenarios* when nobody has written any yet. Click one to o
 starts a new file, and a `/` in its name puts it in a group, made if it is not there yet
 (`billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty
 group; **Save** (or ⌘S) writes the open flow back to its file, and a flow that came in through
-**New**, **Open…**, **Example** or a link is added to the folder the first time it is saved. On a
+**New**, **Open…**, **Import**, a preset or a link is added to the folder the first time it is saved. On a
 row, ✎ renames the file (a `/` moves it; the flow keeps its own name) and × deletes it; a group's
 × deletes it with everything in it, after saying how much that is. The project's name sits in the header, in place of the flow's: type there
 to name it once, and it is kept in `project.json`; until then the folder's name is used. **Flows** in the header hides the sidebar.
@@ -194,8 +196,8 @@ Without a project folder, **Save** downloads the flow as JSON; **Open…** reads
 does dropping the file anywhere on the page. In a project, Save writes the file in place and
 *Download as JSON* under **Share ▾** does what Save used to. The browser also keeps the current flow between reloads, but that is not a
 file: a dot next to **Save** (and in the tab title) means the flow has changed since it was last
-saved or opened, and the page will say so before you close it or replace it with **New** or
-**Example**.
+saved or opened, and the page will say so before you close it or replace it with **New**, an
+**Import** or a preset.
 
 **Share ▾** has two ways out that need no file. *Copy as Markdown* puts the flow on the clipboard
 as a spec: inputs, state, every decision with its branches, and the scenario table with each row's
@@ -207,24 +209,48 @@ The shape is small enough to write by hand or generate:
 
 ```json
 {
-  "name": "Order intake",
-  "inputs": [{ "name": "type", "type": "enum", "values": ["Subscription", "Refund"] },
-             { "name": "isExpress", "type": "boolean" }],
-  "state":  [{ "name": "deliveryDate", "initial": null }],
-  "nodes":  [{ "id": "start", "kind": "start", "label": "Order Placed", "x": 80, "y": 220 },
-             { "id": "setdate", "kind": "action", "label": "Set express delivery date",
-               "x": 800, "y": 120, "set": { "deliveryDate": "'today'" } }],
-  "edges":  [{ "id": "e3", "from": "express", "to": "setdate", "when": "isExpress" },
-             { "id": "e4", "from": "express", "to": "keepnull", "else": true }],
-  "scenarios": [{ "name": "Subscription with express shipping",
+  "name": "Checkout",
+  "inputs": [{ "name": "channel", "type": "enum", "values": ["Web", "App", "Phone"] },
+             { "name": "hasCoupon", "type": "boolean" }],
+  "state":  [{ "name": "discount", "initial": null }],
+  "nodes":  [{ "id": "start", "kind": "start", "label": "Order placed", "x": 80, "y": 220 },
+             { "id": "apply", "kind": "action", "label": "Apply coupon",
+               "x": 800, "y": 120, "set": { "discount": "10" } }],
+  "edges":  [{ "id": "e3", "from": "coupon", "to": "apply", "when": "hasCoupon" },
+             { "id": "e4", "from": "coupon", "to": "full", "else": true }],
+  "scenarios": [{ "name": "Web order with a coupon",
                   "tags": ["happy path"],
-                  "inputs": { "type": "Subscription", "isExpress": true },
-                  "expect": { "actions": ["Create Shipment", "Set express delivery date"],
-                              "end": "Done", "state": { "deliveryDate": "*" } } }]
+                  "inputs": { "channel": "Web", "hasCoupon": true },
+                  "expect": { "actions": ["Reserve stock", "Apply coupon"],
+                              "end": "Done", "state": { "discount": "*" } } }]
 }
 ```
 
-See `examples/order.json` for the whole thing.
+See `examples/simple/checkout.json` for the whole thing, and `examples/advanced/` for flows
+with list inputs, state set along the way and edges with labels and colours.
+
+## Templates
+
+**Template ▾** in the header has three items.
+
+*Presets* opens a list of starting points, each a small project of flows kept under `examples/`:
+
+| Preset | What is in it |
+|---|---|
+| **Empty** | Nothing: a blank canvas. In a project folder, loading it empties the folder. |
+| **Simple** | A shop in two flows, *Checkout* and *Returns*, at the root of the folder. |
+| **Advanced** | The same shop in six flows and three groups: `orders/` (checkout, payment), `fulfilment/` (pick and pack, delivery) and `after-sale/` (returns, refunds). List inputs, `where`, `count`, state, labelled and coloured edges, and a scenario for every branch. |
+
+Each card shows its flows as the tree the sidebar would show. A flow's name opens just that flow on
+the page, not in any file. **Load it** starts over from the preset: without a project folder the
+page shows the preset's first flow; with one, the folder is emptied, after a question that says
+how much is in it, and the preset's flows are written in, groups and all. **Add to this one**
+(only with a folder) writes the preset's flows in beside what is there, leaving alone any file
+that already exists.
+
+*Import* takes a flow's JSON pasted into a box and puts it on the page. *Export* shows the flow
+on the page as JSON, and puts it on the clipboard, to paste into another page's Import or into a
+file in a project folder.
 
 ## Layout of the code
 
@@ -238,9 +264,11 @@ ui/canvas.mjs    the SVG drawing and its pointer interactions
 ui/inspector.mjs the side panel for whatever is selected
 ui/table.mjs     the scenario spreadsheet
 ui/project.mjs   the project sidebar and the calls to the folder API
+ui/presets.mjs   the Presets dialog under Template ▾
 ui/dialog.mjs    ask, notice, prompt, toast: the page's own dialogs
 ui/app.mjs       header, keyboard, play, boot
 serve.mjs        a static file server, plus GET/PUT/POST/DELETE /api/flows over the folder
+examples/        the presets: presets.json lists them; simple/ and advanced/ are project folders
 ```
 
 `lib/` has no DOM in it and is what the tests exercise. Everything in `ui/` re-renders from the

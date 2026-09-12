@@ -1,0 +1,77 @@
+{
+  "name": "Returns",
+  "description": "A customer sends part of an order back. The window is 30 days unless the item is faulty, a line reported missing is not something we can take back, postage is on us when the fault is ours, and what gets refunded is worked out from what arrives and the state it is in.",
+  "inputs": [
+    { "name": "items", "type": "list", "fields": [
+      { "name": "sku", "type": "text" },
+      { "name": "condition", "type": "enum", "values": ["Unopened", "Used", "Damaged", "Missing"] }
+    ] },
+    { "name": "daysSinceDelivery", "type": "number" },
+    { "name": "reason", "type": "enum", "values": ["ChangedMind", "Faulty", "WrongItem", "NotAsDescribed"] }
+  ],
+  "state": [
+    { "name": "accepted", "initial": "items where condition != Missing" },
+    { "name": "refundable", "initial": null },
+    { "name": "outcome", "initial": null }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "start", "label": "Return requested", "x": 80, "y": 300 },
+    { "id": "window", "kind": "decision", "label": "Within the window?", "x": 320, "y": 300 },
+    { "id": "refuse", "kind": "action", "label": "Refuse the return", "x": 840, "y": 560 },
+    { "id": "refused", "kind": "end", "label": "Refused", "x": 2400, "y": 560 },
+    { "id": "anything", "kind": "decision", "label": "Anything to take back?", "x": 580, "y": 300 },
+    { "id": "sendlabel", "kind": "action", "label": "Send a returns label", "x": 840, "y": 300 },
+    { "id": "reasonq", "kind": "decision", "label": "Whose fault?", "x": 1100, "y": 300 },
+    { "id": "postage", "kind": "action", "label": "Refund the postage", "x": 1360, "y": 180 },
+    { "id": "inspect", "kind": "action", "label": "Inspect on arrival", "x": 1620, "y": 300, "set": { "refundable": "accepted where condition == Unopened or reason == Faulty" } },
+    { "id": "howmuch", "kind": "decision", "label": "How much is refundable?", "x": 1880, "y": 300 },
+    { "id": "full", "kind": "action", "label": "Refund in full", "x": 2140, "y": 160, "set": { "outcome": "'full'" } },
+    { "id": "part", "kind": "action", "label": "Refund the refundable lines", "x": 2140, "y": 300, "set": { "outcome": "'partial'" } },
+    { "id": "exchange", "kind": "action", "label": "Offer an exchange instead", "x": 2140, "y": 440, "set": { "outcome": "'exchange'" } },
+    { "id": "close", "kind": "action", "label": "Close the return", "x": 2400, "y": 300 },
+    { "id": "closed", "kind": "end", "label": "Closed", "x": 2660, "y": 300 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "start", "to": "window" },
+    { "id": "e2", "from": "window", "to": "anything", "when": "daysSinceDelivery <= 30 or reason == Faulty" },
+    { "id": "e3", "from": "window", "to": "refuse", "else": true, "label": "too late", "color": "failed" },
+    { "id": "e4", "from": "anything", "to": "sendlabel", "when": "count(accepted) > 0" },
+    { "id": "e5", "from": "anything", "to": "refuse", "else": true, "label": "only missing lines", "color": "failed" },
+    { "id": "e6", "from": "refuse", "to": "refused" },
+    { "id": "e7", "from": "sendlabel", "to": "reasonq" },
+    { "id": "e8", "from": "reasonq", "to": "postage", "when": "reason in [Faulty, WrongItem, NotAsDescribed]", "label": "ours", "color": "info" },
+    { "id": "e9", "from": "reasonq", "to": "inspect", "else": true, "label": "theirs" },
+    { "id": "e10", "from": "postage", "to": "inspect" },
+    { "id": "e11", "from": "inspect", "to": "howmuch" },
+    { "id": "e12", "from": "howmuch", "to": "full", "when": "count(refundable) == count(accepted)", "color": "success" },
+    { "id": "e13", "from": "howmuch", "to": "part", "when": "count(refundable) > 0 and count(refundable) < count(accepted)", "color": "warning" },
+    { "id": "e14", "from": "howmuch", "to": "exchange", "else": true },
+    { "id": "e15", "from": "full", "to": "close" },
+    { "id": "e16", "from": "part", "to": "close" },
+    { "id": "e17", "from": "exchange", "to": "close" },
+    { "id": "e18", "from": "close", "to": "closed" }
+  ],
+  "scenarios": [
+    { "id": "s1", "name": "Changed their mind, everything unopened", "tags": ["happy path"],
+      "inputs": { "items": "sku=A1, condition=Unopened\nsku=B2, condition=Unopened", "daysSinceDelivery": 12, "reason": "ChangedMind" },
+      "expect": { "actions": ["Send a returns label", "Inspect on arrival", "Refund in full", "Close the return"], "end": "Closed", "state": { "accepted": "2", "refundable": "2", "outcome": "full" } } },
+    { "id": "s2", "name": "One line used: only the other is refunded", "tags": ["partial"],
+      "inputs": { "items": "A1, Unopened\nB2, Used", "daysSinceDelivery": 12, "reason": "ChangedMind" },
+      "expect": { "actions": ["Send a returns label", "Inspect on arrival", "Refund the refundable lines", "Close the return"], "end": "Closed", "state": { "refundable": "1", "outcome": "partial" } } },
+    { "id": "s3", "name": "Used and no fault of ours: exchange only", "tags": ["partial"],
+      "inputs": { "items": "A1, Used", "daysSinceDelivery": 20, "reason": "ChangedMind" },
+      "expect": { "actions": ["Send a returns label", "Inspect on arrival", "Offer an exchange instead", "Close the return"], "end": "Closed", "state": { "refundable": "null", "outcome": "exchange" } } },
+    { "id": "s4", "name": "Faulty after the window: still refunded, postage too", "tags": ["happy path", "our fault"],
+      "inputs": { "items": "A1, Damaged", "daysSinceDelivery": 60, "reason": "Faulty" },
+      "expect": { "actions": ["Send a returns label", "Refund the postage", "Inspect on arrival", "Refund in full", "Close the return"], "end": "Closed", "state": { "refundable": "1", "outcome": "full" } } },
+    { "id": "s5", "name": "Wrong item sent: postage on us", "tags": ["our fault"],
+      "inputs": { "items": "A1, Unopened", "daysSinceDelivery": 3, "reason": "WrongItem" },
+      "expect": { "actions": ["Send a returns label", "Refund the postage", "Inspect on arrival", "Refund in full", "Close the return"], "end": "Closed", "state": { "outcome": "full" } } },
+    { "id": "s6", "name": "Too late to change your mind", "tags": ["edge"],
+      "inputs": { "items": "A1, Unopened", "daysSinceDelivery": 31, "reason": "ChangedMind" },
+      "expect": { "actions": ["Refuse the return"], "end": "Refused", "state": { "outcome": "null" } } },
+    { "id": "s7", "name": "Only a missing line: nothing to send back", "tags": ["edge"],
+      "inputs": { "items": "A1, Missing", "daysSinceDelivery": 5, "reason": "NotAsDescribed" },
+      "expect": { "actions": ["Refuse the return"], "end": "Refused", "state": { "accepted": "null" } } }
+  ]
+}

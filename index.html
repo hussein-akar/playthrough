@@ -103,6 +103,11 @@
   header .menu .items { position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 180px; display: flex; flex-direction: column; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
   header .menu .items button { justify-content: flex-start; border: 0; border-radius: 4px; padding: 0 10px; font-weight: 400; }
   header .menu .items button:hover { background: var(--line-2); }
+  /* A menu whose items each say what they do: a name, then a line under it in the muted colour. */
+  header .menu .items.wide { min-width: 260px; }
+  header .menu .items.wide button { flex-direction: column; align-items: flex-start; gap: 1px; height: auto; padding: 6px 10px; }
+  header .menu .items.wide button b { font-weight: 600; }
+  header .menu .items.wide button span { font-size: var(--fs-sm); color: var(--muted); }
 
   /* ==== project sidebar ======================================================================= */
   #project { display: none; grid-row: 2; grid-column: 1; min-width: 0; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); overflow: auto; }
@@ -446,6 +451,26 @@
   dialog.drawer .fields { margin: -2px 0 12px 20px; padding-left: 12px; border-left: 2px solid var(--line); }
   dialog.drawer .actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
   dialog.drawer .actions .muted, dialog.drawer .muted { font-size: var(--fs-sm); line-height: 1.5; }
+  /* The Presets dialog: a card per preset, its flows as the tree the sidebar would show, Load it and Add to this one. */
+  dialog.presets { width: min(640px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 48px); padding: 0; overflow: hidden; }
+  dialog.presets[open], dialog.presets form { display: flex; flex-direction: column; min-height: 0; }
+  dialog.presets form { max-height: calc(100vh - 50px); }
+  dialog.presets .head { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  dialog.presets .head h3 { margin: 0; }
+  dialog.presets .list { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 20px; background: var(--bg); }
+  dialog.presets .preset { padding: 12px 14px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
+  dialog.presets .preset .head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; padding: 0; border: 0; }
+  dialog.presets .preset h4 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs); font-weight: 600; }
+  dialog.presets .preset .meta { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+  dialog.presets .preset p { margin: 0 0 8px; color: var(--muted); line-height: 1.5; }
+  dialog.presets .tree { list-style: none; margin: 0 0 8px; padding: 6px 10px; border: 1px solid var(--line-2); border-radius: var(--r1); background: var(--panel-2); font-size: var(--fs-sm); }
+  dialog.presets .tree li { display: flex; align-items: center; gap: 8px; padding: 2px 0 2px calc(var(--depth, 0) * 16px); }
+  dialog.presets .tree li.group .name { font-weight: 600; color: var(--muted); }
+  dialog.presets .tree li.flow .link { color: var(--ink); font-weight: 500; }
+  dialog.presets .tree li.flow .link:hover { color: var(--accent); text-decoration: underline; }
+  dialog.presets .tree .n { font-family: var(--mono); font-size: var(--fs-xs); color: var(--faint); }
+  dialog.presets .preset .buttons { flex-direction: row; margin-top: 8px; }
+  dialog.presets form > .buttons { margin: 0; padding: 10px 20px; border-top: 1px solid var(--line); }
   dialog table.keys { border-collapse: collapse; font-size: var(--fs); }
   dialog table.keys td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
   dialog table.keys tr:last-child td { border-bottom: 0; }
@@ -484,7 +509,14 @@
       <button id="newDoc">New</button>
       <button id="openDoc">Open…</button>
       <button id="saveDoc">Save</button>
-      <button id="loadExample">Example</button>
+      <details id="template" class="menu">
+        <summary title="Start from a preset, or move a flow in or out as JSON">Template</summary>
+        <div class="items wide">
+          <button id="openPresets"><b>Presets</b><span>start from a shop someone already drew</span></button>
+          <button id="importDoc"><b>Import</b><span>paste a flow's JSON into this page</span></button>
+          <button id="exportDoc"><b>Export</b><span>take this one out as JSON</span></button>
+        </div>
+      </details>
     </div>
     <div class="sep"></div>
     <div class="group" aria-label="History">
@@ -585,6 +617,13 @@
     <div class="head"><h3>Flow settings</h3><span class="muted">inputs and state: what a scenario is written against</span><button class="small" data-act="close-settings">Close</button></div>
     <div class="body"></div>
     <div class="foot"><span class="muted">changes apply as you type · ⌘Z undoes</span><button class="primary" data-act="close-settings">Done</button></div>
+  </dialog>
+  <dialog id="presetsDialog" class="presets">
+    <form method="dialog">
+      <div class="head"><h3>Presets</h3></div>
+      <div id="presetsList" class="list"></div>
+      <div class="buttons"><button value="close">Close</button></div>
+    </form>
   </dialog>
   <dialog id="helpDialog">
     <form method="dialog">

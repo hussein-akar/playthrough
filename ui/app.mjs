@@ -1,10 +1,11 @@
 import { store, subscribe, commit, load, restore, restoreDirty, restoreFile, setDirty, setFile, undo, redo, select, selectNodes, emit } from './store.mjs';
 import { toMarkdown } from '../lib/markdown.mjs';
-import { ask, notice, toast, dialogOpen } from './dialog.mjs';
+import { ask, notice, toast, promptText, dialogOpen } from './dialog.mjs';
 import * as canvas from './canvas.mjs';
 import * as inspector from './inspector.mjs';
 import * as table from './table.mjs';
 import * as project from './project.mjs';
+import * as presets from './presets.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -67,7 +68,6 @@ async function copy(text, what) {
 $('docName').addEventListener('input', (ev) => commit((d) => { d.name = ev.target.value; }));
 $('projectName').addEventListener('change', (ev) => project.renameProject(ev.target.value));
 $('projectName').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.target.blur(); });
-/** New/Example throw the current drawing away; when it is not in a file yet, ask first. */
 /** Before something replaces what is on the page: fine unless it has unsaved changes, then a short question. `what` is a verb phrase, "Open another flow". */
 async function replaceable(what) {
   if (!store.dirty || !store.doc.nodes.length) return true;
@@ -76,13 +76,8 @@ async function replaceable(what) {
 }
 project.hooks.fit = canvas.fit;
 project.hooks.replaceable = replaceable;
-// New, Open… and Example put an unfiled flow on the page; in a project, Save then adds it to the folder.
+// New, Open…, Import and a preset's flow put an unfiled flow on the page; in a project, Save then adds it to the folder.
 $('newDoc').addEventListener('click', async () => { if (await replaceable('start a new flow')) { setFile(null); load({ name: 'Untitled flow' }); canvas.fit(); } });
-$('loadExample').addEventListener('click', async () => {
-  if (!await replaceable('load the example')) return;
-  const doc = await (await fetch('examples/order.json')).json();
-  setFile(null); load(doc); canvas.fit();
-});
 /** In a project, Save writes the file in place; otherwise it downloads the flow. */
 function save() {
   if (project.project.info) return project.save();
@@ -118,14 +113,37 @@ $('addScenario').addEventListener('click', table.addScenario);
 $('help').addEventListener('click', () => $('helpDialog').showModal());
 window.addEventListener('beforeunload', (ev) => { if (store.dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
+// ---- template: presets, import, export ---------------------------------------------------------
+
+/** The header's drop-down menus close when something outside them is clicked, or when an item is picked. */
+const closeMenus = () => { for (const m of document.querySelectorAll('header details.menu')) m.open = false; };
+document.addEventListener('click', (ev) => { if (!ev.target.closest('header details.menu')) closeMenus(); });
+$('openPresets').addEventListener('click', () => { closeMenus(); presets.show(); });
+$('importDoc').addEventListener('click', async () => {
+  closeMenus();
+  if (!await replaceable('import a flow')) return;
+  const text = await promptText({ title: 'Import a flow', body: 'Paste the JSON of a flow, as Export or Download as JSON gives it. It replaces what is on the page; in a project, Save then adds it to the folder.', placeholder: '{ "name": "…", "nodes": [ … ], "edges": [ … ] }', ok: 'Import' });
+  if (text == null) return;
+  try {
+    const doc = JSON.parse(text);
+    if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw new Error('a flow is an object with nodes, edges and scenarios');
+    setFile(null); load(doc); canvas.fit(); toast(`Imported "${store.doc.name || 'Untitled flow'}"`);
+  } catch (e) { notice('Could not read that as a flow', e.message); }
+});
+$('exportDoc').addEventListener('click', async () => {
+  closeMenus();
+  const text = JSON.stringify(store.doc, null, 2);
+  let where = 'Copy it from here';
+  try { await navigator.clipboard.writeText(text); where = 'It is on the clipboard, and here'; } catch {}
+  notice(`Export "${store.doc.name || 'Untitled flow'}"`, `The flow as JSON. ${where}; paste it into Import on another page, or into a file in a project folder.`, text);
+});
+
 // ---- share ------------------------------------------------------------------------------------
 
-const closeShare = () => { $('share').open = false; };
-document.addEventListener('click', (ev) => { if (!$('share').contains(ev.target)) closeShare(); });
-$('copyMarkdown').addEventListener('click', () => { closeShare(); copy(toMarkdown(store.doc, store.results), 'Markdown'); });
-$('downloadDoc').addEventListener('click', () => { closeShare(); download(); });
+$('copyMarkdown').addEventListener('click', () => { closeMenus(); copy(toMarkdown(store.doc, store.results), 'Markdown'); });
+$('downloadDoc').addEventListener('click', () => { closeMenus(); download(); });
 $('copyLink').addEventListener('click', async () => {
-  closeShare();
+  closeMenus();
   const url = `${location.origin}${location.pathname}#d=${await encodeDoc(store.doc)}`;
   if (url.length > 30000) return toast('This flow is too big to fit in a link; use Save instead');
   copy(url, 'link');
@@ -278,5 +296,5 @@ window.addEventListener('hashchange', openLink);
     if (file) await project.open(file, { quiet: true });
   }
   const empty = !store.doc.nodes.length && !store.doc.scenarios.length;
-  if (!await openLink() && empty && !info) $('loadExample').click();
+  if (!await openLink() && empty && !info) await presets.openDefault();   // first visit: the simple shop's checkout
 }

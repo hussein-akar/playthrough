@@ -1,0 +1,82 @@
+{
+  "name": "Checkout",
+  "description": "A basket becomes an order. Lines that are in stock ship now, lines that are not become a back-order, a coupon or a membership may waive the shipping, and a basket with nothing in stock is refused.",
+  "inputs": [
+    { "name": "items", "type": "list", "fields": [
+      { "name": "sku", "type": "text" },
+      { "name": "qty", "type": "number" },
+      { "name": "inStock", "type": "boolean" },
+      { "name": "price", "type": "number" }
+    ] },
+    { "name": "coupon", "type": "enum", "values": ["None", "WELCOME10", "FREESHIP"] },
+    { "name": "country", "type": "enum", "values": ["UK", "DE", "FR", "US"] },
+    { "name": "customerType", "type": "enum", "values": ["Guest", "Member"] }
+  ],
+  "state": [
+    { "name": "shippable", "initial": "items where inStock" },
+    { "name": "backordered", "initial": "items where not inStock" },
+    { "name": "shipping", "initial": null },
+    { "name": "discount", "initial": "0" }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "start", "label": "Basket submitted", "x": 80, "y": 300 },
+    { "id": "anystock", "kind": "decision", "label": "Anything in stock?", "x": 320, "y": 300 },
+    { "id": "refuse", "kind": "action", "label": "Refuse the order", "x": 580, "y": 540 },
+    { "id": "nothing", "kind": "end", "label": "Nothing to ship", "x": 840, "y": 540 },
+    { "id": "coupon", "kind": "decision", "label": "Coupon?", "x": 580, "y": 300 },
+    { "id": "tenoff", "kind": "action", "label": "Take 10% off", "x": 840, "y": 180, "set": { "discount": "10" } },
+    { "id": "shipq", "kind": "decision", "label": "Shipping?", "x": 1100, "y": 300 },
+    { "id": "waive", "kind": "action", "label": "Waive shipping", "x": 1360, "y": 60, "set": { "shipping": "0" } },
+    { "id": "domestic", "kind": "action", "label": "Charge domestic shipping", "x": 1360, "y": 300, "set": { "shipping": "4" } },
+    { "id": "intl", "kind": "action", "label": "Charge international shipping", "x": 1360, "y": 420, "set": { "shipping": "12" } },
+    { "id": "confirm", "kind": "action", "label": "Confirm order", "x": 1620, "y": 300 },
+    { "id": "anyback", "kind": "decision", "label": "Anything back-ordered?", "x": 1880, "y": 300 },
+    { "id": "split", "kind": "action", "label": "Split into a back-order", "x": 2140, "y": 420 },
+    { "id": "email", "kind": "action", "label": "Send confirmation email", "x": 2400, "y": 300 },
+    { "id": "done", "kind": "end", "label": "Done", "x": 2660, "y": 300 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "start", "to": "anystock" },
+    { "id": "e2", "from": "anystock", "to": "coupon", "when": "count(shippable) > 0" },
+    { "id": "e3", "from": "anystock", "to": "refuse", "else": true, "label": "nothing in stock", "color": "failed" },
+    { "id": "e4", "from": "refuse", "to": "nothing" },
+    { "id": "e5", "from": "coupon", "to": "tenoff", "when": "coupon == WELCOME10" },
+    { "id": "e6", "from": "coupon", "to": "waive", "when": "coupon == FREESHIP", "color": "success" },
+    { "id": "e7", "from": "coupon", "to": "shipq", "else": true, "label": "no coupon" },
+    { "id": "e8", "from": "tenoff", "to": "shipq" },
+    { "id": "e9", "from": "shipq", "to": "waive", "when": "customerType == Member", "color": "success" },
+    { "id": "e10", "from": "shipq", "to": "domestic", "when": "country == UK and customerType == Guest" },
+    { "id": "e11", "from": "shipq", "to": "intl", "else": true, "label": "guest abroad" },
+    { "id": "e12", "from": "waive", "to": "confirm" },
+    { "id": "e13", "from": "domestic", "to": "confirm" },
+    { "id": "e14", "from": "intl", "to": "confirm" },
+    { "id": "e15", "from": "confirm", "to": "anyback" },
+    { "id": "e16", "from": "anyback", "to": "split", "when": "count(backordered) > 0", "color": "warning" },
+    { "id": "e17", "from": "anyback", "to": "email", "else": true },
+    { "id": "e18", "from": "split", "to": "email" },
+    { "id": "e19", "from": "email", "to": "done" }
+  ],
+  "scenarios": [
+    { "id": "s1", "name": "Guest in the UK, everything in stock", "tags": ["happy path"],
+      "inputs": { "items": "sku=A1, qty=1, inStock=yes, price=20\nsku=B2, qty=2, inStock=yes, price=5", "coupon": "None", "country": "UK", "customerType": "Guest" },
+      "expect": { "actions": ["Charge domestic shipping", "Confirm order", "Send confirmation email"], "end": "Done", "state": { "shippable": "2", "backordered": "null", "shipping": "4", "discount": "0" } } },
+    { "id": "s2", "name": "Member abroad ships free", "tags": ["happy path", "shipping"],
+      "inputs": { "items": "A1, 1, yes, 20", "coupon": "None", "country": "DE", "customerType": "Member" },
+      "expect": { "actions": ["Waive shipping", "Confirm order", "Send confirmation email"], "end": "Done", "state": { "shipping": "0" } } },
+    { "id": "s3", "name": "Welcome coupon, guest in France", "tags": ["coupons", "shipping"],
+      "inputs": { "items": "A1, 1, yes, 20", "coupon": "WELCOME10", "country": "FR", "customerType": "Guest" },
+      "expect": { "actions": ["Take 10% off", "Charge international shipping", "Confirm order", "Send confirmation email"], "end": "Done", "state": { "shipping": "12", "discount": "10" } } },
+    { "id": "s4", "name": "Free-shipping coupon skips the shipping question", "tags": ["coupons", "shipping"],
+      "inputs": { "items": "A1, 1, yes, 20", "coupon": "FREESHIP", "country": "US", "customerType": "Guest" },
+      "expect": { "actions": ["Waive shipping", "Confirm order", "Send confirmation email"], "end": "Done", "state": { "shipping": "0", "discount": "0" } } },
+    { "id": "s5", "name": "One line back-ordered", "tags": ["stock"],
+      "inputs": { "items": "A1, 1, yes, 20\nC3, 1, no, 30", "coupon": "None", "country": "UK", "customerType": "Guest" },
+      "expect": { "actions": ["Charge domestic shipping", "Confirm order", "Split into a back-order", "Send confirmation email"], "end": "Done", "state": { "shippable": "1", "backordered": "1" } } },
+    { "id": "s6", "name": "Nothing in stock at all", "tags": ["stock", "edge"],
+      "inputs": { "items": "C3, 1, no, 30\nD4, 3, no, 8", "coupon": "WELCOME10", "country": "UK", "customerType": "Member" },
+      "expect": { "actions": ["Refuse the order"], "end": "Nothing to ship", "state": { "shippable": "null", "backordered": "2", "shipping": "null" } } },
+    { "id": "s7", "name": "Big quantities are still one line each", "tags": ["stock"],
+      "inputs": { "items": "A1, 12, yes, 2\nB2, 1, yes, 40", "coupon": "None", "country": "UK", "customerType": "Member" },
+      "expect": { "actions": ["Waive shipping", "Confirm order", "Send confirmation email"], "end": "Done", "state": { "shippable": "count(shippable where qty > 10) == 1" } } }
+  ]
+}

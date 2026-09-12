@@ -41,9 +41,9 @@ export async function refresh() {
   render();
 }
 
-/** Open a flow from the folder, replacing what is on the page. */
-export async function open(file, { quiet = false } = {}) {
-  if (!await hooks.replaceable('open the other flow')) return false;
+/** Open a flow from the folder, replacing what is on the page. `force` skips the unsaved-changes question: the caller asked already. */
+export async function open(file, { quiet = false, force = false } = {}) {
+  if (!force && !await hooks.replaceable('open the other flow')) return false;
   try {
     const { doc, mtime } = await call('GET', `/api/flows/${encodeURIComponent(file)}`);
     setFile(file, mtime); load(doc); hooks.fit();
@@ -162,6 +162,35 @@ export async function removeFolder(path) {
     if (store.file?.startsWith(`${path}/`)) { setFile(null, null); setDirty(store.doc.nodes.length > 0); emit(); }
     toast(`Deleted ${path}/`); refresh();
   } catch (e) { notice(`Could not delete ${path}/`, e.message); }
+}
+
+/**
+ * Empty the folder: every top-level group with everything in it, then every flow at the root.
+ * The caller has asked. project.json, and so the name, stays.
+ */
+export async function clearAll() {
+  const info = project.info;
+  const tops = new Set((info.folders ?? []).map((p) => p.split('/')[0]));
+  for (const f of info.flows) if (f.file.includes('/')) tops.add(f.file.split('/')[0]);
+  for (const t of tops) await call('DELETE', `/api/folders/${encodeURIComponent(t)}?all=1`);
+  for (const f of info.flows) if (!f.file.includes('/')) await call('DELETE', `/api/flows/${encodeURIComponent(f.file)}`);
+  if (store.file) { setFile(null, null); setDirty(store.doc.nodes.length > 0); emit(); }
+}
+
+/**
+ * Write flows into the folder at the paths given, `[{ file, doc }]`, groups made on the way. With
+ * `skipExisting` a file already in the folder is left as it is. Resolves to what was written and
+ * what was skipped.
+ */
+export async function putFlows(flows, { skipExisting = false } = {}) {
+  const have = new Set(project.info.flows.map((f) => f.file));
+  const written = [], skipped = [];
+  for (const { file, doc } of flows) {
+    if (skipExisting && have.has(file)) { skipped.push(file); continue; }
+    await call('PUT', `/api/flows/${encodeURIComponent(file)}`, { doc });
+    written.push(file);
+  }
+  return { written, skipped };
 }
 
 export async function remove(file) {

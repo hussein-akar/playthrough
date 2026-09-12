@@ -1,0 +1,72 @@
+{
+  "name": "Delivery",
+  "description": "The last mile. A bad address goes straight back; a locker drop needs no one home; otherwise it is handed over, left in an agreed safe place, or carded and tried again, up to three times.",
+  "inputs": [
+    { "name": "carrier", "type": "enum", "values": ["Post", "Courier", "Locker"] },
+    { "name": "addressValid", "type": "boolean" },
+    { "name": "recipientHome", "type": "boolean" },
+    { "name": "safePlace", "type": "boolean" },
+    { "name": "attempt", "type": "number" }
+  ],
+  "state": [
+    { "name": "outcome", "initial": null },
+    { "name": "attempts", "initial": "attempt" }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "start", "label": "Out for delivery", "x": 80, "y": 340 },
+    { "id": "address", "kind": "decision", "label": "Address valid?", "x": 320, "y": 340 },
+    { "id": "depot", "kind": "action", "label": "Return to the depot", "x": 580, "y": 620 },
+    { "id": "confirm", "kind": "action", "label": "Ask the customer to confirm the address", "x": 840, "y": 620 },
+    { "id": "query", "kind": "end", "label": "Address query", "x": 2400, "y": 620 },
+    { "id": "carrierq", "kind": "decision", "label": "Carrier?", "x": 580, "y": 340 },
+    { "id": "locker", "kind": "action", "label": "Drop in the locker", "x": 840, "y": 100, "set": { "outcome": "'locker'" } },
+    { "id": "code", "kind": "action", "label": "Send the collection code", "x": 1100, "y": 100 },
+    { "id": "home", "kind": "decision", "label": "Anyone home?", "x": 840, "y": 340 },
+    { "id": "sign", "kind": "action", "label": "Hand over and take a signature", "x": 1100, "y": 240, "set": { "outcome": "'signed'" } },
+    { "id": "safeq", "kind": "decision", "label": "Safe place agreed?", "x": 1100, "y": 440 },
+    { "id": "leave", "kind": "action", "label": "Leave it in the safe place", "x": 1360, "y": 340, "set": { "outcome": "'safe place'" } },
+    { "id": "photo", "kind": "action", "label": "Photograph the drop", "x": 1620, "y": 340 },
+    { "id": "third", "kind": "decision", "label": "Third attempt?", "x": 1360, "y": 520 },
+    { "id": "holddepot", "kind": "action", "label": "Hold at the depot for collection", "x": 1620, "y": 520, "set": { "outcome": "'held'" } },
+    { "id": "awaiting", "kind": "end", "label": "Awaiting collection", "x": 2400, "y": 520 },
+    { "id": "card", "kind": "action", "label": "Leave a card and try tomorrow", "x": 1620, "y": 440, "set": { "attempts": "attempts + 1", "outcome": "'carded'" } },
+    { "id": "retry", "kind": "end", "label": "Retry", "x": 2400, "y": 440 },
+    { "id": "delivered", "kind": "end", "label": "Delivered", "x": 2400, "y": 240 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "start", "to": "address" },
+    { "id": "e2", "from": "address", "to": "carrierq", "when": "addressValid" },
+    { "id": "e3", "from": "address", "to": "depot", "else": true, "label": "bad address", "color": "failed" },
+    { "id": "e4", "from": "depot", "to": "confirm" },
+    { "id": "e5", "from": "confirm", "to": "query" },
+    { "id": "e6", "from": "carrierq", "to": "locker", "when": "carrier == Locker" },
+    { "id": "e7", "from": "carrierq", "to": "home", "else": true, "label": "to the door" },
+    { "id": "e8", "from": "locker", "to": "code" },
+    { "id": "e9", "from": "code", "to": "delivered" },
+    { "id": "e10", "from": "home", "to": "sign", "when": "recipientHome", "color": "success" },
+    { "id": "e11", "from": "home", "to": "safeq", "else": true },
+    { "id": "e12", "from": "sign", "to": "delivered" },
+    { "id": "e13", "from": "safeq", "to": "leave", "when": "safePlace" },
+    { "id": "e14", "from": "safeq", "to": "third", "else": true },
+    { "id": "e15", "from": "leave", "to": "photo" },
+    { "id": "e16", "from": "photo", "to": "delivered" },
+    { "id": "e17", "from": "third", "to": "holddepot", "when": "attempts >= 3", "color": "warning" },
+    { "id": "e18", "from": "third", "to": "card", "else": true },
+    { "id": "e19", "from": "holddepot", "to": "awaiting" },
+    { "id": "e20", "from": "card", "to": "retry" }
+  ],
+  "scenarios": [
+    { "id": "s1", "name": "Signed for at the door", "tags": ["happy path"], "inputs": { "carrier": "Courier", "addressValid": true, "recipientHome": true, "safePlace": false, "attempt": 1 },
+      "expect": { "actions": ["Hand over and take a signature"], "end": "Delivered", "state": { "outcome": "signed", "attempts": "1" } } },
+    { "id": "s2", "name": "Locker drop needs nobody home", "tags": ["happy path"], "inputs": { "carrier": "Locker", "addressValid": true, "recipientHome": false, "safePlace": false, "attempt": 1 },
+      "expect": { "actions": ["Drop in the locker", "Send the collection code"], "end": "Delivered", "state": { "outcome": "locker" } } },
+    { "id": "s3", "name": "Nobody home, safe place agreed", "tags": ["happy path"], "inputs": { "carrier": "Post", "addressValid": true, "recipientHome": false, "safePlace": true, "attempt": 1 },
+      "expect": { "actions": ["Leave it in the safe place", "Photograph the drop"], "end": "Delivered", "state": { "outcome": "safe place" } } },
+    { "id": "s4", "name": "Nobody home, first attempt: carded", "tags": ["retry"], "inputs": { "carrier": "Post", "addressValid": true, "recipientHome": false, "safePlace": false, "attempt": 1 },
+      "expect": { "actions": ["Leave a card and try tomorrow"], "end": "Retry", "state": { "outcome": "carded", "attempts": "2" } } },
+    { "id": "s5", "name": "Nobody home on the third attempt", "tags": ["retry", "edge"], "inputs": { "carrier": "Post", "addressValid": true, "recipientHome": false, "safePlace": false, "attempt": 3 },
+      "expect": { "actions": ["Hold at the depot for collection"], "end": "Awaiting collection", "state": { "outcome": "held", "attempts": "3" } } },
+    { "id": "s6", "name": "Bad address goes straight back", "tags": ["edge"], "inputs": { "carrier": "Courier", "addressValid": false, "recipientHome": true, "safePlace": true, "attempt": 1 },
+      "expect": { "actions": ["Return to the depot", "Ask the customer to confirm the address"], "end": "Address query", "state": { "outcome": "null" } } }
+  ]
+}

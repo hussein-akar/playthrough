@@ -21,7 +21,7 @@ export const store = {
   playhead: null,           // when animating: number of steps revealed
   results: null,            // from runAll
   problems: [],             // from lint
-  dirty: false,             // changed since the last Save / Open / Example / New (autosave does not count)
+  dirty: false,             // changed since the last Save / Open / Import / New (autosave does not count)
   file: null,               // the project file this flow lives in, when the server has a project folder
   mtime: null,              // that file's modification time as last read or written, so a save can notice a change on disk
   undo: [], redo: [],
@@ -67,7 +67,7 @@ export function redo() {
   afterLoad();
 }
 
-/** A whole new document (New, Open…, Example, a dropped file, a link): clean until edited. */
+/** A whole new document (New, Open…, Import, a preset, a dropped file, a link): clean until edited. */
 export function load(doc, { keepHistory = false } = {}) {
   store.doc = normalize(doc);
   if (!keepHistory) { store.undo = []; store.redo = []; }

@@ -1,0 +1,62 @@
+{
+  "name": "Refunds",
+  "description": "Money going back. A large refund needs a manager first. The money goes back the way it came, except that an old card payment goes by bank transfer, and an unpaid invoice is simply cancelled.",
+  "inputs": [
+    { "name": "paidWith", "type": "enum", "values": ["Card", "PayPal", "GiftCard", "Invoice"] },
+    { "name": "amount", "type": "number" },
+    { "name": "daysSincePayment", "type": "number" },
+    { "name": "invoicePaid", "type": "boolean" }
+  ],
+  "state": [
+    { "name": "channel", "initial": null },
+    { "name": "status", "initial": "pending" }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "start", "label": "Refund approved", "x": 80, "y": 320 },
+    { "id": "large", "kind": "decision", "label": "Over 1000?", "x": 320, "y": 320 },
+    { "id": "signoff", "kind": "action", "label": "Get a manager's sign-off", "x": 580, "y": 160 },
+    { "id": "how", "kind": "decision", "label": "How was it paid?", "x": 840, "y": 320 },
+    { "id": "tocard", "kind": "action", "label": "Refund to the card", "x": 1120, "y": 60, "set": { "channel": "'card'" } },
+    { "id": "bank", "kind": "action", "label": "Refund by bank transfer", "x": 1120, "y": 180, "set": { "channel": "'bank'" } },
+    { "id": "paypal", "kind": "action", "label": "Refund via PayPal", "x": 1120, "y": 300, "set": { "channel": "'paypal'" } },
+    { "id": "newgift", "kind": "action", "label": "Issue a new gift card", "x": 1120, "y": 420, "set": { "channel": "'gift card'" } },
+    { "id": "cancel", "kind": "action", "label": "Cancel the invoice", "x": 1120, "y": 560, "set": { "status": "'cancelled'" } },
+    { "id": "refunded", "kind": "action", "label": "Mark as refunded", "x": 1400, "y": 320, "set": { "status": "'refunded'" } },
+    { "id": "email", "kind": "action", "label": "Email the customer", "x": 1660, "y": 320 },
+    { "id": "done", "kind": "end", "label": "Done", "x": 1920, "y": 320 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "start", "to": "large" },
+    { "id": "e2", "from": "large", "to": "signoff", "when": "amount > 1000", "color": "warning" },
+    { "id": "e3", "from": "large", "to": "how", "else": true },
+    { "id": "e4", "from": "signoff", "to": "how" },
+    { "id": "e5", "from": "how", "to": "tocard", "when": "paidWith == Card and daysSincePayment <= 180", "label": "recent card" },
+    { "id": "e6", "from": "how", "to": "bank", "when": "paidWith == Card and daysSincePayment > 180 or paidWith == Invoice and invoicePaid", "label": "old card, paid invoice" },
+    { "id": "e7", "from": "how", "to": "paypal", "when": "paidWith == PayPal" },
+    { "id": "e8", "from": "how", "to": "newgift", "when": "paidWith == GiftCard" },
+    { "id": "e9", "from": "how", "to": "cancel", "when": "paidWith == Invoice and not invoicePaid", "label": "unpaid invoice", "color": "info" },
+    { "id": "e10", "from": "tocard", "to": "refunded" },
+    { "id": "e11", "from": "bank", "to": "refunded" },
+    { "id": "e12", "from": "paypal", "to": "refunded" },
+    { "id": "e13", "from": "newgift", "to": "refunded" },
+    { "id": "e14", "from": "cancel", "to": "email" },
+    { "id": "e15", "from": "refunded", "to": "email" },
+    { "id": "e16", "from": "email", "to": "done" }
+  ],
+  "scenarios": [
+    { "id": "s1", "name": "Recent card payment goes back to the card", "tags": ["happy path"], "inputs": { "paidWith": "Card", "amount": 60, "daysSincePayment": 12, "invoicePaid": false },
+      "expect": { "actions": ["Refund to the card", "Mark as refunded", "Email the customer"], "end": "Done", "state": { "channel": "card", "status": "refunded" } } },
+    { "id": "s2", "name": "Card paid last year: bank transfer", "tags": ["edge"], "inputs": { "paidWith": "Card", "amount": 60, "daysSincePayment": 400, "invoicePaid": false },
+      "expect": { "actions": ["Refund by bank transfer", "Mark as refunded", "Email the customer"], "end": "Done", "state": { "channel": "bank" } } },
+    { "id": "s3", "name": "PayPal", "tags": ["happy path"], "inputs": { "paidWith": "PayPal", "amount": 60, "daysSincePayment": 5, "invoicePaid": false },
+      "expect": { "actions": ["Refund via PayPal", "Mark as refunded", "Email the customer"], "end": "Done", "state": { "channel": "paypal" } } },
+    { "id": "s4", "name": "Gift card money stays gift card money", "tags": ["happy path"], "inputs": { "paidWith": "GiftCard", "amount": 25, "daysSincePayment": 5, "invoicePaid": false },
+      "expect": { "actions": ["Issue a new gift card", "Mark as refunded", "Email the customer"], "end": "Done", "state": { "channel": "gift card" } } },
+    { "id": "s5", "name": "Large refund needs a manager first", "tags": ["sign-off"], "inputs": { "paidWith": "Card", "amount": 2500, "daysSincePayment": 10, "invoicePaid": false },
+      "expect": { "actions": ["Get a manager's sign-off", "Refund to the card", "Mark as refunded", "Email the customer"], "end": "Done", "state": { "status": "refunded" } } },
+    { "id": "s6", "name": "Paid invoice is refunded by transfer", "tags": ["invoice"], "inputs": { "paidWith": "Invoice", "amount": 300, "daysSincePayment": 40, "invoicePaid": true },
+      "expect": { "actions": ["Refund by bank transfer", "Mark as refunded", "Email the customer"], "end": "Done", "state": { "channel": "bank" } } },
+    { "id": "s7", "name": "Unpaid invoice is just cancelled", "tags": ["invoice"], "inputs": { "paidWith": "Invoice", "amount": 300, "daysSincePayment": 40, "invoicePaid": false },
+      "expect": { "actions": ["Cancel the invoice", "Email the customer"], "end": "Done", "state": { "channel": "null", "status": "cancelled" } } }
+  ]
+}

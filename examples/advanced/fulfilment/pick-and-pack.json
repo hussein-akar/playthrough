@@ -1,0 +1,82 @@
+{
+  "name": "Pick and pack",
+  "description": "The warehouse side of an order: the lines are picked, a shortfall is either shipped in part or held, fragile items get more padding, gifts get wrapped, and the parcel goes out by van or courier.",
+  "inputs": [
+    { "name": "lines", "type": "list", "fields": [
+      { "name": "sku", "type": "text" },
+      { "name": "qty", "type": "number" },
+      { "name": "picked", "type": "number" },
+      { "name": "fragile", "type": "boolean" }
+    ] },
+    { "name": "giftWrap", "type": "boolean" },
+    { "name": "express", "type": "boolean" }
+  ],
+  "state": [
+    { "name": "short", "initial": "lines where picked < qty" },
+    { "name": "fragileLines", "initial": "lines where fragile" },
+    { "name": "packing", "initial": null }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "start", "label": "Released to the warehouse", "x": 80, "y": 300 },
+    { "id": "pick", "kind": "action", "label": "Pick the lines", "x": 320, "y": 300 },
+    { "id": "allpicked", "kind": "decision", "label": "Everything picked?", "x": 580, "y": 300 },
+    { "id": "discrepancy", "kind": "action", "label": "Raise a stock discrepancy", "x": 840, "y": 500 },
+    { "id": "partial", "kind": "decision", "label": "Ship what we have?", "x": 1100, "y": 500 },
+    { "id": "splitoff", "kind": "action", "label": "Split the short lines off", "x": 1360, "y": 500 },
+    { "id": "hold", "kind": "action", "label": "Hold the order", "x": 1360, "y": 660 },
+    { "id": "onhold", "kind": "end", "label": "On hold", "x": 2660, "y": 660 },
+    { "id": "anyfragile", "kind": "decision", "label": "Any fragile items?", "x": 1620, "y": 300 },
+    { "id": "padded", "kind": "action", "label": "Pack with extra padding", "x": 1880, "y": 200, "set": { "packing": "'padded'" } },
+    { "id": "standard", "kind": "action", "label": "Pack in a standard box", "x": 1880, "y": 400, "set": { "packing": "'standard'" } },
+    { "id": "giftq", "kind": "decision", "label": "Gift wrap?", "x": 2140, "y": 300 },
+    { "id": "wrap", "kind": "action", "label": "Wrap it and add the gift note", "x": 2400, "y": 160 },
+    { "id": "label", "kind": "action", "label": "Print the label", "x": 2660, "y": 300 },
+    { "id": "expressq", "kind": "decision", "label": "Express?", "x": 2920, "y": 300 },
+    { "id": "courier", "kind": "action", "label": "Book a same-day courier", "x": 3180, "y": 200 },
+    { "id": "van", "kind": "action", "label": "Add to the evening van", "x": 3180, "y": 400 },
+    { "id": "ready", "kind": "end", "label": "Ready for collection", "x": 3440, "y": 300 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "start", "to": "pick" },
+    { "id": "e2", "from": "pick", "to": "allpicked" },
+    { "id": "e3", "from": "allpicked", "to": "anyfragile", "when": "count(short) == 0", "color": "success" },
+    { "id": "e4", "from": "allpicked", "to": "discrepancy", "else": true, "label": "something short", "color": "warning" },
+    { "id": "e5", "from": "discrepancy", "to": "partial" },
+    { "id": "e6", "from": "partial", "to": "splitoff", "when": "express", "label": "express: ship in part" },
+    { "id": "e7", "from": "partial", "to": "hold", "else": true, "color": "failed" },
+    { "id": "e8", "from": "splitoff", "to": "anyfragile" },
+    { "id": "e9", "from": "hold", "to": "onhold" },
+    { "id": "e10", "from": "anyfragile", "to": "padded", "when": "count(fragileLines) > 0" },
+    { "id": "e11", "from": "anyfragile", "to": "standard", "else": true },
+    { "id": "e12", "from": "padded", "to": "giftq" },
+    { "id": "e13", "from": "standard", "to": "giftq" },
+    { "id": "e14", "from": "giftq", "to": "wrap", "when": "giftWrap" },
+    { "id": "e15", "from": "giftq", "to": "label", "else": true },
+    { "id": "e16", "from": "wrap", "to": "label" },
+    { "id": "e17", "from": "label", "to": "expressq" },
+    { "id": "e18", "from": "expressq", "to": "courier", "when": "express", "color": "info" },
+    { "id": "e19", "from": "expressq", "to": "van", "else": true },
+    { "id": "e20", "from": "courier", "to": "ready" },
+    { "id": "e21", "from": "van", "to": "ready" }
+  ],
+  "scenarios": [
+    { "id": "s1", "name": "Two lines, all picked, evening van", "tags": ["happy path"],
+      "inputs": { "lines": "sku=A1, qty=2, picked=2, fragile=no\nsku=B2, qty=1, picked=1, fragile=no", "giftWrap": false, "express": false },
+      "expect": { "actions": ["Pick the lines", "Pack in a standard box", "Print the label", "Add to the evening van"], "end": "Ready for collection", "state": { "short": "null", "packing": "standard" } } },
+    { "id": "s2", "name": "A fragile line gets padding", "tags": ["happy path", "packing"],
+      "inputs": { "lines": "A1, 1, 1, yes\nB2, 3, 3, no", "giftWrap": false, "express": false },
+      "expect": { "actions": ["Pick the lines", "Pack with extra padding", "Print the label", "Add to the evening van"], "end": "Ready for collection", "state": { "fragileLines": "1", "packing": "padded" } } },
+    { "id": "s3", "name": "Gift-wrapped and express", "tags": ["happy path", "packing"],
+      "inputs": { "lines": "A1, 1, 1, no", "giftWrap": true, "express": true },
+      "expect": { "actions": ["Pick the lines", "Pack in a standard box", "Wrap it and add the gift note", "Print the label", "Book a same-day courier"], "end": "Ready for collection" } },
+    { "id": "s4", "name": "One line short, express ships the rest", "tags": ["stock"],
+      "inputs": { "lines": "A1, 2, 2, no\nB2, 4, 1, no", "giftWrap": false, "express": true },
+      "expect": { "actions": ["Pick the lines", "Raise a stock discrepancy", "Split the short lines off", "Pack in a standard box", "Print the label", "Book a same-day courier"], "end": "Ready for collection", "state": { "short": "1" } } },
+    { "id": "s5", "name": "One line short, standard order waits", "tags": ["stock"],
+      "inputs": { "lines": "A1, 2, 2, no\nB2, 4, 1, no", "giftWrap": false, "express": false },
+      "expect": { "actions": ["Pick the lines", "Raise a stock discrepancy", "Hold the order"], "end": "On hold", "state": { "short": "1", "packing": "null" } } },
+    { "id": "s6", "name": "Every line short", "tags": ["stock", "edge"],
+      "inputs": { "lines": "A1, 2, 0, yes\nB2, 4, 0, no", "giftWrap": true, "express": false },
+      "expect": { "actions": ["Pick the lines", "Raise a stock discrepancy", "Hold the order"], "end": "On hold", "state": { "short": "count(short where picked == 0) == 2" } } }
+  ]
+}

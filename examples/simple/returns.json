@@ -1,0 +1,56 @@
+{
+  "name": "Returns",
+  "description": "A customer wants to send something back. Whether we take it depends on how long they have had it and whether they can show a receipt; what they get back depends on the state it is in.",
+  "inputs": [
+    { "name": "daysSinceDelivery", "type": "number" },
+    { "name": "hasReceipt", "type": "boolean" },
+    { "name": "condition", "type": "enum", "values": ["Unopened", "Used", "Damaged"] }
+  ],
+  "state": [
+    { "name": "refund", "initial": null }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "start", "label": "Return requested", "x": 80, "y": 240 },
+    { "id": "window", "kind": "decision", "label": "Within 30 days?", "x": 320, "y": 240 },
+    { "id": "refuse", "kind": "action", "label": "Refuse the return", "x": 580, "y": 440 },
+    { "id": "refused", "kind": "end", "label": "Refused", "x": 1580, "y": 440 },
+    { "id": "receipt", "kind": "decision", "label": "Has a receipt?", "x": 580, "y": 240 },
+    { "id": "credit", "kind": "action", "label": "Offer store credit", "x": 840, "y": 60 },
+    { "id": "cond", "kind": "decision", "label": "Condition?", "x": 840, "y": 240 },
+    { "id": "full", "kind": "action", "label": "Refund in full", "x": 1100, "y": 140, "set": { "refund": "100" } },
+    { "id": "half", "kind": "action", "label": "Refund half", "x": 1100, "y": 240, "set": { "refund": "50" } },
+    { "id": "replace", "kind": "action", "label": "Send a replacement", "x": 1100, "y": 340 },
+    { "id": "email", "kind": "action", "label": "Email the outcome", "x": 1340, "y": 240 },
+    { "id": "done", "kind": "end", "label": "Done", "x": 1580, "y": 240 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "start", "to": "window" },
+    { "id": "e2", "from": "window", "to": "receipt", "when": "daysSinceDelivery <= 30" },
+    { "id": "e3", "from": "window", "to": "refuse", "else": true, "label": "too late", "color": "failed" },
+    { "id": "e4", "from": "refuse", "to": "refused" },
+    { "id": "e5", "from": "receipt", "to": "cond", "when": "hasReceipt" },
+    { "id": "e6", "from": "receipt", "to": "credit", "else": true, "label": "no receipt", "color": "warning" },
+    { "id": "e7", "from": "cond", "to": "full", "when": "condition == Unopened", "color": "success" },
+    { "id": "e8", "from": "cond", "to": "half", "when": "condition == Used" },
+    { "id": "e9", "from": "cond", "to": "replace", "else": true, "label": "damaged" },
+    { "id": "e10", "from": "credit", "to": "email" },
+    { "id": "e11", "from": "full", "to": "email" },
+    { "id": "e12", "from": "half", "to": "email" },
+    { "id": "e13", "from": "replace", "to": "email" },
+    { "id": "e14", "from": "email", "to": "done" }
+  ],
+  "scenarios": [
+    { "id": "s1", "name": "Unopened, back within a week", "tags": ["happy path"], "inputs": { "daysSinceDelivery": 7, "hasReceipt": true, "condition": "Unopened" },
+      "expect": { "actions": ["Refund in full", "Email the outcome"], "end": "Done", "state": { "refund": "100" } } },
+    { "id": "s2", "name": "Used, still inside the month", "tags": ["happy path"], "inputs": { "daysSinceDelivery": 25, "hasReceipt": true, "condition": "Used" },
+      "expect": { "actions": ["Refund half", "Email the outcome"], "end": "Done", "state": { "refund": "50" } } },
+    { "id": "s3", "name": "Damaged on arrival", "tags": ["happy path"], "inputs": { "daysSinceDelivery": 2, "hasReceipt": true, "condition": "Damaged" },
+      "expect": { "actions": ["Send a replacement", "Email the outcome"], "end": "Done", "state": { "refund": "null" } } },
+    { "id": "s4", "name": "Too late, whatever the state", "tags": ["edge"], "inputs": { "daysSinceDelivery": 45, "hasReceipt": true, "condition": "Unopened" },
+      "expect": { "actions": ["Refuse the return"], "end": "Refused", "state": { "refund": "null" } } },
+    { "id": "s5", "name": "No receipt: store credit instead", "tags": ["edge"], "inputs": { "daysSinceDelivery": 10, "hasReceipt": false, "condition": "Used" },
+      "expect": { "actions": ["Offer store credit", "Email the outcome"], "end": "Done", "state": { "refund": "null" } } },
+    { "id": "s6", "name": "Exactly on day 30", "tags": ["edge"], "inputs": { "daysSinceDelivery": 30, "hasReceipt": true, "condition": "Used" },
+      "expect": { "actions": ["Refund half", "Email the outcome"], "end": "Done", "state": { "refund": "50" } } }
+  ]
+}

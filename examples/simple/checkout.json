@@ -1,0 +1,46 @@
+{
+  "name": "Checkout",
+  "description": "What happens when an order is placed: stock is reserved, a coupon may take money off, payment is taken, and the customer is told in whatever way their channel allows.",
+  "inputs": [
+    { "name": "channel", "type": "enum", "values": ["Web", "App", "Marketplace", "Phone", "Kiosk"] },
+    { "name": "hasCoupon", "type": "boolean" }
+  ],
+  "state": [
+    { "name": "discount", "initial": null }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "start", "label": "Order placed", "x": 80, "y": 220 },
+    { "id": "reserve", "kind": "action", "label": "Reserve stock", "x": 300, "y": 220 },
+    { "id": "coupon", "kind": "decision", "label": "Has a coupon?", "x": 540, "y": 220 },
+    { "id": "apply", "kind": "action", "label": "Apply coupon", "x": 800, "y": 120, "set": { "discount": "10" } },
+    { "id": "full", "kind": "action", "label": "Keep full price", "x": 800, "y": 320 },
+    { "id": "pay", "kind": "action", "label": "Take payment", "x": 1060, "y": 220 },
+    { "id": "channel", "kind": "decision", "label": "Channel?", "x": 1300, "y": 220 },
+    { "id": "email", "kind": "action", "label": "Send confirmation email", "x": 1580, "y": 120 },
+    { "id": "receipt", "kind": "action", "label": "Print receipt", "x": 1580, "y": 320 },
+    { "id": "done", "kind": "end", "label": "Done", "x": 1840, "y": 220 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "start", "to": "reserve" },
+    { "id": "e2", "from": "reserve", "to": "coupon" },
+    { "id": "e3", "from": "coupon", "to": "apply", "when": "hasCoupon" },
+    { "id": "e4", "from": "coupon", "to": "full", "else": true },
+    { "id": "e5", "from": "apply", "to": "pay" },
+    { "id": "e6", "from": "full", "to": "pay" },
+    { "id": "e7", "from": "pay", "to": "channel" },
+    { "id": "e8", "from": "channel", "to": "email", "when": "channel in [Web, App, Marketplace]", "label": "online" },
+    { "id": "e9", "from": "channel", "to": "receipt", "else": true, "label": "in person" },
+    { "id": "e10", "from": "email", "to": "done" },
+    { "id": "e11", "from": "receipt", "to": "done" }
+  ],
+  "scenarios": [
+    { "id": "s1", "name": "Web order with a coupon", "tags": ["happy path"], "inputs": { "channel": "Web", "hasCoupon": true },
+      "expect": { "actions": ["Reserve stock", "Apply coupon", "Take payment", "Send confirmation email"], "end": "Done", "state": { "discount": "*" } } },
+    { "id": "s2", "name": "App order, no coupon", "tags": ["happy path"], "inputs": { "channel": "App", "hasCoupon": false },
+      "expect": { "actions": ["Reserve stock", "Keep full price", "Take payment", "Send confirmation email"], "end": "Done", "state": { "discount": "null" } } },
+    { "id": "s3", "name": "Kiosk order prints a receipt", "tags": ["happy path", "receipt"], "inputs": { "channel": "Kiosk", "hasCoupon": true },
+      "expect": { "actions": ["Reserve stock", "Apply coupon", "Take payment", "Print receipt"], "end": "Done", "state": { "discount": "*" } } },
+    { "id": "s4", "name": "Phone order (someone assumed an email)", "tags": ["assumption", "receipt"], "inputs": { "channel": "Phone", "hasCoupon": false },
+      "expect": { "actions": ["Reserve stock", "Keep full price", "Take payment", "Send confirmation email"], "end": "Done" } }
+  ]
+}

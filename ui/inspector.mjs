@@ -72,7 +72,7 @@ function usesOf(doc, name) {
 }
 const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n} time${n === 1 ? '' : 's'}` : 'not used yet'; };
 
-const CHEATSHEET = `<div class="muted">Guards read like <code>type in [Subscription, Refund]</code>, <code>isExpress</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
+const CHEATSHEET = `<div class="muted">Guards read like <code>channel in [Web, App]</code>, <code>hasCoupon</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
     <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
 
 /** The flow in the panel: itself, its inputs and its state, a card each; a row or a pencil opens the drawer on that item. */
@@ -179,7 +179,7 @@ function edgeView(doc, e) {
     <div class="muted" style="margin-bottom: 10px"><b>${esc(from?.label)}</b> → <b>${esc(to?.label)}</b></div>
     <div class="field"><label>Condition <span class="muted">· blank means always</span></label>
       <div class="row">
-        <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. type in [Subscription, Refund]" ${e.else ? 'disabled' : ''}>
+        <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. channel in [Web, App]" ${e.else ? 'disabled' : ''}>
         ${insertMenu(doc, e.else)}
       </div>
       <div class="errs"></div>
@@ -384,7 +384,7 @@ function problemsOf(c, known, lists) {
     return [];
   }
   // An initial value is taken as written unless it reads as an expression over the inputs, in
-  // which case it starts as that value; say which, so `pending` and `pendingOrders` both make sense.
+  // which case it starts as that value; say which, so `pending` and `items where inStock` both make sense.
   if (d.f === 'initial') return initialIsExpression(doc, v) && !/^[0-9]/.test(v.trim()) && !doc.inputs.every((i) => !new RegExp(`\\b${i.name}\\b`).test(v)) ? [note(`starts as the value of ${v.trim()}`)] : [];
   if (d.f === 'name') {
     const row = c.closest('[data-input], [data-state]'), ix = Number(row.dataset.input ?? -1), sx = Number(row.dataset.state ?? -1);

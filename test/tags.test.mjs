@@ -5,7 +5,7 @@ import { parseTags, tagSummary, normalize } from '../ui/store.mjs';
 import { runAll } from '../lib/run.mjs';
 import { toMarkdown } from '../lib/markdown.mjs';
 
-const example = async () => JSON.parse(await readFile(new URL('../examples/order.json', import.meta.url), 'utf8'));
+const example = async () => JSON.parse(await readFile(new URL('../examples/simple/checkout.json', import.meta.url), 'utf8'));
 
 it('tags are comma-separated, trimmed, deduplicated, in order', () => {
   assert.deepEqual(parseTags(' edge, PROJ-12 ,edge,, '), ['edge', 'PROJ-12']);
@@ -33,7 +33,7 @@ it('the Markdown carries a Tags column and a By tag tally only when someone tagg
   const doc = normalize(await example());
   const md = toMarkdown(doc);
   assert.match(md, /\| Scenario \| Tags \|/);
-  assert.match(md, /### By tag\n\n- `happy path` · 3 of 3 pass\n- `post processing` · 1 of 2 pass\n- `assumption` · 0 of 1 pass/);
+  assert.match(md, /### By tag\n\n- `happy path` · 3 of 3 pass\n- `receipt` · 1 of 2 pass\n- `assumption` · 0 of 1 pass/);
   for (const s of doc.scenarios) s.tags = [];
   const plain = toMarkdown(doc);
   assert.doesNotMatch(plain, /Tags/);

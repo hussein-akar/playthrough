@@ -6,16 +6,16 @@ import { join } from 'node:path';
 import { openProject, listFlows, listFolders, readFlow, writeFlow, deleteFlow, renameFlow, createFolder, deleteFolder, fileFor, isFlowFile, isFolderPath, folderOf } from '../lib/project.mjs';
 
 const fresh = () => mkdtemp(join(tmpdir(), 'playthrough-'));
-const example = JSON.parse(await readFile(new URL('../examples/order.json', import.meta.url), 'utf8'));
+const example = JSON.parse(await readFile(new URL('../examples/simple/checkout.json', import.meta.url), 'utf8'));
 
 test('file names: good segments, .json at the end, never a dot-file or a walk up the tree', () => {
-  assert.equal(fileFor('Order intake'), 'order-intake.json');
+  assert.equal(fileFor('Pick and pack'), 'pick-and-pack.json');
   assert.equal(fileFor('  ??  '), 'flow.json');
   assert.equal(fileFor('Billing / Refund intake'), 'billing/refund-intake.json', 'slashes name the folders on the way');
   assert.ok(isFlowFile('a-b.json'));
   assert.ok(isFlowFile('a/b.json'));
   assert.ok(isFlowFile('a/b/c.json'));
-  assert.ok(isFlowFile('Shop Returns Automation/flow-1.json'), 'a folder made by hand may have spaces');
+  assert.ok(isFlowFile('After Sale/returns.json'), 'a folder made by hand may have spaces');
   assert.ok(!isFlowFile(' a/b.json'));
   assert.ok(!isFlowFile('../a.json'));
   assert.ok(!isFlowFile('a/../b.json'));
@@ -61,17 +61,17 @@ test('a project is named by project.json, else by its folder', async () => {
 
 test('list shows each flow with its counts, and a broken file as broken', async () => {
   const dir = await fresh();
-  await writeFlow(dir, 'order.json', example);
+  await writeFlow(dir, 'checkout.json', example);
   await writeFlow(dir, 'empty.json', { name: 'Empty' });
   await writeFile(join(dir, 'bad.json'), '{ not json');
   await writeFile(join(dir, 'notes.txt'), 'ignored');
   const flows = await listFlows(dir);
-  assert.deepEqual(flows.map((f) => f.file), ['bad.json', 'empty.json', 'order.json']);
-  const g = flows[2];
-  assert.equal(g.name, 'Order intake');
+  assert.deepEqual(flows.map((f) => f.file), ['bad.json', 'checkout.json', 'empty.json']);
+  const g = flows[1];
+  assert.equal(g.name, 'Checkout');
   assert.equal(g.scenarios, 4);
   assert.equal(g.passed, 3);          // one fails on purpose
-  assert.equal(flows[1].scenarios, 0);
+  assert.equal(flows[2].scenarios, 0);
   assert.match(flows[0].broken, /JSON/);
 });
 

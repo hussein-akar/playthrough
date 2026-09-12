@@ -1,0 +1,24 @@
+{
+  "presets": [
+    {
+      "id": "empty",
+      "name": "Empty",
+      "description": "Nothing drawn: a blank canvas and no scenarios. Start here when the flow you need is not a shop. In a project folder, loading it clears the folder; if the folder is in git, the history still has everything.",
+      "flows": []
+    },
+    {
+      "id": "simple",
+      "name": "Simple",
+      "dir": "examples/simple",
+      "description": "A small shop in two flows: a checkout that reserves stock, applies a coupon and tells the customer, and a returns desk that decides between a refund, a replacement and a no. One checkout scenario fails on purpose: somebody assumed a phone order gets an email, and the drawing says it prints a receipt.",
+      "flows": ["checkout.json", "returns.json"]
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced",
+      "dir": "examples/advanced",
+      "description": "The same shop, grown up: six flows in three groups, from a basket with a list of lines through payment, the warehouse and the courier to returns and refunds. List inputs are narrowed with where and measured with count, state is set along the way, and every branch is covered by a scenario.",
+      "flows": ["orders/checkout.json", "orders/payment.json", "fulfilment/pick-and-pack.json", "fulfilment/delivery.json", "after-sale/returns.json", "after-sale/refunds.json"]
+    }
+  ]
+}

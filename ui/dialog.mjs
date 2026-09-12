@@ -46,6 +46,17 @@ export async function prompt({ title, body = '', value = '', placeholder = '', o
   return yes && input.value.trim() ? input.value.trim() : null;
 }
 
+/** Several lines of input, for pasting. Resolves the trimmed text, or null when cancelled or left empty. */
+export async function promptText({ title, body = '', value = '', placeholder = '', ok = 'OK' }) {
+  document.activeElement?.blur?.();
+  const p = ask({ title, body, ok });
+  const ta = Object.assign(document.createElement('textarea'), { value, placeholder, spellcheck: false });
+  $('modalBody').append(ta);
+  ta.focus(); ta.select();
+  const yes = await p;
+  return yes && ta.value.trim() ? ta.value.trim() : null;
+}
+
 export function toast(message, ms = 2200) {
   const el = Object.assign(document.createElement('div'), { className: 'toast', textContent: message });
   $('toasts').append(el);
