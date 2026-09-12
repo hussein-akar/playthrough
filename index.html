@@ -34,8 +34,10 @@
   html, body { height: 100%; margin: 0; }
   body { font: var(--fs)/1.45 var(--font); color: var(--ink); background: var(--bg); display: grid; grid-template-rows: var(--header-h) 1fr var(--table-h); grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); height: 100vh; overflow: hidden; --side-w: 0px; }
   body.has-project:not(.side-hidden) { --side-w: 220px; }
-  body.panel-hidden { --panel-w: 0px; }   /* nothing selected: the panel is away and the drawing has the width */
-  body.panel-hidden #inspector { display: none; }
+  /* Nothing selected: the panel is away and the drawing has the width. The resizer writes --panel-w
+     inline, so the hidden state sets the columns outright rather than the variable. */
+  body.panel-hidden { grid-template-columns: var(--side-w) minmax(0, 1fr) 0; }
+  body.panel-hidden #inspector, body.panel-hidden #panelResizer { display: none; }
   code, kbd { font-family: var(--mono); font-size: var(--fs-sm); }
   code { background: var(--line-2); padding: 1px 4px; border-radius: 3px; }
   kbd { font-size: var(--fs-xs); background: var(--line-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink); }
@@ -300,6 +302,30 @@
   #inspector .records .rec.head > .x { flex: 0 0 var(--ctl); }
   #inspector .records .actions { margin-top: 2px; }
   #table input.records { font-family: var(--mono); font-size: var(--fs-xs); }
+  /* The flow in the panel: a card per section, its items as rows. */
+  #inspector .card { margin: 0 0 12px; padding: 10px 12px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
+  #inspector .card .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  #inspector .card .head h3 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #inspector .card .head .count, #inspector .card .head .tally { min-width: 18px; height: 18px; padding: 0 6px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); font-size: var(--fs-xs); font-family: var(--mono); line-height: 16px; text-align: center; color: var(--muted); }
+  #inspector .card .head .tally.ok { color: var(--ok-ink); background: var(--ok-soft); border-color: var(--ok-line); }
+  #inspector .card .head .tally.bad { color: var(--bad-ink); background: var(--bad-soft); border-color: var(--bad-line); }
+  #inspector .card .head .pencil { width: 24px; height: 24px; color: var(--muted); }
+  #inspector .card .head .pencil svg { width: 14px; height: 14px; }
+  #inspector .card .item { display: flex; align-items: center; gap: 8px; width: 100%; height: auto; margin-bottom: 4px; padding: 6px 8px 6px 10px; border: 1px solid var(--line); border-radius: var(--r1); background: var(--panel); text-align: left; font-weight: 400; white-space: normal; cursor: pointer; }
+  #inspector .card .item:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+  #inspector .card .item .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  #inspector .card .item .detail { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted); }
+  #inspector .card .item .chev { flex: 0 0 auto; color: var(--faint); }
+  #inspector .card .item .mark { flex: 0 0 14px; font-family: var(--mono); font-size: var(--fs-xs); text-align: center; color: var(--faint); }
+  #inspector .card .item.ok .mark { color: var(--ok); } #inspector .card .item.bad .mark, #inspector .card .item.stuck .mark { color: var(--bad); }
+  #inspector .card .item .status { flex: 0 0 auto; font-size: var(--fs-xs); color: var(--muted); }
+  #inspector .card .item .status.ok { color: var(--ok-ink); } #inspector .card .item .status.bad, #inspector .card .item .status.stuck { color: var(--bad-ink); }
+  #inspector .card .item .run { width: 22px; height: 22px; font-size: 9px; color: var(--muted); border-color: transparent; background: transparent; }
+  #inspector .card .item .run:hover { color: var(--accent); background: #fff; border-color: var(--accent-line); }
+  #inspector .card .empty { padding: 2px 0 6px; }
+  #inspector .card .foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+  #inspector .card > .muted { line-height: 1.5; white-space: pre-wrap; }
+  #inspector .back { margin-bottom: 6px; font-size: var(--fs-sm); }
   #inspector .row > select.insert { flex: 0 0 auto; width: 92px; color: var(--muted); font-size: var(--fs-sm); }
   #inspector .checks label { display: flex; gap: 8px; align-items: center; margin: 0; padding: 4px 0; font-size: var(--fs); color: var(--ink); }
   #inspector .checks label > span:first-of-type { flex: 1; }
@@ -380,33 +406,36 @@
   dialog #modalBody textarea { width: 100%; min-height: 160px; margin-top: var(--s2); color: var(--ink); }
   dialog #modalBody input { margin-top: var(--s3); color: var(--ink); }
   dialog .buttons { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: var(--s2); margin-top: var(--s4); }   /* OK is first in the DOM (the default button for Enter) but sits on the right */
-  /* The flow settings sheet: wide, a card per section, its body scrolling under a fixed head. */
-  dialog.sheet { width: min(980px, calc(100vw - 48px)); max-width: none; max-height: calc(100vh - 48px); padding: 0; overflow: hidden; }
-  dialog.sheet[open] { display: flex; flex-direction: column; }
-  dialog.sheet .head { display: flex; align-items: center; gap: var(--s3); padding: 12px 20px; border-bottom: 1px solid var(--line); }
-  dialog.sheet .head h3 { margin: 0; flex: 0 0 auto; }
-  dialog.sheet .head .muted { flex: 1; font-size: var(--fs-sm); }
-  dialog.sheet .body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 20px 20px; background: var(--bg); }
-  dialog.sheet .card { margin-bottom: 14px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
-  dialog.sheet .card h3 { margin: 0 0 10px; font-size: var(--fs); }
-  dialog.sheet .card h3 .muted { font-weight: 400; font-size: var(--fs-sm); }
-  dialog.sheet .two { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; }
-  dialog.sheet .field { margin-bottom: 0; }
-  dialog.sheet label { display: block; margin-bottom: 4px; font-size: var(--fs-sm); color: var(--muted); }
-  dialog.sheet .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
-  dialog.sheet .row > input[data-f="name"], dialog.sheet .row > input[data-f="fname"] { flex: 0 1 260px; }
-  dialog.sheet .row > select { flex: 0 0 130px; }
-  dialog.sheet .row > .values, dialog.sheet .row > input[data-f="initial"] { flex: 1 1 200px; }
-  dialog.sheet .row > .use { flex: 1 1 200px; font-size: var(--fs-sm); }
-  dialog.sheet .row > .mover { display: inline-flex; flex: 0 0 auto; }
-  dialog.sheet .mover button { width: 18px; height: var(--ctl); padding: 0; border-color: transparent; background: transparent; color: var(--faint); font-size: 12px; }
-  dialog.sheet .mover button:hover:not(:disabled) { color: var(--ink); background: var(--line-2); }
-  dialog.sheet .mover button:disabled { opacity: .3; }
-  dialog.sheet .row > button { flex: 0 0 auto; }
-  dialog.sheet .errs { margin: -2px 0 8px; }
-  dialog.sheet .fields { margin: -2px 0 12px 20px; padding-left: 12px; border-left: 2px solid var(--line); }
-  dialog.sheet .actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
-  dialog.sheet .actions .muted, dialog.sheet .muted { font-size: var(--fs-sm); line-height: 1.5; }
+  /* The flow settings drawer: rises from the bottom over the page, a card per section, its body scrolling between a fixed head and foot. */
+  dialog.drawer { position: fixed; inset: auto 0 0 0; width: 100vw; max-width: none; height: min(76vh, 900px); max-height: none; margin: 0; padding: 0; overflow: hidden; border: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 40px rgba(16, 24, 40, .18); }
+  dialog.drawer[open] { display: flex; flex-direction: column; animation: drawer-up .18s ease-out; }
+  @keyframes drawer-up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+  dialog.drawer .head { display: flex; align-items: center; gap: var(--s3); padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  dialog.drawer .head h3 { margin: 0; flex: 0 0 auto; }
+  dialog.drawer .head .muted { flex: 1; font-size: var(--fs-sm); }
+  dialog.drawer .body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 20px 20px; background: var(--bg); }
+  dialog.drawer .foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--s3); padding: 10px 20px; border-top: 1px solid var(--line); }
+  dialog.drawer .foot .muted { font-size: var(--fs-sm); }
+  dialog.drawer .card { margin-bottom: 14px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
+  dialog.drawer .card h3 { margin: 0 0 10px; font-size: var(--fs); }
+  dialog.drawer .card h3 .muted { font-weight: 400; font-size: var(--fs-sm); }
+  dialog.drawer .two { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; }
+  dialog.drawer .field { margin-bottom: 0; }
+  dialog.drawer label { display: block; margin-bottom: 4px; font-size: var(--fs-sm); color: var(--muted); }
+  dialog.drawer .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  dialog.drawer .row > input[data-f="name"], dialog.drawer .row > input[data-f="fname"] { flex: 0 1 260px; }
+  dialog.drawer .row > select { flex: 0 0 130px; }
+  dialog.drawer .row > .values, dialog.drawer .row > input[data-f="initial"] { flex: 1 1 200px; }
+  dialog.drawer .row > .use { flex: 1 1 200px; font-size: var(--fs-sm); }
+  dialog.drawer .row > .mover { display: inline-flex; flex: 0 0 auto; }
+  dialog.drawer .mover button { width: 18px; height: var(--ctl); padding: 0; border-color: transparent; background: transparent; color: var(--faint); font-size: 12px; }
+  dialog.drawer .mover button:hover:not(:disabled) { color: var(--ink); background: var(--line-2); }
+  dialog.drawer .mover button:disabled { opacity: .3; }
+  dialog.drawer .row > button { flex: 0 0 auto; }
+  dialog.drawer .errs { margin: -2px 0 8px; }
+  dialog.drawer .fields { margin: -2px 0 12px 20px; padding-left: 12px; border-left: 2px solid var(--line); }
+  dialog.drawer .actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  dialog.drawer .actions .muted, dialog.drawer .muted { font-size: var(--fs-sm); line-height: 1.5; }
   dialog table.keys { border-collapse: collapse; font-size: var(--fs); }
   dialog table.keys td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
   dialog table.keys tr:last-child td { border-bottom: 0; }
@@ -540,9 +569,10 @@
       <div class="buttons"><button id="modalOk" value="ok" class="primary">OK</button><button id="modalCancel" value="cancel">Cancel</button></div>
     </form>
   </dialog>
-  <dialog id="settings" class="sheet">
-    <div class="head"><h3>Flow settings</h3><span class="muted">changes apply as you type · ⌘Z undoes</span><button class="small" data-act="close-settings">Close</button></div>
+  <dialog id="settings" class="drawer">
+    <div class="head"><h3>Flow settings</h3><span class="muted">inputs and state: what a scenario is written against</span><button class="small" data-act="close-settings">Close</button></div>
     <div class="body"></div>
+    <div class="foot"><span class="muted">changes apply as you type · ⌘Z undoes</span><button class="primary" data-act="close-settings">Done</button></div>
   </dialog>
   <dialog id="helpDialog">
     <form method="dialog">
@@ -561,6 +591,7 @@
         <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>
         <tr><td><kbd>right-click</kbd></td><td>a menu: add a shape, paste or open the flow settings on empty canvas; copy, cut, duplicate or delete a node</td></tr>
         <tr><td><kbd>click</kbd> empty canvas</td><td>clear the selection · the side panel goes away until something is selected</td></tr>
+        <tr><td>the <kbd>⚙</kbd> at the foot of the palette</td><td>the flow in the panel: scenarios with their verdicts, inputs and state · a pencil opens the settings drawer</td></tr>
         <tr><td><kbd>drag</kbd> a selected node</td><td>move the whole selection together</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected nodes, edge or scenario</td></tr>
         <tr><td><kbd>⌘Z</kbd> · <kbd>⇧⌘Z</kbd></td><td>undo · redo</td></tr>

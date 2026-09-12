@@ -95,6 +95,7 @@ export function isSelectedNode(id) { return selectedNodeIds().includes(id); }
 
 export function exists(sel) {
   if (!sel) return false;
+  if (sel.type === 'flow') return true;   // the flow itself: its scenarios, inputs and state
   const list = sel.type === 'node' ? store.doc.nodes : sel.type === 'edge' ? store.doc.edges : store.doc.scenarios;
   return list.some((x) => x.id === sel.id);
 }

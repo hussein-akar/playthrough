@@ -74,9 +74,10 @@ every guard, set and scenario cell that mentioned it, in one undoable step.
 
 ## Drawing
 
-Inputs and state are declared in the flow settings sheet, opened from the gear at the bottom of
-the palette or from the right-click menu on empty canvas. The side panel shows whatever is
-selected and goes away when nothing is.
+The gear at the foot of the palette (or *Flow settings…* in the right-click menu) shows the flow
+in the side panel: its scenarios with their verdicts and a play button each, its inputs and its
+state. A pencil or a row opens the settings drawer, where inputs and state are declared. The
+panel otherwise shows whatever is selected and goes away when nothing is.
 
 The palette on the left holds the four shapes: click one to add it in the middle of the view, or
 drag it onto the canvas to put it exactly where it lands. The canvas has a zoom corner (−, +,

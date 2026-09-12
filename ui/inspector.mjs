@@ -27,6 +27,7 @@ export function render() {
   if (editing(el)) { patchLive(); return; }
   const { doc, selection } = store;
   if (!selection) el.innerHTML = '';
+  else if (selection.type === 'flow') el.innerHTML = flowView(doc);
   else if (selection.type === 'node' && selection.ids) el.innerHTML = groupView(doc, selection.ids);
   else if (selection.type === 'node') el.innerHTML = nodeView(doc, doc.nodes.find((n) => n.id === selection.id));
   else if (selection.type === 'edge') el.innerHTML = edgeView(doc, doc.edges.find((e) => e.id === selection.id));
@@ -51,8 +52,10 @@ export function openSettings(focus = '') {
 }
 sheet.querySelector('[data-act="close-settings"]').addEventListener('click', () => sheet.close());
 sheet.addEventListener('close', () => render());
-document.getElementById('paletteSettings').addEventListener('click', () => openSettings());
-document.addEventListener('flow-settings', () => openSettings());   // the canvas's right-click menu
+// The gear in the palette and the canvas's right-click menu open the flow in the panel: its
+// scenarios, inputs and state; editing the schema is one more click, into the drawer.
+document.getElementById('paletteSettings').addEventListener('click', () => select({ type: 'flow' }));
+document.addEventListener('flow-settings', () => select({ type: 'flow' }));
 
 // ---- views ------------------------------------------------------------------------------------
 // A control with `data-check` is validated by `problemsOf`; its messages go into the `.errs` box
@@ -72,7 +75,35 @@ const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n}
 const CHEATSHEET = `<div class="muted">Guards read like <code>type in [Subscription, Refund]</code>, <code>isExpress</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
     <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
 
-/** The flow settings sheet: the schema a scenario is written against, with room to edit it. */
+/** The flow in the panel: its scenarios with their verdicts, and its inputs and state, each a card; rows open the drawer or the scenario. */
+function flowView(doc) {
+  const detail = (i) => i.type === 'enum' ? `enum · ${(i.values ?? []).map(esc).join(', ')}` : i.type === 'list' ? `list · ${(i.fields ?? []).map((f) => esc(f.name)).join(', ') || 'no fields yet'}` : esc(i.type);
+  const pencil = (focus) => `<button class="icon pencil" data-act="open-settings" data-focus="${focus}" title="Edit in flow settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2z"/></svg></button>`;
+  const card = (title, n, tools, body, foot) => `<section class="card"><div class="head"><h3>${title}</h3>${n == null ? '' : `<span class="count">${n}</span>`}${tools}</div>${body}${foot ? `<div class="foot">${foot}</div>` : ''}</section>`;
+  const verdictOf = (s) => {
+    const r = store.results?.results.find((x) => x.scenario.id === s.id);
+    if (!r) return ['', ''];
+    if (r.result.error) return ['stuck', 'stuck'];
+    return r.verdict.pass ? ['ok', 'pass'] : ['bad', 'fail'];
+  };
+  const scenarios = doc.scenarios.map((s) => { const [cls, word] = verdictOf(s); return `<div class="item scn ${cls}" data-act="open-scn" data-id="${esc(s.id)}" role="button" tabindex="0">
+      <span class="mark">${cls === 'ok' ? '✓' : cls === 'bad' ? '✗' : cls === 'stuck' ? '!' : '·'}</span>
+      <span class="name">${esc(s.name) || '<i>unnamed</i>'}</span>
+      <span class="detail">${(s.tags ?? []).map(esc).join(', ')}</span>
+      <span class="status ${cls}">${word}</span>
+      <button class="icon run" data-act="run-scn" data-id="${esc(s.id)}" title="Play this scenario step by step">▶</button>
+    </div>`; });
+  const inputs = doc.inputs.map((i, k) => `<button class="item" data-act="open-settings" data-focus="input:${k}"><span class="name">${esc(i.name) || '<i>unnamed</i>'}</span><span class="detail">${detail(i)}</span><span class="chev">›</span></button>`);
+  const state = doc.state.map((f, k) => `<button class="item" data-act="open-settings" data-focus="state:${k}"><span class="name">${esc(f.name) || '<i>unnamed</i>'}</span><span class="detail">${f.initial == null || String(f.initial).trim() === '' ? 'null at first' : `${esc(f.initial)} at first`}</span><span class="chev">›</span></button>`);
+  const passed = store.results?.passed ?? 0;
+  return `
+    <section class="card about"><div class="head"><h3>${esc(doc.name) || 'Untitled flow'}</h3>${pencil('')}</div>${doc.description?.trim() ? `<div class="muted">${esc(doc.description)}</div>` : '<div class="muted empty">No description yet.</div>'}</section>
+    ${card('Scenarios', doc.scenarios.length, doc.scenarios.length ? `<span class="tally ${passed === doc.scenarios.length ? 'ok' : 'bad'}">${passed}/${doc.scenarios.length}</span>` : '', scenarios.join('') || '<div class="muted empty">No scenarios yet. Each one is played through the drawing as you type.</div>', '<button class="small primary" data-act="add-scn">+ Scenario</button>')}
+    ${card('Inputs', doc.inputs.length, pencil('input:0'), inputs.join('') || '<div class="muted empty">No inputs yet. A guard can only mention what is declared here.</div>', '<button class="small" data-act="add-input-open">+ Input</button>')}
+    ${card('State', doc.state.length, pencil('state:0'), state.join('') || '<div class="muted empty">No state fields. Add one when an action needs to leave something behind.</div>', '<button class="small" data-act="add-state-open">+ State field</button>')}`;
+}
+
+/** The flow settings drawer: the schema a scenario is written against, with room to edit it. */
 function settingsView(doc) {
   const inputs = doc.inputs.map((i, k) => `
     <div class="row" data-input="${k}">
@@ -212,6 +243,7 @@ function scenarioView(doc, s) {
   const ends = doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label);
   const want = new Set(s.expect.actions ?? []);
   return `
+    <button class="link back" data-act="back-flow">‹ all scenarios</button>
     <h2>Scenario</h2>
     <div class="field"><label>Name</label><input type="text" data-scn="name" value="${esc(s.name)}"></div>
     <div class="field"><label>Tags <span class="muted">· comma-separated; the table can be narrowed to one</span></label><input type="text" data-scn="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12"></div>
@@ -499,6 +531,14 @@ for (const r of roots) r.addEventListener('click', (ev) => {
   if (!b) return;
   const act = b.dataset.act;
   const sel = store.selection;
+  if (act === 'run-scn') ev.stopPropagation();
+  if (act === 'open-settings') return openSettings(b.dataset.focus);
+  if (act === 'add-input-open') { commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); }); return openSettings('input:last'); }
+  if (act === 'add-state-open') { commit((doc) => { doc.state.push({ name: `field${doc.state.length + 1}`, initial: null }); }); return openSettings('state:last'); }
+  if (act === 'back-flow') return select({ type: 'flow' });
+  if (act === 'open-scn') return select({ type: 'scenario', id: b.dataset.id });
+  if (act === 'run-scn') { select({ type: 'scenario', id: b.dataset.id }); return document.dispatchEvent(new Event('play')); }
+  if (act === 'add-scn') return document.getElementById('addScenario').click();
   if (act === 'add-input') commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); });
   if (act === 'rm-input') commit((doc) => { doc.inputs.splice(Number(b.closest('[data-input]').dataset.input), 1); });
   if (act === 'add-rec') { const box = b.closest('[data-records]'), i = store.doc.inputs.find((x) => x.name === box.dataset.records), fields = (i?.fields ?? []).filter((f) => f.name); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const have = parseRecords(s.inputs[i.name], fields); have.push(Object.fromEntries(fields.map((f) => [f.name, f.type === 'enum' ? f.values?.[0] ?? '' : f.type === 'boolean' ? false : '']))); s.inputs[i.name] = recordsText(have, fields); }); }
