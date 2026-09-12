@@ -279,6 +279,11 @@
   #inspector .swatch.none i { background: none; border: 1.5px solid var(--faint); }
   #inspector .swatch.c-success { --sw: var(--ok); } #inspector .swatch.c-failed { --sw: var(--bad); } #inspector .swatch.c-warning { --sw: var(--warn); } #inspector .swatch.c-info { --sw: var(--accent); }
   #inspector .swatch.on { color: var(--ink); border-color: var(--sw, var(--line-strong)); background: color-mix(in srgb, var(--sw, var(--muted)) 9%, #fff); }
+  #inspector .fields { margin: -4px 0 10px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
+  #inspector .fields .actions { margin-top: 4px; }
+  #inspector .fields .actions .muted { flex: 1 1 160px; }
+  textarea.records { font-family: var(--mono); font-size: var(--fs-sm); min-height: 72px; }
+  #table input.records { font-family: var(--mono); font-size: var(--fs-xs); }
   #inspector .row > select.insert { flex: 0 0 auto; width: 92px; color: var(--muted); font-size: var(--fs-sm); }
   #inspector .checks label { display: flex; gap: 8px; align-items: center; margin: 0; padding: 4px 0; font-size: var(--fs); color: var(--ink); }
   #inspector .checks label > span:first-of-type { flex: 1; }

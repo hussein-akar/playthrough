@@ -32,7 +32,7 @@ purpose: somebody assumed an wholesale order goes to post-processing, and the dr
 | **Action** | Something that happens: a document created, an event published. A scenario expects a set of these. An action may also *set* a state field. |
 | **Decision** | A fork. Each edge leaving it carries a condition; one edge may be *else*. An edge may carry a short label, shown on the canvas in place of its condition, and a status colour: success, failed, warning or info. A wire is smooth or square; a small bar over the selected wire switches both. |
 | **End** | Where a scenario lands. A scenario may expect a particular one. |
-| **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text. Conditions can only mention declared inputs, so a typo is caught while drawing, not while running. |
+| **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text, or a list of records with fields of their own. Conditions can only mention declared inputs, so a typo is caught while drawing, not while running. |
 | **State** | Fields an action may set along the way, and a scenario may check at the end. |
 
 Conditions read like the sentence in the spreadsheet:
@@ -44,7 +44,24 @@ amount > 100 and not blocked
 deliveryDate == null
 ```
 
-Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons and arithmetic are all there is.
+Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons and arithmetic are all there is,
+plus two words for lists.
+
+A list input holds records: it is declared with its fields (`notices`, with `status` an enum of
+OPEN, CLOSED, CANCELLED and `linked` a boolean), and a scenario writes the records one per line,
+`status=OPEN, linked=yes`, or just the values in field order, `OPEN, yes`. An action narrows a
+list with `where` into a state field, and a guard measures it with `count`:
+
+```
+kept = notices where status != CANCELLED       an action's set
+count(kept) == 0                              a guard
+count(kept where linked) > 1
+```
+
+Inside `where`, a bare word is first a field of the record being looked at. An empty list is
+false, so `kept where linked` alone reads "some kept notice is linked". A scenario's expected
+state for a list is a count, `*` for some, or `null` for none. The filters in the drawing are
+then really exercised: how many notices remain is worked out, not typed in.
 
 Beside the condition on an edge sits an *insert…* menu with every declared input and state
 field, each enum's values and the operators: a pick lands at the cursor, so a guard is assembled

@@ -85,3 +85,45 @@ it('the example flow lints clean, and a bad one does not', () => {
   assert.ok(msgs.some((m) => /unguarded edge next to guarded ones/.test(m)));
   assert.ok(msgs.some((m) => /decision with no condition/.test(m)));
 });
+
+it('records of a list input are read from lines, positions or JSON', async () => {
+  const { parseRecords } = await import('../lib/run.mjs');
+  const fields = [{ name: 'status', type: 'enum', values: ['OPEN', 'CLOSED'] }, { name: 'linked', type: 'boolean' }, { name: 'amount', type: 'number' }];
+  assert.deepEqual(parseRecords('status=OPEN, linked=yes, amount=3\nCLOSED', fields), [{ status: 'OPEN', linked: true, amount: 3 }, { status: 'CLOSED', linked: false, amount: null }]);
+  assert.deepEqual(parseRecords('OPEN, no; CLOSED, yes', fields).map((r) => r.linked), [false, true], '; separates records too');
+  assert.deepEqual(parseRecords('[{"status":"OPEN","amount":"2"}]', fields), [{ status: 'OPEN', linked: false, amount: 2 }]);
+  assert.deepEqual(parseRecords('', fields), []);
+  assert.throws(() => parseRecords('OPEN, yes, 1, extra', fields), /no field to put it in/);
+  assert.throws(() => parseRecords('[not json', fields), /not valid JSON/);
+});
+
+it('a flow filters a list and its scenarios count what is left', () => {
+  const flow = {
+    inputs: [{ name: 'notices', type: 'list', fields: [{ name: 'status', type: 'enum', values: ['OPEN', 'CLOSED', 'CANCELLED'] }] }],
+    state: [{ name: 'kept', initial: null }],
+    nodes: [
+      { id: 's', kind: 'start', label: 'Start', x: 0, y: 0, set: { kept: 'notices' } },
+      { id: 'a', kind: 'action', label: 'Drop cancelled', x: 0, y: 0, set: { kept: 'kept where status != CANCELLED' } },
+      { id: 'b', kind: 'action', label: 'Drop closed', x: 0, y: 0, set: { kept: 'kept where status != CLOSED' } },
+      { id: 'd', kind: 'decision', label: 'Any left?', x: 0, y: 0 },
+      { id: 'y', kind: 'end', label: 'Link', x: 0, y: 0 },
+      { id: 'n', kind: 'end', label: 'Flag', x: 0, y: 0 },
+    ],
+    edges: [
+      { id: 'e1', from: 's', to: 'a' }, { id: 'e2', from: 'a', to: 'b' }, { id: 'e3', from: 'b', to: 'd' },
+      { id: 'e4', from: 'd', to: 'y', when: 'count(kept) == 1' }, { id: 'e5', from: 'd', to: 'n', else: true },
+    ],
+    scenarios: [
+      { id: '1', name: 'one open', inputs: { notices: 'CANCELLED\nCLOSED\nOPEN' }, expect: { end: 'Link', state: { kept: '1' } } },
+      { id: '2', name: 'none open', inputs: { notices: 'CANCELLED; CLOSED' }, expect: { end: 'Flag', state: { kept: 'null' } } },
+      { id: '3', name: 'two open', inputs: { notices: 'OPEN; OPEN' }, expect: { end: 'Flag', state: { kept: '*' } } },
+      { id: '4', name: 'unreadable', inputs: { notices: 'OPEN, what, is, this' }, expect: {} },
+    ],
+  };
+  assert.deepEqual(lint(flow), [], 'fields are names inside where, also on a list held in state');
+  const { results } = runAll(flow);
+  assert.deepEqual(results.map((r) => r.result.end), ['Link', 'Flag', 'Flag', null]);
+  assert.deepEqual(results.map((r) => r.verdict.pass), [true, true, true, false]);
+  assert.equal(results[0].result.state.kept.length, 1);
+  assert.match(results[3].result.error.message, /in notices: "what"/);
+});

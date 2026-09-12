@@ -59,3 +59,26 @@ it('same is spreadsheet-tolerant', () => {
   assert.equal(same(null, undefined), true);
   assert.equal(same('a', 'b'), false);
 });
+
+it('where narrows a list and count measures it', () => {
+  const s = { ...scope, inputs: { ...scope.inputs, notices: [{ status: 'OPEN', linked: false }, { status: 'CLOSED', linked: true }, { status: 'CANCELLED', linked: false }] }, enums: new Set([...scope.enums, 'OPEN', 'CLOSED', 'CANCELLED']) };
+  assert.equal(test('count(notices) == 3', s), true);
+  assert.equal(test('count(notices where status != CANCELLED) == 2', s), true);
+  assert.equal(test('count(notices where status != CANCELLED where not linked) == 1', s), true, 'where chains');
+  assert.equal(test('notices where status == OPEN and linked', s), false, 'an empty list is false');
+  assert.equal(test('notices where status == OPEN', s), true, 'a list with records is true');
+  assert.equal(test('count(notices where status == OPEN) + 1 == 2', s), true, 'count sits inside arithmetic');
+  assert.equal(test('count = 0', scope), true, 'count is still a plain name when not called');
+  assert.throws(() => test('count(amount)', s), /needs a list/);
+  assert.throws(() => test('amount where amount > 1', s), /needs a list/);
+});
+
+it('the checker knows the fields of a list inside where', () => {
+  const known = new Set(['notices', 'kept', 'amount', 'OPEN']);
+  const lists = new Map([['notices', new Set(['status', 'linked'])]]);
+  assert.deepEqual(check('count(notices where status == OPEN and linked) > 0', known, lists), []);
+  assert.deepEqual(check('notices where bogus == OPEN', known, lists), ["unknown name 'bogus'"]);
+  assert.deepEqual(check('status == OPEN', known, lists), ["unknown name 'status'"], 'a field is only a name inside where');
+  assert.deepEqual(check('kept where status == OPEN', known, lists), [], 'a list held in state may use any list field');
+  assert.deepEqual(check('count(nothing)', known, lists), ["unknown name 'nothing'"]);
+});

@@ -4,7 +4,7 @@
 import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check } from '../lib/expr.mjs';
-import { knownNames } from '../lib/run.mjs';
+import { knownNames, listsOf } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -12,7 +12,7 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 export const editing = (node) => { const a = document.activeElement; return node.contains(a) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName); };
 const opt = (v, cur, label = v) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(label)}</option>`;
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const RESERVED = new Set(['and', 'or', 'not', 'in', 'true', 'false', 'null']);   // the words of the condition language, which a name cannot be
+const RESERVED = new Set(['and', 'or', 'not', 'in', 'true', 'false', 'null', 'where']);   // the words of the condition language, which a name cannot be
 
 export function render() {
   // Never rebuild under the user's cursor: a keystroke commits, and the commit re-renders. What
@@ -39,10 +39,19 @@ function flowView(doc) {
   const inputs = doc.inputs.map((i, k) => `
     <div class="row" data-input="${k}">
       <input type="text" data-f="name" data-check value="${esc(i.name)}" placeholder="name">
-      <select data-f="type">${['enum', 'boolean', 'number', 'text'].map((t) => opt(t, i.type)).join('')}</select>
+      <select data-f="type">${['enum', 'boolean', 'number', 'text', 'list'].map((t) => opt(t, i.type)).join('')}</select>
       <button class="icon danger" data-act="rm-input" title="Remove">×</button>
     </div><div class="errs"></div>
-    ${i.type === 'enum' ? `<div class="field" data-input="${k}"><input type="text" data-f="values" data-check value="${esc((i.values ?? []).join(', '))}" placeholder="values, comma separated"><div class="errs"></div></div>` : ''}`).join('');
+    ${i.type === 'enum' ? `<div class="field" data-input="${k}"><input type="text" data-f="values" data-check value="${esc((i.values ?? []).join(', '))}" placeholder="values, comma separated"><div class="errs"></div></div>` : ''}
+    ${i.type === 'list' ? `<div class="fields" data-input="${k}">
+      ${(i.fields ?? []).map((f, j) => `<div class="row" data-lf="${j}">
+        <input type="text" data-f="fname" data-check value="${esc(f.name)}" placeholder="field">
+        <select data-f="ftype">${['enum', 'boolean', 'number', 'text'].map((t) => opt(t, f.type)).join('')}</select>
+        ${f.type === 'enum' ? `<input type="text" data-f="fvalues" value="${esc((f.values ?? []).join(', '))}" placeholder="values">` : ''}
+        <button class="icon danger" data-act="rm-field" title="Remove">×</button>
+      </div><div class="errs"></div>`).join('')}
+      <div class="actions"><button class="small" data-act="add-field">+ Field</button><span class="muted">a record of each list item; a scenario writes items as <code>status=OPEN, linked=yes</code>, one per line</span></div>
+    </div>` : ''}`).join('');
   const state = doc.state.map((f, k) => `
     <div class="row" data-state="${k}">
       <input type="text" data-f="name" data-check value="${esc(f.name)}" placeholder="field">
@@ -60,7 +69,8 @@ function flowView(doc) {
     ${state || '<div class="muted">No state fields. Add one when an action needs to leave something behind that a scenario can check.</div>'}
     <div class="actions"><button class="small" data-act="add-state">+ State field</button></div>
     <h2>Conditions</h2>
-    <div class="muted">Guards read like <code>type in [Subscription, Refund]</code>, <code>isExpress</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>`;
+    <div class="muted">Guards read like <code>type in [Subscription, Refund]</code>, <code>isExpress</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
+    <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
 }
 
 function nodeView(doc, n) {
@@ -123,7 +133,7 @@ function edgeView(doc, e) {
 
 // The menu beside a condition: every declared name, each enum's values and the operators, so a
 // guard is assembled by picking rather than remembering. A pick lands at the cursor.
-const OPERATORS = ['==', '!=', '<', '<=', '>', '>=', 'in []', 'not in []', 'and', 'or', 'not', 'null', 'true', 'false'];
+const OPERATORS = ['==', '!=', '<', '<=', '>', '>=', 'in []', 'not in []', 'and', 'or', 'not', 'null', 'true', 'false', 'where', 'count()'];
 function insertMenu(doc, disabled) {
   const group = (label, items) => items.length ? `<optgroup label="${label}">${items.map(([v, l]) => `<option value="${esc(v)}">${esc(l ?? v)}</option>`).join('')}</optgroup>` : '';
   const word = (v) => (IDENT.test(v) && !RESERVED.has(v) ? v : JSON.stringify(v));
@@ -132,6 +142,7 @@ function insertMenu(doc, disabled) {
     ${group('Inputs', doc.inputs.filter((i) => i.name).map((i) => [i.name]))}
     ${group('State', doc.state.filter((f) => f.name).map((f) => [f.name]))}
     ${doc.inputs.filter((i) => i.type === 'enum' && i.values?.length).map((i) => group(`${i.name} values`, i.values.map((v) => [word(v), v]))).join('')}
+    ${doc.inputs.filter((i) => i.type === 'list' && i.fields?.length).map((i) => group(`${i.name} fields`, i.fields.filter((f) => f.name).map((f) => [f.name])) + i.fields.filter((f) => f.type === 'enum' && f.values?.length).map((f) => group(`${i.name}.${f.name} values`, f.values.map((v) => [word(v), v]))).join('')).join('')}
     ${group('Operators', OPERATORS.map((o) => [o]))}
   </select>`;
 }
@@ -142,7 +153,7 @@ function insertAt(input, token) {
   const before = v.slice(0, a), after = v.slice(b);
   const lead = before && !/[\s([]$/.test(before) ? ' ' : '', tail = /^[\s)\],]/.test(after) ? '' : ' ';
   input.value = before + lead + token + tail + after;
-  const at = (before + lead + token).length - (token.endsWith('[]') ? 1 : 0);   // inside the brackets of `in []`
+  const at = (before + lead + token).length - (token.endsWith('[]') || token.endsWith('()') ? 1 : 0);   // inside the brackets of `in []` or `count()`
   input.focus();
   input.setSelectionRange(at, at);
 }
@@ -193,8 +204,14 @@ export function flowOrder(doc) {
   return walk(doc.nodes.filter((n) => n.kind === 'start').map((n) => n.id)).concat(walk(doc.nodes.map((n) => n.id)));
 }
 
-export function inputControl(i, value, attrs) {
+export function inputControl(i, value, attrs, compact = false) {
   const v = value == null ? '' : String(value);
+  if (i.type === 'list') {
+    const hint = (i.fields ?? []).map((f) => `${f.name}=${f.type === 'enum' ? f.values?.[0] ?? '…' : f.type === 'boolean' ? 'yes' : f.type === 'number' ? '1' : '…'}`).join(', ');
+    return compact
+      ? `<input type="text" class="records" ${attrs} value="${esc(v)}" placeholder="${esc(hint)}; …" title="Records, separated by ; or one per line in the panel">`
+      : `<textarea class="records" ${attrs} placeholder="one record per line, e.g.\n${esc(hint)}">${esc(v)}</textarea>`;
+  }
   if (i.type === 'enum') return `<select ${attrs}><option value=""></option>${(i.values ?? []).map((x) => opt(x, v)).join('')}</select>`;
   if (i.type === 'boolean') return `<select ${attrs}><option value="" ${v === '' ? 'selected' : ''}></option><option value="true" ${['true', 'yes', '1'].includes(v.toLowerCase()) ? 'selected' : ''}>yes</option><option value="false" ${['false', 'no', '0'].includes(v.toLowerCase()) ? 'selected' : ''}>no</option></select>`;
   if (i.type === 'number') return `<input type="number" ${attrs} value="${esc(v)}">`;
@@ -232,10 +249,10 @@ function patchHappened() {
 }
 
 function patchChecks() {
-  const known = knownNames(store.doc);
+  const known = knownNames(store.doc), lists = listsOf(store.doc);
   const boxes = new Map();   // the .row (or the control itself) → every message for the controls in it
   for (const c of el.querySelectorAll('[data-check]')) {
-    const ms = problemsOf(c, known);
+    const ms = problemsOf(c, known, lists);
     c.classList.toggle('invalid', ms.some((m) => m.cls === 'err'));
     const box = c.closest('.row') ?? c;
     boxes.set(box, (boxes.get(box) ?? []).concat(ms));
@@ -249,12 +266,19 @@ function patchChecks() {
 const err = (text) => ({ cls: 'err', text }), warn = (text) => ({ cls: 'warn', text }), note = (text) => ({ cls: 'muted', text });
 
 /** What is wrong with one control's current text, judged against the document as it stands. */
-function problemsOf(c, known) {
+function problemsOf(c, known, lists) {
   const { doc } = store, d = c.dataset, v = c.value;
-  if (d.edge === 'when') return c.disabled ? [] : check(v, known).map(err);
+  if (d.edge === 'when') return c.disabled ? [] : check(v, known, lists).map(err);
   if (d.f === 'src') {
     const field = c.closest('.row').querySelector('[data-f="field"]').value;
-    return (doc.state.some((f) => f.name === field) ? [] : [err(`${field} is not a declared state field`)]).concat(check(v, known).map(err));
+    return (doc.state.some((f) => f.name === field) ? [] : [err(`${field} is not a declared state field`)]).concat(check(v, known, lists).map(err));
+  }
+  if (d.f === 'fname') {
+    const i = doc.inputs[Number(c.closest('[data-input]').dataset.input)], j = Number(c.closest('[data-lf]').dataset.lf);
+    if (!IDENT.test(v)) return [err(v.trim() ? 'a name is letters, digits and _, and starts with a letter' : 'it needs a name')];
+    if (RESERVED.has(v)) return [err(`${v} is a word of the condition language; pick another name`)];
+    if ((i.fields ?? []).some((f, k) => k !== j && f.name === v)) return [err(`another field of ${i.name} is already called ${v}`)];
+    return [];
   }
   // The runner takes an initial value as it is written, not as an expression (see initialState in
   // lib/run.mjs), so `pending` is a fine initial value and there is nothing to check here.
@@ -326,8 +350,17 @@ el.addEventListener('input', (ev) => {
   const inputRow = t.closest('[data-input]');
   if (inputRow) return commit((doc) => {
     const i = doc.inputs[Number(inputRow.dataset.input)];
+    const fieldRow = t.closest('[data-lf]');
+    if (fieldRow) {
+      const f = i.fields[Number(fieldRow.dataset.lf)];
+      if (d.f === 'fname') f.name = t.value;
+      else if (d.f === 'ftype') f.type = t.value;
+      else if (d.f === 'fvalues') f.values = t.value.split(',').map((s) => s.trim()).filter(Boolean);
+      return;
+    }
     if (d.f === 'values') i.values = t.value.split(',').map((s) => s.trim()).filter(Boolean);
     else if (d.f === 'name') { const from = i.name; i.name = t.value; follow(doc, from, t.value, i); }
+    else if (d.f === 'type') { i.type = t.value; if (t.value === 'list') i.fields ??= [{ name: 'status', type: 'text' }]; }
     else i[d.f] = t.value;
   });
   const stateRow = t.closest('[data-state]');
@@ -380,6 +413,8 @@ el.addEventListener('click', (ev) => {
   const sel = store.selection;
   if (act === 'add-input') commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); });
   if (act === 'rm-input') commit((doc) => { doc.inputs.splice(Number(b.closest('[data-input]').dataset.input), 1); });
+  if (act === 'add-field') commit((doc) => { const i = doc.inputs[Number(b.closest('[data-input]').dataset.input)]; i.fields ??= []; i.fields.push({ name: `field${i.fields.length + 1}`, type: 'text' }); });
+  if (act === 'rm-field') commit((doc) => { const i = doc.inputs[Number(b.closest('[data-input]').dataset.input)]; i.fields.splice(Number(b.closest('[data-lf]').dataset.lf), 1); });
   if (act === 'add-state') commit((doc) => { doc.state.push({ name: `field${doc.state.length + 1}`, initial: null }); });
   if (act === 'rm-state') commit((doc) => { doc.state.splice(Number(b.closest('[data-state]').dataset.state), 1); });
   if (act === 'add-set') commit((doc) => { const n = doc.nodes.find((n) => n.id === sel.id); n.set ??= {}; const free = doc.state.find((f) => !(f.name in n.set)); if (free) n.set[free.name] = ''; });

@@ -36,7 +36,7 @@ export function render() {
       <td class="muted">${k + 1}</td>
       <td><input type="text" class="name" data-f="name" value="${esc(s.name)}" placeholder="what is being tried"></td>
       <td><input type="text" class="tags" data-f="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12" title="Tags, comma-separated"></td>
-      ${doc.inputs.map((i) => `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`)}</td>`).join('')}
+      ${doc.inputs.map((i) => `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`, true)}</td>`).join('')}
       <td class="expect actions">${chips(s, results)}</td>
       <td class="expect"><select data-f="end"><option value="">any</option>${ends.map((e) => `<option value="${esc(e)}" ${s.expect.end === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></td>
       ${doc.state.map((f) => `<td class="expect"><input type="text" class="st expr" data-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}" placeholder="*, null, value"></td>`).join('')}
