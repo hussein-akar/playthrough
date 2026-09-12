@@ -170,14 +170,15 @@ npm start -- ./specs       # or PLAYTHROUGH_DIR=./specs npm start; npm run start
 ```
 
 Every `*.json` in the folder, and in its subfolders, is a flow. A sidebar shows them as a tree:
-a folder groups related flows, its `+`/`−` folds it, and a flow dragged onto a folder moves
-there. Each flow shows its pass count (`3/4`), a ⚠ when the drawing has problems, and
-*no scenarios* when nobody has written any yet. Click one to open it. **+ Flow** starts a new
-file (a folder's own + puts it inside), **+ Folder** makes a folder, and **Save** (or ⌘S) writes
-the open flow back to its file; a flow that came in through **New**, **Open…**, **Example** or a
-link is added to the folder the first time it is saved. On a row, ✎ renames the file (slashes
-move it, `billing/intake`; the flow keeps its own name) and × deletes it; an empty folder can be
-deleted the same way. The project's name sits in the header, in place of the flow's: type there
+a group (a subfolder on disk) keeps related flows together, its `+`/`−` folds it, and a flow
+dragged onto a group moves there. Each flow shows its pass count (`3/4`), a ⚠ when the drawing
+has problems, and *no scenarios* when nobody has written any yet. Click one to open it. **+ Flow**
+starts a new file, and a `/` in its name puts it in a group, made if it is not there yet
+(`billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty
+group; **Save** (or ⌘S) writes the open flow back to its file, and a flow that came in through
+**New**, **Open…**, **Example** or a link is added to the folder the first time it is saved. On a
+row, ✎ renames the file (a `/` moves it; the flow keeps its own name) and × deletes it; an empty
+group can be deleted the same way. The project's name sits in the header, in place of the flow's: type there
 to name it once, and it is kept in `project.json`; until then the folder's name is used. **Flows** in the header hides the sidebar.
 
 Put the folder in git. That is the whole collaboration story, on purpose: the pull request is

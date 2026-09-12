@@ -104,11 +104,11 @@ export async function renameProject(name) {
 /** A fresh, empty flow, in `folder` (the root by default). */
 export async function create(folder = '') {
   if (!await hooks.replaceable('Start a new flow')) return;
-  const name = await prompt({ title: 'New flow', body: `A new file in ${project.info.dir}${folder ? `/${folder}` : ''}.`, placeholder: 'What the feature is called', ok: 'Create' });
+  const name = await prompt({ title: 'New flow', body: `A new file in ${project.info.dir}${folder ? `/${folder}` : ''}. A / in the name puts the flow in a group, made if it is not there yet: billing/refund intake.`, placeholder: 'What the feature is called', ok: 'Create' });
   if (name == null) return;
   try {
     const { file, mtime } = await call('POST', '/api/flows', { name, doc: {}, folder });
-    setFile(file, mtime); load({ name }); hooks.fit();
+    setFile(file, mtime); load({ name: name.split('/').pop().trim() }); hooks.fit();
     toast(`Created ${file}`);
     refresh();
   } catch (e) {
@@ -120,7 +120,7 @@ export async function create(folder = '') {
 /** Another file name for a flow, made from what is typed the way a new file's name is; slashes move it into folders. */
 export async function rename(file) {
   const current = leaf(file).replace(/\.json$/, '');
-  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. Slashes put it in a folder, billing/intake. The flow keeps its own name.', value: current, ok: 'Rename' });
+  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. A / puts it in a group, billing/intake, made if it is not there yet. The flow keeps its own name.', value: current, ok: 'Rename' });
   if (name == null) return;
   return move(file, { name });
 }
@@ -139,9 +139,9 @@ async function move(file, { name = leaf(file).replace(/\.json$/, ''), folder = n
   }
 }
 
-/** A new folder, under `parent` (the root by default). */
+/** A new group (a folder on disk), under `parent` (the root by default). */
 export async function createFolder(parent = '') {
-  const name = await prompt({ title: 'New folder', body: `A folder in ${project.info.dir}${parent ? `/${parent}` : ''} to group flows. Its name is made lower-case, words joined by dashes.`, placeholder: 'Folder name', ok: 'Create' });
+  const name = await prompt({ title: 'New group', body: `A folder in ${project.info.dir}${parent ? `/${parent}` : ''} to keep related flows together. Its name is made lower-case, words joined by dashes; a / nests groups.`, placeholder: 'Group name', ok: 'Create' });
   if (name == null) return;
   const slug = name.split('/').map((x) => x.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')).filter(Boolean).join('/');
   if (!slug) return;
@@ -151,10 +151,10 @@ export async function createFolder(parent = '') {
 }
 
 export async function removeFolder(path) {
-  const ok = await ask({ title: `Delete ${path}/?`, body: 'Only an empty folder can be deleted; move or delete its flows first.', ok: 'Delete', danger: true });
+  const ok = await ask({ title: `Delete the group ${path}/?`, body: 'Only an empty group can be deleted; move or delete its flows first.', ok: 'Delete', danger: true });
   if (!ok) return;
   try { await call('DELETE', `/api/folders/${encodeURIComponent(path)}`); toast(`Deleted ${path}/`); refresh(); }
-  catch (e) { notice(`Could not delete ${path}/`, e.code === 'NOTEMPTY' ? 'It still has flows or folders in it.' : e.message); }
+  catch (e) { notice(`Could not delete ${path}/`, e.code === 'NOTEMPTY' ? 'It still has flows or groups in it.' : e.message); }
 }
 
 export async function remove(file) {
@@ -202,17 +202,17 @@ export function render() {
       <button class="caret" data-fold="${esc(path)}" title="${shut ? 'Expand' : 'Collapse'}" aria-label="${shut ? 'Expand' : 'Collapse'}">${shut ? '+' : '−'}</button>
       <span class="name">${esc(leaf(path))}</span>
       <span class="status"><span class="muted">${n || ''}</span></span>
-      <span class="tools"><button class="link" data-newin="${esc(path)}" title="New flow in ${esc(path)}/" aria-label="New flow here">+</button><button class="link" data-newfolder="${esc(path)}" title="New folder in ${esc(path)}/" aria-label="New folder here">▸+</button><button class="link rm" data-rmdir="${esc(path)}" title="Delete ${esc(path)}/ (when empty)" aria-label="Delete folder">×</button></span>
+      <span class="tools"><button class="link" data-newin="${esc(path)}" title="New flow in ${esc(path)}/" aria-label="New flow here">+</button><button class="link rm" data-rmdir="${esc(path)}" title="Delete the group ${esc(path)}/ (when empty)" aria-label="Delete group">×</button></span>
     </li>${shut ? '' : tree(path, depth + 1) + flowsIn(path).map((f) => row(f, depth + 1)).join('')}`;
   }).join('');
   const unfiled = !cur && (store.doc.nodes.length || store.doc.scenarios.length)
     ? `<li class="active unfiled" style="--depth: 0" title="Not in the folder yet: Save adds it"><span class="name">${esc(store.doc.name || 'Untitled flow')}<i class="dot"></i></span><span class="status muted">not in the folder</span></li>` : '';
   const empty = !info.flows.length && !folders.size && !unfiled;
   el.innerHTML = `
-    <div class="head"><span class="pname" title="${esc(info.dir)}">${esc(info.name)}</span><span class="grow"></span><button class="small" id="newFolder" title="A new folder in ${esc(info.dir)}">+ Folder</button><button class="small primary" id="newFlow" title="A new flow file in ${esc(info.dir)}">+ Flow</button></div>
+    <div class="head"><span class="pname" title="${esc(info.dir)}">${esc(info.name)}</span><span class="grow"></span><button class="small" id="newFolder" title="A new group (a folder in ${esc(info.dir)})">+ Group</button><button class="small primary" id="newFlow" title="A new flow file in ${esc(info.dir)}">+ Flow</button></div>
     <ul data-folder="">${unfiled}${tree('', 0)}${flowsIn('').map((f) => row(f, 0)).join('')}</ul>
     ${empty ? `<p class="muted empty">No flows in ${esc(info.dir)} yet. Draw one and Save, or press + Flow.</p>` : ''}
-    <p class="muted foot" title="${esc(info.dir)}">${esc(info.dir.split('/').filter(Boolean).pop() ?? info.dir)}/ · ${info.flows.length} flow${info.flows.length === 1 ? '' : 's'}${folders.size ? ` · ${folders.size} folder${folders.size === 1 ? '' : 's'}` : ''}</p>`;
+    <p class="muted foot" title="${esc(info.dir)}">${esc(info.dir.split('/').filter(Boolean).pop() ?? info.dir)}/ · ${info.flows.length} flow${info.flows.length === 1 ? '' : 's'}${folders.size ? ` · ${folders.size} group${folders.size === 1 ? '' : 's'}` : ''}</p>`;
 }
 
 el.addEventListener('click', async (ev) => {
