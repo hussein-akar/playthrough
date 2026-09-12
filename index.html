@@ -242,6 +242,8 @@
   /* The ends of the selected wire, draggable to another dot. */
   .handle { fill: #fff; stroke: var(--accent); stroke-width: 1.5; cursor: grab; }
   .handle:hover { r: 7; fill: var(--accent-soft); }
+  .handle.bend { cursor: move; }
+  .edge.selected path.grab, .edge.selected .label { cursor: move; }   /* a selected wire can be pulled */
   /* The bar over a selected wire: smooth or square, and the colour. */
   #edgebar { position: absolute; z-index: 15; display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
   #edgebar button { width: 26px; height: 24px; padding: 0; border-color: transparent; background: transparent; }
@@ -439,6 +441,7 @@
     <div id="edgebar" hidden>
       <button data-shape="smooth" title="Smooth wire"><svg viewBox="0 0 20 20"><path d="M3,15 C9,15 11,5 17,5"/></svg></button>
       <button data-shape="square" title="Square wire"><svg viewBox="0 0 20 20"><path d="M3,15 H8 Q10,15 10,13 V7 Q10,5 12,5 H17"/></svg></button>
+      <button data-straight title="Straighten: undo the pull" hidden><svg viewBox="0 0 20 20"><path d="M3,10 H17"/></svg></button>
       <span class="sep"></span>
       <button data-color="" title="No colour"><i class="none"></i></button>
       <button data-color="success" title="Success"><i style="background: var(--ok)"></i></button>
@@ -488,9 +491,9 @@
         <tr><td><kbd>drag</kbd> empty canvas</td><td>rubber-band select (<kbd>Shift</kbd> adds to the selection)</td></tr>
         <tr><td><kbd>Space</kbd>+<kbd>drag</kbd> · middle button · <kbd>wheel</kbd></td><td>pan</td></tr>
         <tr><td><kbd>⌘</kbd>+<kbd>wheel</kbd> · pinch</td><td>zoom</td></tr>
-        <tr><td><kbd>double-click</kbd> empty canvas</td><td>add an action node there</td></tr>
         <tr><td><kbd>drag</kbd> from a dot on a node's side to a dot on another node</td><td>connect them · the wire leaves and arrives on those sides</td></tr>
         <tr><td><kbd>drag</kbd> an end of the selected wire</td><td>move that end to another dot or node</td></tr>
+        <tr><td><kbd>drag</kbd> the selected wire itself, or its pill</td><td>pull it through that point, out of the way · <kbd>double-click</kbd> straightens it</td></tr>
         <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node</td><td>add it to the selection, or take it out</td></tr>
         <tr><td><kbd>⌘A</kbd></td><td>select every node</td></tr>
         <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>

@@ -73,8 +73,8 @@ function nodeView(doc, n) {
     </div><div class="errs"></div>`).join('');
   return `
     <h2>${esc(n.kind)} node</h2>
+    <div class="field"><label>Kind</label><select data-node="kind">${['start', 'action', 'decision', 'end'].map((k) => opt(k, n.kind, k[0].toUpperCase() + k.slice(1))).join('')}</select></div>
     <div class="field"><label>Label</label><input type="text" data-node="label" value="${esc(n.label)}"></div>
-    <div class="field"><label>Kind</label><select data-node="kind">${['start', 'action', 'decision', 'end'].map((k) => opt(k, n.kind)).join('')}</select></div>
     ${n.kind === 'action' ? `
     <h2>Sets <span class="muted">· state this action leaves behind</span></h2>
     ${sets}

@@ -111,9 +111,9 @@ scenario for the else branch" is the sentence you want before the code exists.
 | drag empty canvas | rubber-band select (Shift adds to the selection) |
 | Space-drag · middle button · wheel | pan |
 | ⌘-wheel · pinch | zoom |
-| double-click empty canvas | add an action node there |
 | drag from a dot on a node's side to a dot on another node | connect them, on those sides |
 | drag an end of the selected wire | move that end to another dot or node |
+| drag the selected wire itself, or its pill | pull it through that point, out of the way; double-click straightens it |
 | Shift-click a node | add it to the selection, or take it out |
 | ⌘A | select every node |
 | ⌘C · ⌘X · ⌘V · ⌘D | copy · cut · paste (at the pointer) · duplicate the selected nodes |

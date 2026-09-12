@@ -56,14 +56,28 @@ export function portAt(g, s) {
   return { x: g.x + g.w, y: g.cy };
 }
 
-/** A wire is smooth (one curve) or square (straight runs with rounded elbows); `mid` is where its pill sits. */
-export function edgePath(a, b, fromSide, toSide, shape) {
+/**
+ * A wire is smooth (one curve) or square (straight runs with rounded elbows); `mid` is where its
+ * pill sits. A wire that has been pulled passes through `via`: a smooth one bends through it, a
+ * square one runs straight out of each port to it, so dragging it moves the middle run.
+ */
+export function edgePath(a, b, fromSide, toSide, shape, via) {
   const fs = side(fromSide, 'right'), ts = side(toSide, 'left');
   const p = portAt(a, fs), q = portAt(b, ts);
   const na = NORMAL[fs], nb = NORMAL[ts];
   if (shape === 'square') {
-    const pts = squareRoute(p, q, na, nb, a, b);
-    return { d: rounded(pts), mid: midOf(pts) };
+    const pts = via ? viaRoute(p, q, na, nb, via) : squareRoute(p, q, na, nb, a, b);
+    // The pill rides the level run, under the pointer while the wire is being pulled.
+    const lo = Math.min(p.x + na[0] * STUB, q.x + nb[0] * STUB), hi = Math.max(p.x + na[0] * STUB, q.x + nb[0] * STUB);
+    return { d: rounded(pts), mid: via ? [Math.max(lo, Math.min(hi, via.x)), via.y] : midOf(pts) };
+  }
+  if (via) {
+    const d1 = reach(p, via), d2 = reach(via, q), len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+    const t = { x: (q.x - p.x) / len, y: (q.y - p.y) / len }, k = Math.min(d1, d2) * 0.6;
+    return {
+      d: `M${p.x},${p.y} C${p.x + na[0] * d1},${p.y + na[1] * d1} ${via.x - t.x * k},${via.y - t.y * k} ${via.x},${via.y} C${via.x + t.x * k},${via.y + t.y * k} ${q.x + nb[0] * d2},${q.y + nb[1] * d2} ${q.x},${q.y}`,
+      mid: [via.x, via.y],
+    };
   }
   const d = reach(p, q);
   const p1 = [p.x + na[0] * d, p.y + na[1] * d], p2 = [q.x + nb[0] * d, q.y + nb[1] * d];
@@ -108,6 +122,13 @@ function squareRoute(p, q, na, nb, ga, gb) {
   }
   // Drop repeated points and corners that are not corners (three points on one line).
   const pts = [p, a, ...mids, b, q].filter((c, i, all) => !i || Math.abs(c.x - all[i - 1].x) > 0.01 || Math.abs(c.y - all[i - 1].y) > 0.01);
+  return pts.filter((c, i) => !i || i === pts.length - 1 || !((pts[i - 1].x === c.x && c.x === pts[i + 1].x) || (pts[i - 1].y === c.y && c.y === pts[i + 1].y)));
+}
+
+/** The corners of a square wire pulled to V: out of each port, then a level run at V's height between the two stubs, so the wire runs where it was dropped. */
+function viaRoute(p, q, na, nb, V) {
+  const a = { x: p.x + na[0] * STUB, y: p.y + na[1] * STUB }, b = { x: q.x + nb[0] * STUB, y: q.y + nb[1] * STUB };
+  const pts = [p, a, { x: a.x, y: V.y }, { x: b.x, y: V.y }, b, q].filter((c, i, all) => !i || Math.abs(c.x - all[i - 1].x) > 0.01 || Math.abs(c.y - all[i - 1].y) > 0.01);
   return pts.filter((c, i) => !i || i === pts.length - 1 || !((pts[i - 1].x === c.x && c.x === pts[i + 1].x) || (pts[i - 1].y === c.y && c.y === pts[i + 1].y)));
 }
 
@@ -185,7 +206,7 @@ export function render() {
   for (const e of doc.edges) {
     const a = gs.get(e.from), b = gs.get(e.to);
     if (!a || !b || connecting?.edge === e.id) continue;   // a wire whose end is in hand is drawn as the preview
-    const { d, mid } = edgePath(a, b, e.fromSide, e.toSide, e.shape);
+    const { d, mid } = edgePath(a, b, e.fromSide, e.toSide, e.shape, e.via);
     mids.set(e.id, mid);
     const sel = selection?.type === 'edge' && selection.id === e.id;
     const on = edgesOn.has(e.id);
@@ -243,6 +264,9 @@ export function render() {
   if (selEdge && gs.has(selEdge.from) && gs.has(selEdge.to)) {
     const p = portAt(gs.get(selEdge.from), side(selEdge.fromSide, 'right')), q = portAt(gs.get(selEdge.to), side(selEdge.toSide, 'left'));
     out += `<circle class="handle" data-handle="from" data-edge="${selEdge.id}" cx="${p.x}" cy="${p.y}" r="5.5"/><circle class="handle" data-handle="to" data-edge="${selEdge.id}" cx="${q.x}" cy="${q.y}" r="5.5"/>`;
+    // The middle of the wire can be pulled: by its pill when it has one, else by this handle.
+    const m = mids.get(selEdge.id);
+    if (m && !(selEdge.label?.trim() || selEdge.when?.trim() || selEdge.else)) out += `<circle class="handle bend" data-edge="${selEdge.id}" cx="${m[0]}" cy="${m[1]}" r="5"/>`;
   }
 
   if (connecting) {
@@ -250,7 +274,7 @@ export function render() {
     const e = connecting.edge && doc.edges.find((e) => e.id === connecting.edge);
     const toEnd = connecting.end === 'to';
     if (a && b) {
-      const d = toEnd ? edgePath(a, b, connecting.side, connecting.hit.side, e?.shape).d : edgePath(b, a, connecting.hit.side, connecting.side, e?.shape).d;
+      const d = toEnd ? edgePath(a, b, connecting.side, connecting.hit.side, e?.shape, e?.via).d : edgePath(b, a, connecting.hit.side, connecting.side, e?.shape, e?.via).d;
       out += `<path class="connecting" d="${d}" marker-end="url(#arrow)"/>`;
     } else if (a) {
       const p = portAt(a, connecting.side), n = NORMAL[connecting.side], c = { x: p.x + n[0] * 40, y: p.y + n[1] * 40 };
@@ -267,7 +291,7 @@ export function render() {
 
   if (!doc.nodes.length) {
     const r = svg.getBoundingClientRect();
-    out += `<g class="empty-hint" transform="translate(${r.width / 2} ${r.height / 2})"><text class="big" y="-8">Nothing drawn yet</text><text y="16">Drag a shape in from the palette on the left, or double-click anywhere to add an action</text></g>`;
+    out += `<g class="empty-hint" transform="translate(${r.width / 2} ${r.height / 2})"><text class="big" y="-8">Nothing drawn yet</text><text y="16">Drag a shape in from the palette on the left, or right-click the canvas to add one</text></g>`;
   }
   svg.innerHTML = out;
   zoomPct.textContent = `${Math.round(view.k * 100)}%`;
@@ -282,6 +306,7 @@ function placeEdgebar(e, mid) {
   if (!e || !mid) { edgebar.hidden = true; return; }
   for (const b of edgebar.querySelectorAll('[data-shape]')) b.classList.toggle('on', (e.shape === 'square' ? 'square' : 'smooth') === b.dataset.shape);
   for (const b of edgebar.querySelectorAll('[data-color]')) b.classList.toggle('on', (e.color ?? '') === b.dataset.color);
+  for (const b of edgebar.querySelectorAll('[data-straight]')) b.hidden = !e.via;
   edgebar.hidden = false;
   const { view } = store, r = svg.getBoundingClientRect(), w = edgebar.offsetWidth, h = edgebar.offsetHeight;
   const sx = view.x + mid[0] * view.k, sy = view.y + (mid[1] - 10) * view.k;
@@ -297,6 +322,7 @@ edgebar.addEventListener('click', (ev) => {
     if (!e) return;
     if (b.dataset.shape) { if (b.dataset.shape === 'square') e.shape = 'square'; else delete e.shape; }
     if (b.dataset.color != null) { if (b.dataset.color) e.color = b.dataset.color; else delete e.color; }
+    if (b.dataset.straight != null) delete e.via;
   });
 });
 edgebar.addEventListener('pointerdown', (ev) => ev.stopPropagation());
@@ -379,8 +405,10 @@ svg.addEventListener('pointerdown', (ev) => {
     const nodes = selectedNodeIds().map((nid) => { const n = store.doc.nodes.find((x) => x.id === nid); return { id: nid, x: n.x, y: n.y }; });
     drag = { mode: 'node', start: w, nodes, moved: false };
   } else if (edgeEl) {
-    select({ type: 'edge', id: edgeEl.dataset.edge });
-    drag = { mode: 'none' };
+    const id = edgeEl.dataset.edge;
+    // A wire that is already selected is picked up: dragging it pulls it through wherever it is dropped.
+    if (store.selection?.type === 'edge' && store.selection.id === id) drag = { mode: 'bend', id, start: w, moved: false };
+    else { select({ type: 'edge', id }); drag = { mode: 'none' }; }
   } else {
     // Dragging on empty canvas draws a rubber band. Shift keeps what was already selected and adds
     // to it; without Shift a plain click clears the selection, as it always did.
@@ -470,6 +498,10 @@ function dragTo(ev) {
     const dx = w.x - drag.start.x, dy = w.y - drag.start.y;
     for (const s of drag.nodes) { const n = store.doc.nodes.find((n) => n.id === s.id); if (n) { n.x = place(s.x + dx); n.y = place(s.y + dy); } }
     render();
+  } else if (drag.mode === 'bend') {
+    if (!drag.moved) { if (Math.hypot(w.x - drag.start.x, w.y - drag.start.y) * store.view.k < 3) return; drag.moved = true; mark(); svg.classList.add('moving'); }
+    const e = store.doc.edges.find((e) => e.id === drag.id);
+    if (e) { const place = ev.altKey ? Math.round : snap; e.via = { x: place(w.x), y: place(w.y) }; render(); }
   } else if (drag.mode === 'marquee') {
     marquee.x1 = w.x; marquee.y1 = w.y;
     if (!drag.moved && Math.abs(w.x - marquee.x0) * store.view.k + Math.abs(w.y - marquee.y0) * store.view.k > 3) { drag.moved = true; svg.classList.add('selecting'); }
@@ -488,7 +520,7 @@ function endDrag(ev, cancelled) {
   drag = null;
   if (panRaf) { cancelAnimationFrame(panRaf); panRaf = 0; }
   svg.classList.remove('dragging', 'moving', 'connecting', 'selecting');
-  if (d.mode === 'node' && d.moved) commit(() => {}, { quiet: true });   // the positions are in place; now tell everyone
+  if ((d.mode === 'node' || d.mode === 'bend') && d.moved) commit(() => {}, { quiet: true });   // the change is in place; now tell everyone
   if (d.mode === 'marquee') {
     const caught = d.moved && !cancelled ? nodesIn(marquee) : [];
     marquee = null;
@@ -524,17 +556,20 @@ window.addEventListener('pointerup', (ev) => endDrag(ev, false));
 window.addEventListener('pointercancel', (ev) => endDrag(ev, true));
 
 svg.addEventListener('dblclick', (ev) => {
-  if (ev.target.closest('[data-edge]')) return;
+  const edgeEl = ev.target.closest('[data-edge]');
+  if (edgeEl) {
+    // A double-click straightens a wire that was pulled.
+    const id = edgeEl.dataset.edge;
+    if (store.doc.edges.find((e) => e.id === id)?.via) commit((d) => { delete d.edges.find((e) => e.id === id).via; });
+    return;
+  }
   const nodeEl = ev.target.closest('[data-node]');
   if (nodeEl) {
     // The node is already selected by the pointerdown; the inspector has rendered its fields by
     // the time the next tick runs, so put the cursor straight into the label.
     if (!(store.selection?.type === 'node' && !store.selection.ids && store.selection.id === nodeEl.dataset.node)) select({ type: 'node', id: nodeEl.dataset.node });
     setTimeout(() => { const el = document.querySelector('#inspector [data-node="label"]'); if (el) { el.focus(); el.select?.(); } }, 0);
-    return;
   }
-  const w = toWorld(ev);
-  addNode('action', snap(w.x - 65), snap(w.y - 25));
 });
 
 /** Zoom to factor `k`, keeping the stage point (mx, my) under the same world point. */
@@ -815,7 +850,7 @@ export function tidy() {
     for (const n of d.nodes) { const p = pos.get(n.id); if (p) { n.x = p.x; n.y = p.y - minY + 40; } }
     const bypass = new Set(chains.map((c) => `${c.from}>${c.to}`));
     for (const e of d.edges) {
-      delete e.fromSide; delete e.toSide;
+      delete e.fromSide; delete e.toSide; delete e.via;
       if (bypass.has(`${e.from}>${e.to}`)) { e.fromSide = 'bottom'; e.toSide = 'bottom'; }
     }
   });
@@ -851,7 +886,7 @@ function bundleSelection() {
   const w = Math.max(...gs.map((g) => g.x + g.w)) - x0, h = Math.max(...gs.map((g) => g.y + g.h)) - y0;
   return {
     nodes: nodes.map((n) => ({ ...structuredClone(n), x: n.x - x0, y: n.y - y0 })),
-    edges: store.doc.edges.filter((e) => ids.has(e.from) && ids.has(e.to)).map((e) => structuredClone(e)),
+    edges: store.doc.edges.filter((e) => ids.has(e.from) && ids.has(e.to)).map((e) => ({ ...structuredClone(e), ...(e.via && { via: { x: e.via.x - x0, y: e.via.y - y0 } }) })),
     w, h, origin: { x: x0, y: y0 },
   };
 }
@@ -861,7 +896,7 @@ function place(bundle, x, y) {
   const ids = new Map(bundle.nodes.map((n) => [n.id, uid('n')]));
   commit((d) => {
     for (const n of bundle.nodes) d.nodes.push({ ...structuredClone(n), id: ids.get(n.id), x: snap(x + n.x), y: snap(y + n.y) });
-    for (const e of bundle.edges) d.edges.push({ ...structuredClone(e), id: uid('e'), from: ids.get(e.from), to: ids.get(e.to) });
+    for (const e of bundle.edges) d.edges.push({ ...structuredClone(e), id: uid('e'), from: ids.get(e.from), to: ids.get(e.to), ...(e.via && { via: { x: snap(x + e.via.x), y: snap(y + e.via.y) } }) });
   });
   selectNodes([...ids.values()]);
 }
