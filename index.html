@@ -190,7 +190,7 @@
   body.placing #stage svg, body.placing #stage svg * { cursor: copy !important; }
   #zoom .pct { min-width: 40px; text-align: center; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
   #zoom .sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line); }
-  #lint { top: 10px; right: 10px; max-width: min(360px, calc(100% - 320px)); padding: 6px 10px; font-size: var(--fs-sm); line-height: 1.4; color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); display: none; }
+  #lint { top: 10px; left: 10px; max-width: min(360px, calc(100% - 320px));   /* on the left, so it stays put as the panel comes and goes */ padding: 6px 10px; font-size: var(--fs-sm); line-height: 1.4; color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); display: none; }
   #lint.show { display: block; }
   #lint [data-p] { cursor: pointer; padding: 2px 0; }
   #lint [data-p]:hover { text-decoration: underline; }
