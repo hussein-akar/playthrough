@@ -33,7 +33,7 @@
   [hidden] { display: none !important; }                       /* the attribute wins over any display rule below */
   html, body { height: 100%; margin: 0; }
   body { font: var(--fs)/1.45 var(--font); color: var(--ink); background: var(--bg); display: grid; grid-template-rows: var(--header-h) 1fr var(--table-h); grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); height: 100vh; overflow: hidden; --side-w: 0px; }
-  body.has-project:not(.side-hidden) { --side-w: 220px; }
+  body.has-project:not(.side-hidden) { --side-w: 280px; }
   /* Nothing selected: the panel is away and the drawing has the width. The resizer writes --panel-w
      inline, so the hidden state sets the columns outright rather than the variable. */
   body.panel-hidden { grid-template-columns: var(--side-w) minmax(0, 1fr) 0; }
