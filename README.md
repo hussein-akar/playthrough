@@ -30,7 +30,7 @@ purpose: somebody assumed an wholesale order goes to post-processing, and the dr
 |---|---|
 | **Start** | Where a scenario enters. One per flow. |
 | **Action** | Something that happens: a document created, an event published. A scenario expects a set of these. An action may also *set* a state field. |
-| **Decision** | A fork. Each edge leaving it carries a condition; one edge may be *else*. An edge may carry a short label, shown on the canvas in place of its condition, and a status colour: success, failed, warning or info. |
+| **Decision** | A fork. Each edge leaving it carries a condition; one edge may be *else*. An edge may carry a short label, shown on the canvas in place of its condition, and a status colour: success, failed, warning or info. A wire is smooth or square; a small bar over the selected wire switches both. |
 | **End** | Where a scenario lands. A scenario may expect a particular one. |
 | **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text. Conditions can only mention declared inputs, so a typo is caught while drawing, not while running. |
 | **State** | Fields an action may set along the way, and a scenario may check at the end. |
@@ -64,7 +64,9 @@ free placement); arrow keys nudge the selected nodes by one grid step, Shift by 
 Double-click a node to edit its label straight away.
 
 Moving around works as in Figma: the wheel (or two fingers on a trackpad) pans, ⌘-wheel or a
-pinch zooms, and holding Space or the middle button turns a drag into a pan.
+pinch zooms, and holding Space or the middle button turns a drag into a pan. A wire, a node or a
+selection band dragged to the edge of the window pans the view that way, so a far-off node can be
+reached without letting go.
 
 Several nodes can be selected at once: dragging on empty canvas draws a band that catches every
 node it touches, Shift-drag adds to what is already selected, Shift-click adds a node or takes it
@@ -111,6 +113,7 @@ scenario for the else branch" is the sentence you want before the code exists.
 | ⌘-wheel · pinch | zoom |
 | double-click empty canvas | add an action node there |
 | drag from a dot on a node's side to a dot on another node | connect them, on those sides |
+| drag an end of the selected wire | move that end to another dot or node |
 | Shift-click a node | add it to the selection, or take it out |
 | ⌘A | select every node |
 | ⌘C · ⌘X · ⌘V · ⌘D | copy · cut · paste (at the pointer) · duplicate the selected nodes |

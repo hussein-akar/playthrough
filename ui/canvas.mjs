@@ -56,14 +56,85 @@ export function portAt(g, s) {
   return { x: g.x + g.w, y: g.cy };
 }
 
-export function edgePath(a, b, fromSide, toSide) {
+/** A wire is smooth (one curve) or square (straight runs with rounded elbows); `mid` is where its pill sits. */
+export function edgePath(a, b, fromSide, toSide, shape) {
   const fs = side(fromSide, 'right'), ts = side(toSide, 'left');
   const p = portAt(a, fs), q = portAt(b, ts);
   const na = NORMAL[fs], nb = NORMAL[ts];
-  const d = Math.max(48, Math.hypot(q.x - p.x, q.y - p.y) / 2);
+  if (shape === 'square') {
+    const pts = squareRoute(p, q, na, nb, a, b);
+    return { d: rounded(pts), mid: midOf(pts) };
+  }
+  const d = reach(p, q);
   const p1 = [p.x + na[0] * d, p.y + na[1] * d], p2 = [q.x + nb[0] * d, q.y + nb[1] * d];
   const mid = [(p.x + 3 * p1[0] + 3 * p2[0] + q.x) / 8, (p.y + 3 * p1[1] + 3 * p2[1] + q.y) / 8];
   return { d: `M${p.x},${p.y} C${p1[0]},${p1[1]} ${p2[0]},${p2[1]} ${q.x},${q.y}`, mid };
+}
+
+/** How far a smooth wire runs out of its ports before bending: half the distance, but capped so a long wire is straight in the middle rather than one huge S. */
+const reach = (p, q) => Math.max(48, Math.min(200, Math.hypot(q.x - p.x, q.y - p.y) / 2));
+
+const STUB = 24;   // how far a square wire runs straight out of a port before it may turn
+
+/**
+ * The corners of a square wire. Each end runs a stub out of its port; between the stubs the wire
+ * turns once or twice. Ends that face each other with room meet halfway; ends that do not (a wire
+ * running back to the left, say) go round the outside of both boxes instead of through them.
+ */
+function squareRoute(p, q, na, nb, ga, gb) {
+  const a = { x: p.x + na[0] * STUB, y: p.y + na[1] * STUB }, b = { x: q.x + nb[0] * STUB, y: q.y + nb[1] * STUB };
+  const ah = na[1] === 0, bh = nb[1] === 0;   // the stub is horizontal
+  let mids;
+  if (ah && bh) {
+    if (na[0] === nb[0]) { const mx = na[0] > 0 ? Math.max(a.x, b.x) : Math.min(a.x, b.x); mids = [{ x: mx, y: a.y }, { x: mx, y: b.y }]; }
+    else if ((b.x - a.x) * na[0] > 0 && (a.x - b.x) * nb[0] > 0) { const mx = (a.x + b.x) / 2; mids = [{ x: mx, y: a.y }, { x: mx, y: b.y }]; }
+    else { const my = Math.max(ga.y + ga.h, gb.y + gb.h) + 30; mids = [{ x: a.x, y: my }, { x: b.x, y: my }]; }
+  } else if (!ah && !bh) {
+    if (na[1] === nb[1]) {
+      // Both ends leave the same way (a bypass under two boxes): run level with the deeper stub. When
+      // the boxes are side by side, climb and descend in the gaps beside them, not through whatever
+      // sits above or below them.
+      const my = na[1] > 0 ? Math.max(a.y, b.y) : Math.min(a.y, b.y);
+      if (gb.x > ga.x + ga.w + 2 * STUB) { const sx = ga.x + ga.w + STUB, tx = gb.x - STUB; mids = [{ x: sx, y: a.y }, { x: sx, y: my }, { x: tx, y: my }, { x: tx, y: b.y }]; }
+      else if (ga.x > gb.x + gb.w + 2 * STUB) { const sx = ga.x - STUB, tx = gb.x + gb.w + STUB; mids = [{ x: sx, y: a.y }, { x: sx, y: my }, { x: tx, y: my }, { x: tx, y: b.y }]; }
+      else mids = [{ x: a.x, y: my }, { x: b.x, y: my }];
+    }
+    else if ((b.y - a.y) * na[1] > 0 && (a.y - b.y) * nb[1] > 0) { const my = (a.y + b.y) / 2; mids = [{ x: a.x, y: my }, { x: b.x, y: my }]; }
+    else { const mx = Math.max(ga.x + ga.w, gb.x + gb.w) + 30; mids = [{ x: mx, y: a.y }, { x: mx, y: b.y }]; }
+  } else if (ah) {
+    mids = (b.x - a.x) * na[0] > 0 && (b.y - a.y) * nb[1] < 0 ? [{ x: b.x, y: a.y }] : [{ x: a.x, y: b.y }];
+  } else {
+    mids = (b.y - a.y) * na[1] > 0 && (b.x - a.x) * nb[0] < 0 ? [{ x: a.x, y: b.y }] : [{ x: b.x, y: a.y }];
+  }
+  // Drop repeated points and corners that are not corners (three points on one line).
+  const pts = [p, a, ...mids, b, q].filter((c, i, all) => !i || Math.abs(c.x - all[i - 1].x) > 0.01 || Math.abs(c.y - all[i - 1].y) > 0.01);
+  return pts.filter((c, i) => !i || i === pts.length - 1 || !((pts[i - 1].x === c.x && c.x === pts[i + 1].x) || (pts[i - 1].y === c.y && c.y === pts[i + 1].y)));
+}
+
+/** A polyline as a path whose corners are rounded off, as far as the runs on either side allow. */
+function rounded(pts, r = 8) {
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p = pts[i - 1], c = pts[i], n = pts[i + 1];
+    const l1 = Math.hypot(c.x - p.x, c.y - p.y), l2 = Math.hypot(n.x - c.x, n.y - c.y);
+    const rr = Math.min(r, l1 / 2, l2 / 2);
+    if (rr < 0.5) { d += ` L${c.x},${c.y}`; continue; }
+    const u = { x: (c.x - p.x) / l1, y: (c.y - p.y) / l1 }, v = { x: (n.x - c.x) / l2, y: (n.y - c.y) / l2 };
+    d += ` L${c.x - u.x * rr},${c.y - u.y * rr} Q${c.x},${c.y} ${c.x + v.x * rr},${c.y + v.y * rr}`;
+  }
+  const last = pts[pts.length - 1];
+  return d + ` L${last.x},${last.y}`;
+}
+
+/** The point halfway along a polyline. */
+function midOf(pts) {
+  const lens = pts.slice(1).map((c, i) => Math.hypot(c.x - pts[i].x, c.y - pts[i].y));
+  let left = lens.reduce((s, l) => s + l, 0) / 2;
+  for (let i = 0; i < lens.length; i++) {
+    if (left <= lens[i]) { const t = lens[i] ? left / lens[i] : 0; return [pts[i].x + (pts[i + 1].x - pts[i].x) * t, pts[i].y + (pts[i + 1].y - pts[i].y) * t]; }
+    left -= lens[i];
+  }
+  return [pts[0].x, pts[0].y];
 }
 
 // A wire may carry a status colour; these are the four everyone knows, in the page's own tones.
@@ -73,7 +144,10 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 
 // ---- render -----------------------------------------------------------------------------------
 
-let connecting = null; // { from, fromSide, x, y, to, toSide } while a wire is being dragged out of a port
+// While a wire is being dragged: the end that stays put (`node`, `side`), which end of the wire
+// is in hand (`end`), the edge being re-attached if it is not a new one, the pointer, and the
+// dot it would land on.
+let connecting = null; // { node, side, end: 'to'|'from', edge: id|null, x, y, hit: { node, side }|null }
 let marquee = null;    // { x0, y0, x1, y1 } in world coordinates while a rubber band is being drawn
 
 export function render() {
@@ -107,10 +181,12 @@ export function render() {
     ${Object.entries(EDGE_COLORS).map(([c, v]) => `<marker id="arrow-${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${v}"/></marker>`).join('')}
   </defs><g transform="translate(${view.x} ${view.y}) scale(${view.k})">`;
 
+  const mids = new Map();   // where each wire's pill sits, for the bar over the selected one
   for (const e of doc.edges) {
     const a = gs.get(e.from), b = gs.get(e.to);
-    if (!a || !b) continue;
-    const { d, mid } = edgePath(a, b, e.fromSide, e.toSide);
+    if (!a || !b || connecting?.edge === e.id) continue;   // a wire whose end is in hand is drawn as the preview
+    const { d, mid } = edgePath(a, b, e.fromSide, e.toSide, e.shape);
+    mids.set(e.id, mid);
     const sel = selection?.type === 'edge' && selection.id === e.id;
     const on = edgesOn.has(e.id);
     const linked = group && selN.has(e.from) && selN.has(e.to);
@@ -144,8 +220,8 @@ export function render() {
     // for somewhere to land; a wire's own start and the dot it is about to land on are marked.
     if (n.kind !== 'end' || connecting) for (const s of SIDES) {
       const p = portAt(g, s);
-      const hot = connecting?.to === n.id && connecting.toSide === s;
-      const src = connecting?.from === n.id && connecting.fromSide === s;
+      const hot = connecting?.hit?.node === n.id && connecting.hit.side === s;
+      const src = connecting?.node === n.id && connecting.side === s;
       out += `<g class="port${hot ? ' hot' : ''}${src ? ' src' : ''}" data-port="${n.id}" data-side="${s}"><circle class="hit" cx="${p.x}" cy="${p.y}" r="11"/><circle class="dot" cx="${p.x}" cy="${p.y}" r="${hot ? 7 : 5}"/></g>`;
     }
     out += `</g>`;
@@ -162,12 +238,25 @@ export function render() {
     out += `</g>`;
   }
 
+  // The ends of the selected wire are handles: either can be dragged to another dot.
+  const selEdge = selection?.type === 'edge' && !connecting ? doc.edges.find((e) => e.id === selection.id) : null;
+  if (selEdge && gs.has(selEdge.from) && gs.has(selEdge.to)) {
+    const p = portAt(gs.get(selEdge.from), side(selEdge.fromSide, 'right')), q = portAt(gs.get(selEdge.to), side(selEdge.toSide, 'left'));
+    out += `<circle class="handle" data-handle="from" data-edge="${selEdge.id}" cx="${p.x}" cy="${p.y}" r="5.5"/><circle class="handle" data-handle="to" data-edge="${selEdge.id}" cx="${q.x}" cy="${q.y}" r="5.5"/>`;
+  }
+
   if (connecting) {
-    const a = gs.get(connecting.from), b = connecting.to && gs.get(connecting.to);
-    if (a && b) out += `<path class="connecting" d="${edgePath(a, b, connecting.fromSide, connecting.toSide).d}" marker-end="url(#arrow)"/>`;
-    else if (a) {
-      const p = portAt(a, connecting.fromSide), n = NORMAL[connecting.fromSide];
-      out += `<path class="connecting" d="M${p.x},${p.y} C${p.x + n[0] * 40},${p.y + n[1] * 40} ${connecting.x},${connecting.y} ${connecting.x},${connecting.y}" marker-end="url(#arrow)"/>`;
+    const a = gs.get(connecting.node), b = connecting.hit && gs.get(connecting.hit.node);
+    const e = connecting.edge && doc.edges.find((e) => e.id === connecting.edge);
+    const toEnd = connecting.end === 'to';
+    if (a && b) {
+      const d = toEnd ? edgePath(a, b, connecting.side, connecting.hit.side, e?.shape).d : edgePath(b, a, connecting.hit.side, connecting.side, e?.shape).d;
+      out += `<path class="connecting" d="${d}" marker-end="url(#arrow)"/>`;
+    } else if (a) {
+      const p = portAt(a, connecting.side), n = NORMAL[connecting.side], c = { x: p.x + n[0] * 40, y: p.y + n[1] * 40 };
+      out += toEnd
+        ? `<path class="connecting" d="M${p.x},${p.y} C${c.x},${c.y} ${connecting.x},${connecting.y} ${connecting.x},${connecting.y}" marker-end="url(#arrow)"/>`
+        : `<path class="connecting" d="M${connecting.x},${connecting.y} C${connecting.x},${connecting.y} ${c.x},${c.y} ${p.x},${p.y}" marker-end="url(#arrow)"/>`;
     }
   }
   if (marquee) {
@@ -182,7 +271,35 @@ export function render() {
   }
   svg.innerHTML = out;
   zoomPct.textContent = `${Math.round(view.k * 100)}%`;
+  placeEdgebar(selEdge, selEdge && mids.get(selEdge.id));
 }
+
+// ---- the bar over a selected wire ------------------------------------------------------------
+// Smooth or square, and the status colour: the two things one changes on a wire while looking at
+// it. It floats just above the pill and follows the wire while nodes move.
+const edgebar = document.getElementById('edgebar');
+function placeEdgebar(e, mid) {
+  if (!e || !mid) { edgebar.hidden = true; return; }
+  for (const b of edgebar.querySelectorAll('[data-shape]')) b.classList.toggle('on', (e.shape === 'square' ? 'square' : 'smooth') === b.dataset.shape);
+  for (const b of edgebar.querySelectorAll('[data-color]')) b.classList.toggle('on', (e.color ?? '') === b.dataset.color);
+  edgebar.hidden = false;
+  const { view } = store, r = svg.getBoundingClientRect(), w = edgebar.offsetWidth, h = edgebar.offsetHeight;
+  const sx = view.x + mid[0] * view.k, sy = view.y + (mid[1] - 10) * view.k;
+  edgebar.style.left = `${Math.max(8, Math.min(r.width - w - 8, sx - w / 2))}px`;
+  edgebar.style.top = `${Math.max(8, Math.min(r.height - h - 8, sy - h - 10))}px`;
+}
+edgebar.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b) return;
+  const id = store.selection?.id;
+  commit((d) => {
+    const e = d.edges.find((e) => e.id === id);
+    if (!e) return;
+    if (b.dataset.shape) { if (b.dataset.shape === 'square') e.shape = 'square'; else delete e.shape; }
+    if (b.dataset.color != null) { if (b.dataset.color) e.color = b.dataset.color; else delete e.color; }
+  });
+});
+edgebar.addEventListener('pointerdown', (ev) => ev.stopPropagation());
 
 // ---- interaction ------------------------------------------------------------------------------
 
@@ -231,10 +348,20 @@ svg.addEventListener('pointerdown', (ev) => {
     return;
   }
   const port = ev.target.closest('[data-port]');
+  const handle = ev.target.closest('[data-handle]');
   const nodeEl = ev.target.closest('[data-node]');
   const edgeEl = ev.target.closest('[data-edge]');
-  if (port) {
-    connecting = { from: port.dataset.port, fromSide: port.dataset.side, x: w.x, y: w.y, to: null, toSide: null };
+  if (handle) {
+    // One end of the selected wire is picked up; the other end stays where it is.
+    const e = store.doc.edges.find((x) => x.id === handle.dataset.edge);
+    if (!e) return;
+    const toEnd = handle.dataset.handle === 'to';
+    connecting = { node: toEnd ? e.from : e.to, side: toEnd ? side(e.fromSide, 'right') : side(e.toSide, 'left'), end: toEnd ? 'to' : 'from', edge: e.id, x: w.x, y: w.y, hit: null };
+    drag = { mode: 'connect' };
+    svg.classList.add('connecting');
+    render();
+  } else if (port) {
+    connecting = { node: port.dataset.port, side: port.dataset.side, end: 'to', edge: null, x: w.x, y: w.y, hit: null };
     drag = { mode: 'connect' };
     svg.classList.add('connecting');
     render();
@@ -285,10 +412,10 @@ function landing(ev, w, except) {
     const c = near(geom(n));
     if (!best || c.d < best.d) best = { to: n.id, toSide: c.s, d: c.d };
   }
-  if (best && best.d <= 18 / store.view.k) return { to: best.to, toSide: best.toSide };
+  if (best && best.d <= 18 / store.view.k) return { node: best.to, side: best.toSide };
   const over = nodeUnder(ev, except);
-  if (!over) return { to: null, toSide: null };
-  return { to: over, toSide: near(geom(store.doc.nodes.find((n) => n.id === over))).s };
+  if (!over) return null;
+  return { node: over, side: near(geom(store.doc.nodes.find((n) => n.id === over))).s };
 }
 
 let pointer = null; // last world position of the pointer over the canvas, where a paste lands
@@ -300,6 +427,33 @@ svg.addEventListener('pointermove', (ev) => { pointer = toWorld(ev); });
 // on the release, wherever that lands.
 window.addEventListener('pointermove', (ev) => {
   if (!drag) return;
+  last = { clientX: ev.clientX, clientY: ev.clientY, altKey: ev.altKey };
+  dragTo(ev);
+  if (!panRaf && drag.mode !== 'pan' && drag.mode !== 'none' && edgePush(ev)) panRaf = requestAnimationFrame(edgePan);
+});
+
+// A wire, a node or a band dragged to the edge of the window pans the view that way, faster the
+// further out the pointer goes, so a far-off node can be reached without letting go.
+let last = null, panRaf = 0;
+const EDGE = 28;
+function edgePush(ev) {
+  const r = svg.getBoundingClientRect(), px = ev.clientX - r.left, py = ev.clientY - r.top;
+  const x = px < EDGE ? px - EDGE : px > r.width - EDGE ? px - (r.width - EDGE) : 0;
+  const y = py < EDGE ? py - EDGE : py > r.height - EDGE ? py - (r.height - EDGE) : 0;
+  return x || y ? { x, y } : null;
+}
+function edgePan() {
+  panRaf = 0;
+  const push = drag && last && edgePush(last);
+  if (!push) return;
+  const step = (v) => Math.sign(v) * Math.min(16, 2 + Math.abs(v) / 3);
+  store.view.x -= step(push.x); store.view.y -= step(push.y);
+  dragTo(last);
+  panRaf = requestAnimationFrame(edgePan);
+}
+
+/** Move whatever is being dragged to where the pointer is. */
+function dragTo(ev) {
   const w = toWorld(ev);
   if (drag.mode === 'pan') {
     const dx = ev.clientX - drag.sx, dy = ev.clientY - drag.sy;
@@ -322,16 +476,17 @@ window.addEventListener('pointermove', (ev) => {
     if (drag.moved) render();
   } else if (drag.mode === 'connect') {
     connecting.x = w.x; connecting.y = w.y;
-    Object.assign(connecting, landing(ev, w, connecting.from));
+    connecting.hit = landing(ev, w, connecting.node);
     render();
   }
-});
+}
 
 /** The drag is over: on a release it lands, on a cancel (the browser took the pointer) it is dropped where it stands. */
 function endDrag(ev, cancelled) {
   if (!drag) return;
   const d = drag;
   drag = null;
+  if (panRaf) { cancelAnimationFrame(panRaf); panRaf = 0; }
   svg.classList.remove('dragging', 'moving', 'connecting', 'selecting');
   if (d.mode === 'node' && d.moved) commit(() => {}, { quiet: true });   // the positions are in place; now tell everyone
   if (d.mode === 'marquee') {
@@ -343,15 +498,26 @@ function endDrag(ev, cancelled) {
     else { select(null); render(); }
   }
   if (d.mode === 'connect') {
-    if (!cancelled) Object.assign(connecting, landing(ev, toWorld(ev), connecting.from));
-    const { from, fromSide, to, toSide } = connecting;
+    const c = connecting;
+    if (!cancelled) c.hit = landing(ev, toWorld(ev), c.node);
     connecting = null;
-    if (to && !cancelled) {
+    if (!c.hit || cancelled) { render(); return; }
+    // The default sides (out of the right, into the left) are left unwritten so a file stays terse.
+    const setSide = (e, key, v, dflt) => { if (v === dflt) delete e[key]; else e[key] = v; };
+    if (c.edge) {
+      commit((doc) => {
+        const e = doc.edges.find((e) => e.id === c.edge);
+        if (!e) return;
+        if (c.end === 'to') { e.to = c.hit.node; setSide(e, 'toSide', c.hit.side, 'left'); }
+        else { e.from = c.hit.node; setSide(e, 'fromSide', c.hit.side, 'right'); }
+      });
+    } else {
       const id = uid('e');
-      // The default sides (out of the right, into the left) are left unwritten so a file stays terse.
-      commit((doc) => { doc.edges.push({ id, from, to, ...(fromSide !== 'right' && { fromSide }), ...(toSide !== 'left' && { toSide }), when: '' }); });
+      const e = { id, from: c.node, to: c.hit.node, when: '' };
+      setSide(e, 'fromSide', c.side, 'right'); setSide(e, 'toSide', c.hit.side, 'left');
+      commit((doc) => { doc.edges.push(e); });
       select({ type: 'edge', id });
-    } else render();
+    }
   }
 }
 window.addEventListener('pointerup', (ev) => endDrag(ev, false));
@@ -508,13 +674,33 @@ export function fit() {
 
 // ---- layout -----------------------------------------------------------------------------------
 
-const COL = 240, ROW = 110;
+const GAPY = 36;   // between boxes in a column; a long wire crossing the column keeps a lane this wide too
+
+/** Where the smooth wire from port p (leaving along na) to port q (entering along nb) is at x: the curve edgePath draws, solved for t. */
+function wireY(p, q, na, nb, x) {
+  const d = reach(p, q);
+  const bez = (a, c1, c2, b, t) => (1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * c1 + 3 * (1 - t) * t * t * c2 + t ** 3 * b;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 30; i++) { const t = (lo + hi) / 2; if (bez(p.x, p.x + na[0] * d, q.x + nb[0] * d, q.x, t) < x) lo = t; else hi = t; }
+  return bez(p.y, p.y + na[1] * d, q.y + nb[1] * d, q.y, (lo + hi) / 2);
+}
+
+/** How wide the pill on a wire is drawn, so columns can leave room for it. */
+function pillWidth(e) {
+  const full = e.label?.trim() || (e.else ? 'else' : e.when?.trim() || '');
+  return full ? Math.min(full.length, 34) * 6.6 + 14 : 0;
+}
 
 /**
  * Lay the flow out left to right. Layers are the longest path from the start (so a node sits to
- * the right of everything that can lead to it), rows within a layer are ordered by where their
- * neighbours sit so wires mostly go straight and seldom cross. A loop is a finding, not a layout
- * problem: the edge that would walk back onto the path is simply ignored here. One undo step.
+ * the right of everything that can lead to it). Rows within a layer are ordered by where their
+ * neighbours sit so wires seldom cross, then each node is pulled level with what leads to it, so
+ * the main path runs straight. A wire that skips layers is sent out of the bottom of its source
+ * and into the bottom of its target, a bypass under the flow, and holds a lane in every column it
+ * crosses so nothing is laid on top of it. Columns leave room for the widest pill on the wires
+ * between them. A loop is a finding, not a layout problem: the edge that would walk back onto the
+ * path is simply ignored here. Every other wire goes back to leaving right and entering left. One
+ * undo step.
  */
 export function tidy() {
   const { doc } = store;
@@ -537,34 +723,101 @@ export function tidy() {
   const layer = new Map(ids.map((id) => [id, 0]));
   for (const id of order.reverse()) for (const t of fwd.get(id)) layer.set(t, Math.max(layer.get(t), layer.get(id) + 1));
 
+  // The layered graph: the nodes, plus a placeholder in every layer a long wire passes through.
   const layers = [];
-  for (const id of ids) (layers[layer.get(id)] ??= []).push(id);
+  const put = (l, id) => (layers[l] ??= []).push(id);
+  for (const id of ids) put(layer.get(id), id);
+  const before = new Map(), after = new Map();
+  const link = (a, b) => { (after.get(a) ?? after.set(a, []).get(a)).push(b); (before.get(b) ?? before.set(b, []).get(b)).push(a); };
+  let lanes = 0;
+  const chains = [];   // each long wire: its ends and the lanes it holds, in layer order
+  for (const id of ids) for (const t of fwd.get(id)) {
+    let prev = id;
+    const held = [];
+    for (let l = layer.get(id) + 1; l < layer.get(t); l++) { const v = `~${lanes++}`; put(l, v); link(prev, v); held.push(v); prev = v; }
+    link(prev, t);
+    if (held.length) chains.push({ from: id, to: t, lanes: held });
+  }
+
+  // Barycentre ordering: a few sweeps down (by predecessors) and up (by successors).
   const row = new Map();
   const place = (L) => L.forEach((id, i) => row.set(id, i));
   layers.forEach(place);
-  // Barycentre ordering: a few sweeps down (by predecessors) and up (by successors).
   const bary = (id, nbrs) => nbrs.length ? nbrs.reduce((s, x) => s + row.get(x), 0) / nbrs.length : row.get(id);
   for (let sweep = 0; sweep < 4; sweep++) {
     const down = sweep % 2 === 0;
     for (const L of down ? layers : [...layers].reverse()) {
-      const key = new Map(L.map((id) => [id, bary(id, (down ? ins : outs).get(id))]));
+      const key = new Map(L.map((id) => [id, bary(id, (down ? before : after).get(id) ?? [])]));
       L.sort((a, b) => key.get(a) - key.get(b));
       place(L);
     }
   }
 
   const gs = new Map(doc.nodes.map((n) => [n.id, geom(n)]));
-  const pos = new Map();
+  const lane = (id) => id.startsWith('~');
+  const W = (id) => (gs.get(id)?.w ?? 0);
+
+  // Columns: as wide as the widest box, then a gap that fits the widest pill on a wire leaving it.
+  const xs = [], colW = [];
   let x = 40;
-  for (const L of layers) {
-    const top = 40 - ((L.length - 1) * ROW) / 2;
-    L.forEach((id, i) => pos.set(id, { x, y: snap(top + i * ROW) }));
-    x += snap(Math.max(COL, Math.max(...L.map((id) => gs.get(id).w)) + 60));
+  layers.forEach((L, li) => {
+    xs[li] = x; colW[li] = Math.max(...L.map(W));
+    const pill = Math.max(0, ...doc.edges.filter((e) => layer.get(e.from) === li && layer.get(e.to) > li).map(pillWidth));
+    x += snap(colW[li] + Math.max(80, pill + 40));
+  });
+
+  // Rows: each node wants to sit level with the middle of what leads to it. Down the column the
+  // wants are honoured in order, pushing apart only as far as the boxes need; then the boxes shift
+  // so they sit, on average, where they wanted to be. A lane is pinned where its wire really
+  // crosses the column (a band as tall as the wire's slope there), and the boxes on either side
+  // make way for it. The wire's course depends on where its ends land, so this is run a few times.
+  const pins = new Map();   // lane → { y, h }
+  const H = (id) => (gs.get(id)?.h ?? pins.get(id)?.h ?? 12);
+  const cy = new Map();
+  for (let pass = 0; pass < 3; pass++) {
+    cy.clear();
+    for (const L of layers) {
+      // A box is pulled by the boxes that lead to it, never by a lane: the lane only keeps its band clear.
+      const wants = L.map((id) => { if (pins.has(id)) return pins.get(id).y; const ps = (before.get(id) ?? []).filter((p) => cy.has(p) && (lane(id) || !lane(p))); return ps.length ? ps.reduce((s, p) => s + cy.get(p), 0) / ps.length : null; });
+      const known = wants.filter((w) => w != null);
+      const fallback = known.length ? known.reduce((s, w) => s + w, 0) / known.length : 0;
+      const idx = L.map((_, i) => i).sort((a, b) => (wants[a] ?? fallback) - (wants[b] ?? fallback) || a - b);
+      const ordered = idx.map((i) => L[i]), want = idx.map((i) => wants[i] ?? fallback);
+      L.splice(0, L.length, ...ordered);
+      let bottom = -Infinity;
+      const got = L.map((id, i) => { const c = lane(id) ? want[i] : Math.max(want[i], bottom + GAPY + H(id) / 2); bottom = c + H(id) / 2; return c; });
+      const boxes = L.map((id, i) => i).filter((i) => !lane(L[i]));
+      const shift = boxes.length ? boxes.reduce((s, i) => s + (want[i] - got[i]), 0) / boxes.length : 0;
+      for (const i of boxes) got[i] += shift;
+      // A box the shift pushed onto a lane is moved off it: down on the way down, up on the way back.
+      for (let i = 1; i < L.length; i++) if (!lane(L[i])) got[i] = Math.max(got[i], got[i - 1] + H(L[i - 1]) / 2 + GAPY + H(L[i]) / 2);
+      for (let i = L.length - 2; i >= 0; i--) if (!lane(L[i])) got[i] = Math.min(got[i], got[i + 1] - H(L[i + 1]) / 2 - GAPY - H(L[i]) / 2);
+      L.forEach((id, i) => cy.set(id, got[i]));
+    }
+    // Where each bypass will run, in the shape it is drawn: a square one is level with the deeper
+    // of its two stubs, a smooth one follows its curve.
+    for (const c of chains) {
+      const p = portAt({ ...gs.get(c.from), x: xs[layer.get(c.from)], cx: xs[layer.get(c.from)] + W(c.from) / 2, cy: cy.get(c.from), y: cy.get(c.from) - H(c.from) / 2 }, 'bottom');
+      const q = portAt({ ...gs.get(c.to), x: xs[layer.get(c.to)], cx: xs[layer.get(c.to)] + W(c.to) / 2, cy: cy.get(c.to), y: cy.get(c.to) - H(c.to) / 2 }, 'bottom');
+      const square = doc.edges.some((e) => e.from === c.from && e.to === c.to && e.shape === 'square');
+      c.lanes.forEach((v, k) => {
+        const l = layer.get(c.from) + 1 + k;
+        if (square) { pins.set(v, { y: Math.max(p.y, q.y) + STUB, h: 12 }); return; }
+        const y1 = wireY(p, q, NORMAL.bottom, NORMAL.bottom, xs[l]), y2 = wireY(p, q, NORMAL.bottom, NORMAL.bottom, xs[l] + colW[l]);
+        pins.set(v, { y: (y1 + y2) / 2, h: Math.abs(y2 - y1) + 12 });
+      });
+    }
   }
+
+  const pos = new Map(ids.map((id) => [id, { x: xs[layer.get(id)], y: snap(cy.get(id) - H(id) / 2) }]));
   const minY = Math.min(...[...pos.values()].map((p) => p.y));
   commit((d) => {
     for (const n of d.nodes) { const p = pos.get(n.id); if (p) { n.x = p.x; n.y = p.y - minY + 40; } }
-    for (const e of d.edges) { delete e.fromSide; delete e.toSide; }
+    const bypass = new Set(chains.map((c) => `${c.from}>${c.to}`));
+    for (const e of d.edges) {
+      delete e.fromSide; delete e.toSide;
+      if (bypass.has(`${e.from}>${e.to}`)) { e.fromSide = 'bottom'; e.toSide = 'bottom'; }
+    }
   });
   fit();
 }

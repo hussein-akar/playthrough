@@ -112,6 +112,9 @@ function edgeView(doc, e) {
     </div>
     <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>
     <div class="field"><label>Label <span class="muted">· shown on the canvas instead of the condition</span></label><input type="text" data-edge="label" value="${esc(e.label ?? '')}" placeholder="e.g. approved"></div>
+    <div class="field"><label>Line</label>
+      <div class="swatches">${[['smooth', 'Smooth'], ['square', 'Square']].map(([v, l]) => `<button class="swatch none${(e.shape === 'square' ? 'square' : 'smooth') === v ? ' on' : ''}" data-act="edge-shape" data-shape="${v}">${l}</button>`).join('')}</div>
+    </div>
     <div class="field"><label>Colour <span class="muted">· a status for the branch</span></label>
       <div class="swatches">${[['', 'None'], ['success', 'Success'], ['failed', 'Failed'], ['warning', 'Warning'], ['info', 'Info']].map(([c, l]) => `<button class="swatch ${c ? `c-${c}` : 'none'}${(e.color ?? '') === c ? ' on' : ''}" data-act="edge-color" data-color="${c}"><i></i>${l}</button>`).join('')}</div>
     </div>
@@ -385,6 +388,7 @@ el.addEventListener('click', (ev) => {
   if (act === 'align-top') alignSelected('top');
   if (act === 'rm-group') return deleteSelectedNodes();
   if (act === 'rm-node') { commit((doc) => { doc.nodes = doc.nodes.filter((n) => n.id !== sel.id); doc.edges = doc.edges.filter((e) => e.from !== sel.id && e.to !== sel.id); }); select(null); }
+  if (act === 'edge-shape') commit((doc) => { const e = doc.edges.find((e) => e.id === sel.id); if (b.dataset.shape === 'square') e.shape = 'square'; else delete e.shape; });
   if (act === 'edge-color') commit((doc) => { const e = doc.edges.find((e) => e.id === sel.id); if (b.dataset.color) e.color = b.dataset.color; else delete e.color; });
   if (act === 'rm-edge') { commit((doc) => { doc.edges = doc.edges.filter((e) => e.id !== sel.id); }); select(null); }
   if (act === 'rm-scn') { commit((doc) => { doc.scenarios = doc.scenarios.filter((s) => s.id !== sel.id); }); select(null); }

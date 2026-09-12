@@ -239,6 +239,19 @@
   .edge.selected .label rect { stroke: #8a94a3; fill: #fff; }
   .edge.bad .label rect { stroke: var(--bad); }
   .edge.bad .label text { fill: var(--bad); }
+  /* The ends of the selected wire, draggable to another dot. */
+  .handle { fill: #fff; stroke: var(--accent); stroke-width: 1.5; cursor: grab; }
+  .handle:hover { r: 7; fill: var(--accent-soft); }
+  /* The bar over a selected wire: smooth or square, and the colour. */
+  #edgebar { position: absolute; z-index: 15; display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
+  #edgebar button { width: 26px; height: 24px; padding: 0; border-color: transparent; background: transparent; }
+  #edgebar button:hover { background: var(--line-2); }
+  #edgebar button.on { background: var(--accent-soft); color: var(--accent); }
+  #edgebar button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  #edgebar button i { display: block; width: 11px; height: 11px; border-radius: 50%; }
+  #edgebar button i.none { border: 1.5px solid var(--faint); box-sizing: border-box; }
+  #edgebar button[data-color].on { box-shadow: inset 0 0 0 1px var(--accent); }
+  #edgebar .sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line); }
   .connecting { fill: none; stroke: var(--muted); stroke-width: 1.6; pointer-events: none; }   /* the wire being dragged looks like the wire it will become */
 
   /* ==== inspector ============================================================================= */
@@ -423,6 +436,16 @@
       </div>
     </div>
     <div id="ghost" hidden></div>
+    <div id="edgebar" hidden>
+      <button data-shape="smooth" title="Smooth wire"><svg viewBox="0 0 20 20"><path d="M3,15 C9,15 11,5 17,5"/></svg></button>
+      <button data-shape="square" title="Square wire"><svg viewBox="0 0 20 20"><path d="M3,15 H8 Q10,15 10,13 V7 Q10,5 12,5 H17"/></svg></button>
+      <span class="sep"></span>
+      <button data-color="" title="No colour"><i class="none"></i></button>
+      <button data-color="success" title="Success"><i style="background: var(--ok)"></i></button>
+      <button data-color="failed" title="Failed"><i style="background: var(--bad)"></i></button>
+      <button data-color="warning" title="Warning"><i style="background: var(--warn)"></i></button>
+      <button data-color="info" title="Info"><i style="background: var(--accent)"></i></button>
+    </div>
     <div id="ctx" role="menu" hidden></div>
     <div id="lint"></div>
     <div id="zoom">
@@ -467,6 +490,7 @@
         <tr><td><kbd>⌘</kbd>+<kbd>wheel</kbd> · pinch</td><td>zoom</td></tr>
         <tr><td><kbd>double-click</kbd> empty canvas</td><td>add an action node there</td></tr>
         <tr><td><kbd>drag</kbd> from a dot on a node's side to a dot on another node</td><td>connect them · the wire leaves and arrives on those sides</td></tr>
+        <tr><td><kbd>drag</kbd> an end of the selected wire</td><td>move that end to another dot or node</td></tr>
         <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node</td><td>add it to the selection, or take it out</td></tr>
         <tr><td><kbd>⌘A</kbd></td><td>select every node</td></tr>
         <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>
