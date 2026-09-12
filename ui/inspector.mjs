@@ -104,12 +104,44 @@ function edgeView(doc, e) {
     <h2>Edge</h2>
     <div class="muted" style="margin-bottom: 10px"><b>${esc(from?.label)}</b> → <b>${esc(to?.label)}</b></div>
     <div class="field"><label>Condition <span class="muted">· blank means always</span></label>
-      <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. type in [Subscription, Refund]" ${e.else ? 'disabled' : ''}>
+      <div class="row">
+        <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. type in [Subscription, Refund]" ${e.else ? 'disabled' : ''}>
+        ${insertMenu(doc, e.else)}
+      </div>
       <div class="errs"></div>
     </div>
     <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>
-    <div class="field"><label>Label <span class="muted">· shown when there is no condition</span></label><input type="text" data-edge="label" value="${esc(e.label ?? '')}"></div>
+    <div class="field"><label>Label <span class="muted">· shown on the canvas instead of the condition</span></label><input type="text" data-edge="label" value="${esc(e.label ?? '')}" placeholder="e.g. approved"></div>
+    <div class="field"><label>Colour <span class="muted">· a status for the branch</span></label>
+      <div class="swatches">${[['', 'None'], ['success', 'Success'], ['failed', 'Failed'], ['warning', 'Warning'], ['info', 'Info']].map(([c, l]) => `<button class="swatch ${c ? `c-${c}` : 'none'}${(e.color ?? '') === c ? ' on' : ''}" data-act="edge-color" data-color="${c}"><i></i>${l}</button>`).join('')}</div>
+    </div>
     <div class="actions"><button class="small danger" data-act="rm-edge">Delete edge</button></div>`;
+}
+
+// The menu beside a condition: every declared name, each enum's values and the operators, so a
+// guard is assembled by picking rather than remembering. A pick lands at the cursor.
+const OPERATORS = ['==', '!=', '<', '<=', '>', '>=', 'in []', 'not in []', 'and', 'or', 'not', 'null', 'true', 'false'];
+function insertMenu(doc, disabled) {
+  const group = (label, items) => items.length ? `<optgroup label="${label}">${items.map(([v, l]) => `<option value="${esc(v)}">${esc(l ?? v)}</option>`).join('')}</optgroup>` : '';
+  const word = (v) => (IDENT.test(v) && !RESERVED.has(v) ? v : JSON.stringify(v));
+  return `<select class="insert" data-insert title="Put a name or an operator at the cursor" ${disabled ? 'disabled' : ''}>
+    <option value="">insert…</option>
+    ${group('Inputs', doc.inputs.filter((i) => i.name).map((i) => [i.name]))}
+    ${group('State', doc.state.filter((f) => f.name).map((f) => [f.name]))}
+    ${doc.inputs.filter((i) => i.type === 'enum' && i.values?.length).map((i) => group(`${i.name} values`, i.values.map((v) => [word(v), v]))).join('')}
+    ${group('Operators', OPERATORS.map((o) => [o]))}
+  </select>`;
+}
+
+/** Put `token` into the text control at its cursor, spaced from what is around it, and leave the cursor after it. */
+function insertAt(input, token) {
+  const v = input.value, a = input.selectionStart ?? v.length, b = input.selectionEnd ?? a;
+  const before = v.slice(0, a), after = v.slice(b);
+  const lead = before && !/[\s([]$/.test(before) ? ' ' : '', tail = /^[\s)\],]/.test(after) ? '' : ' ';
+  input.value = before + lead + token + tail + after;
+  const at = (before + lead + token).length - (token.endsWith('[]') ? 1 : 0);   // inside the brackets of `in []`
+  input.focus();
+  input.setSelectionRange(at, at);
 }
 
 function scenarioView(doc, s) {
@@ -314,6 +346,13 @@ el.addEventListener('input', (ev) => {
 el.addEventListener('change', (ev) => {
   const t = ev.target;
   const d = t.dataset;
+  if (d.insert != null) {
+    // A pick goes into the condition beside the menu; the panel is not rebuilt, so the cursor stays put.
+    const input = t.parentElement.querySelector('[data-edge="when"]');
+    if (t.value && input) { insertAt(input, t.value); commit((doc) => { const e = doc.edges.find((e) => e.id === store.selection.id); e.when = input.value; }); }
+    t.value = '';
+    return;
+  }
   if (d.edge === 'else') { commit((doc) => { const e = doc.edges.find((e) => e.id === store.selection.id); e.else = t.checked; if (t.checked) e.when = ''; }); t.blur(); render(); }
   if (d.scnAction != null) commit((doc) => {
     const s = doc.scenarios.find((s) => s.id === store.selection.id);
@@ -346,6 +385,7 @@ el.addEventListener('click', (ev) => {
   if (act === 'align-top') alignSelected('top');
   if (act === 'rm-group') return deleteSelectedNodes();
   if (act === 'rm-node') { commit((doc) => { doc.nodes = doc.nodes.filter((n) => n.id !== sel.id); doc.edges = doc.edges.filter((e) => e.from !== sel.id && e.to !== sel.id); }); select(null); }
+  if (act === 'edge-color') commit((doc) => { const e = doc.edges.find((e) => e.id === sel.id); if (b.dataset.color) e.color = b.dataset.color; else delete e.color; });
   if (act === 'rm-edge') { commit((doc) => { doc.edges = doc.edges.filter((e) => e.id !== sel.id); }); select(null); }
   if (act === 'rm-scn') { commit((doc) => { doc.scenarios = doc.scenarios.filter((s) => s.id !== sel.id); }); select(null); }
   if (act === 'dup-scn') { const id = uid('s'); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const i = doc.scenarios.indexOf(s); doc.scenarios.splice(i + 1, 0, { ...structuredClone(s), id, name: s.name + ' (copy)' }); }); select({ type: 'scenario', id }); }

@@ -43,19 +43,37 @@ function shape(node, g) {
   return `<rect class="box" x="${x}" y="${y}" width="${w}" height="${h}" rx="7"/>`;
 }
 
-export function edgePath(a, b) {
-  const x1 = a.x + a.w, y1 = a.cy, x2 = b.x, y2 = b.cy;
-  const dx = Math.max(48, Math.abs(x2 - x1) / 2);
-  const p1 = [x1 + dx, y1], p2 = [x2 - dx, y2];
-  const mid = [(x1 + 3 * p1[0] + 3 * p2[0] + x2) / 8, (y1 + 3 * p1[1] + 3 * p2[1] + y2) / 8];
-  return { d: `M${x1},${y1} C${p1[0]},${p1[1]} ${p2[0]},${p2[1]} ${x2},${y2}`, mid };
+// A node has a port in the middle of each side. A wire leaves its port along the side's normal
+// and arrives at the other port the same way, so it always meets a box square-on.
+export const SIDES = ['top', 'right', 'bottom', 'left'];
+const NORMAL = { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] };
+const side = (s, dflt) => (SIDES.includes(s) ? s : dflt);
+
+export function portAt(g, s) {
+  if (s === 'top') return { x: g.cx, y: g.y };
+  if (s === 'bottom') return { x: g.cx, y: g.y + g.h };
+  if (s === 'left') return { x: g.x, y: g.cy };
+  return { x: g.x + g.w, y: g.cy };
 }
+
+export function edgePath(a, b, fromSide, toSide) {
+  const fs = side(fromSide, 'right'), ts = side(toSide, 'left');
+  const p = portAt(a, fs), q = portAt(b, ts);
+  const na = NORMAL[fs], nb = NORMAL[ts];
+  const d = Math.max(48, Math.hypot(q.x - p.x, q.y - p.y) / 2);
+  const p1 = [p.x + na[0] * d, p.y + na[1] * d], p2 = [q.x + nb[0] * d, q.y + nb[1] * d];
+  const mid = [(p.x + 3 * p1[0] + 3 * p2[0] + q.x) / 8, (p.y + 3 * p1[1] + 3 * p2[1] + q.y) / 8];
+  return { d: `M${p.x},${p.y} C${p1[0]},${p1[1]} ${p2[0]},${p2[1]} ${q.x},${q.y}`, mid };
+}
+
+// A wire may carry a status colour; these are the four everyone knows, in the page's own tones.
+export const EDGE_COLORS = { success: '#1f9d55', failed: '#d64545', warning: '#d98c0d', info: '#2f6fed' };
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 // ---- render -----------------------------------------------------------------------------------
 
-let connecting = null; // { from, x, y, over }
+let connecting = null; // { from, fromSide, x, y, to, toSide } while a wire is being dragged out of a port
 let marquee = null;    // { x0, y0, x1, y1 } in world coordinates while a rubber band is being drawn
 
 export function render() {
@@ -85,21 +103,27 @@ export function render() {
   let out = `<defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3af"/></marker>
     <marker id="arrow-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fed"/></marker>
-    <marker id="arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1c2430"/></marker>
+    <marker id="arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker>
+    ${Object.entries(EDGE_COLORS).map(([c, v]) => `<marker id="arrow-${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${v}"/></marker>`).join('')}
   </defs><g transform="translate(${view.x} ${view.y}) scale(${view.k})">`;
 
   for (const e of doc.edges) {
     const a = gs.get(e.from), b = gs.get(e.to);
     if (!a || !b) continue;
-    const { d, mid } = edgePath(a, b);
+    const { d, mid } = edgePath(a, b, e.fromSide, e.toSide);
     const sel = selection?.type === 'edge' && selection.id === e.id;
     const on = edgesOn.has(e.id);
     const linked = group && selN.has(e.from) && selN.has(e.to);
-    const cls = ['edge', sel && 'selected', linked && 'linked', on && 'on', e.else && 'else', untouchedE.has(e.id) && 'untouched', badE.has(e.id) && 'bad'].filter(Boolean).join(' ');
-    const full = e.else ? 'else' : (e.when?.trim() || e.label || '');
+    // The pill reads the label when there is one, else the condition, else "else": a long guard
+    // is better read in the panel, and the full text is in the tooltip either way.
+    const label = e.label?.trim() ?? '', when = e.when?.trim() ?? '';
+    const full = label || (e.else ? 'else' : when);
+    const color = EDGE_COLORS[e.color] ? e.color : null;
+    const cls = ['edge', sel && 'selected', linked && 'linked', on && 'on', e.else && !label && 'else', color && `c-${color}`, untouchedE.has(e.id) && 'untouched', badE.has(e.id) && 'bad'].filter(Boolean).join(' ');
     const text = full.length > 34 ? full.slice(0, 32) + '…' : full;
-    const marker = sel ? 'arrow-sel' : on ? 'arrow-on' : 'arrow';
-    out += `<g class="${cls}" data-edge="${e.id}"><title>${esc(full)}</title><path class="grab" d="${d}"/><path class="wire" d="${d}" marker-end="url(#${marker})"/>`;
+    const marker = on ? 'arrow-on' : color ? `arrow-${color}` : sel ? 'arrow-sel' : 'arrow';
+    const tip = label && (when || e.else) ? `${label} · ${e.else ? 'else' : when}` : full;
+    out += `<g class="${cls}" data-edge="${e.id}"><title>${esc(tip)}</title><path class="grab" d="${d}"/><path class="wire" d="${d}" marker-end="url(#${marker})"/>`;
     if (text) {
       const w = text.length * 6.6 + 14;
       out += `<g class="label"><rect x="${mid[0] - w / 2}" y="${mid[1] - 10}" width="${w}" height="20"/><text x="${mid[0]}" y="${mid[1] + 4}" text-anchor="middle">${esc(text)}</text></g>`;
@@ -111,12 +135,19 @@ export function render() {
     const g = gs.get(n.id);
     const sel = selN.has(n.id);
     const steps = nodeSteps.get(n.id);
-    const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', untouchedN.has(n.id) && 'untouched', badN.has(n.id) && 'bad', connecting?.over === n.id && 'target'].filter(Boolean).join(' ');
+    const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', untouchedN.has(n.id) && 'untouched', badN.has(n.id) && 'bad'].filter(Boolean).join(' ');
     out += `<g class="${cls}" data-node="${n.id}">${shape(n, g)}`;
     out += `<text class="kind" x="${g.cx}" y="${g.y + 15}" text-anchor="middle">${n.kind}</text>`;
     g.lines.forEach((l, i) => { out += `<text x="${g.cx}" y="${g.y + 32 + i * 16}" text-anchor="middle">${esc(l)}</text>`; });
     g.sets.forEach(([k, v], i) => { out += `<text class="setbadge" x="${g.cx}" y="${g.y + 32 + g.lines.length * 16 + i * 13}" text-anchor="middle">${esc(k)} = ${esc(v)}</text>`; });
-    if (n.kind !== 'end') out += `<circle class="port" data-port="${n.id}" cx="${g.x + g.w}" cy="${g.cy}" r="6"/>`;
+    // The dots on the sides. Nothing leaves an End, so its dots only appear while a wire is looking
+    // for somewhere to land; a wire's own start and the dot it is about to land on are marked.
+    if (n.kind !== 'end' || connecting) for (const s of SIDES) {
+      const p = portAt(g, s);
+      const hot = connecting?.to === n.id && connecting.toSide === s;
+      const src = connecting?.from === n.id && connecting.fromSide === s;
+      out += `<g class="port${hot ? ' hot' : ''}${src ? ' src' : ''}" data-port="${n.id}" data-side="${s}"><circle class="hit" cx="${p.x}" cy="${p.y}" r="11"/><circle class="dot" cx="${p.x}" cy="${p.y}" r="${hot ? 7 : 5}"/></g>`;
+    }
     out += `</g>`;
   }
 
@@ -132,8 +163,12 @@ export function render() {
   }
 
   if (connecting) {
-    const a = gs.get(connecting.from);
-    if (a) out += `<path class="connecting" d="M${a.x + a.w},${a.cy} L${connecting.x},${connecting.y}"/>`;
+    const a = gs.get(connecting.from), b = connecting.to && gs.get(connecting.to);
+    if (a && b) out += `<path class="connecting" d="${edgePath(a, b, connecting.fromSide, connecting.toSide).d}" marker-end="url(#arrow)"/>`;
+    else if (a) {
+      const p = portAt(a, connecting.fromSide), n = NORMAL[connecting.fromSide];
+      out += `<path class="connecting" d="M${p.x},${p.y} C${p.x + n[0] * 40},${p.y + n[1] * 40} ${connecting.x},${connecting.y} ${connecting.x},${connecting.y}" marker-end="url(#arrow)"/>`;
+    }
   }
   if (marquee) {
     const r = rectOf(marquee);
@@ -199,7 +234,7 @@ svg.addEventListener('pointerdown', (ev) => {
   const nodeEl = ev.target.closest('[data-node]');
   const edgeEl = ev.target.closest('[data-edge]');
   if (port) {
-    connecting = { from: port.dataset.port, x: w.x, y: w.y, over: null };
+    connecting = { from: port.dataset.port, fromSide: port.dataset.side, x: w.x, y: w.y, to: null, toSide: null };
     drag = { mode: 'connect' };
     svg.classList.add('connecting');
     render();
@@ -227,6 +262,10 @@ svg.addEventListener('pointerdown', (ev) => {
   }
 });
 svg.addEventListener('auxclick', (ev) => ev.preventDefault());
+// A drag across the drawing must never turn into the browser's own text selection or a native
+// drag of it: the latter cancels the pointer mid-move and the node is left behind.
+svg.addEventListener('selectstart', (ev) => ev.preventDefault());
+svg.addEventListener('dragstart', (ev) => ev.preventDefault());
 
 /** The node under the pointer, other than the one a connection starts from. */
 function nodeUnder(ev, except) {
@@ -234,10 +273,32 @@ function nodeUnder(ev, except) {
   return id && id !== except ? id : null;
 }
 
+/**
+ * Where a wire would land: the nearest dot within reach of the pointer, or, when the pointer is
+ * over a node's body, that node's nearest side. Dropping anywhere on a box still connects.
+ */
+function landing(ev, w, except) {
+  const near = (g) => SIDES.map((s) => { const p = portAt(g, s); return { s, d: Math.hypot(p.x - w.x, p.y - w.y) }; }).sort((a, b) => a.d - b.d)[0];
+  let best = null;
+  for (const n of store.doc.nodes) {
+    if (n.id === except) continue;
+    const c = near(geom(n));
+    if (!best || c.d < best.d) best = { to: n.id, toSide: c.s, d: c.d };
+  }
+  if (best && best.d <= 18 / store.view.k) return { to: best.to, toSide: best.toSide };
+  const over = nodeUnder(ev, except);
+  if (!over) return { to: null, toSide: null };
+  return { to: over, toSide: near(geom(store.doc.nodes.find((n) => n.id === over))).s };
+}
+
 let pointer = null; // last world position of the pointer over the canvas, where a paste lands
 svg.addEventListener('pointerleave', () => { pointer = null; });
-svg.addEventListener('pointermove', (ev) => {
-  pointer = toWorld(ev);
+svg.addEventListener('pointermove', (ev) => { pointer = toWorld(ev); });
+
+// Moves and releases are watched on the window, not the canvas: the pointer is captured on the
+// press, but if the browser ever lets go of it the drag still follows the pointer and still ends
+// on the release, wherever that lands.
+window.addEventListener('pointermove', (ev) => {
   if (!drag) return;
   const w = toWorld(ev);
   if (drag.mode === 'pan') {
@@ -249,44 +310,52 @@ svg.addEventListener('pointermove', (ev) => {
     if (!drag.moved) { drag.moved = true; mark(); svg.classList.add('moving'); }
     // Positions land on the grid unless Alt is held, which is the escape hatch for fine placement.
     // Every node in the group moves by the same offset from where it started, so the group keeps its shape.
+    // While the pointer is down only the drawing follows it; the scenarios, the table and the
+    // panel are told once, on the drop, so a fast drag on a big flow keeps up with the mouse.
     const place = ev.altKey ? Math.round : snap;
     const dx = w.x - drag.start.x, dy = w.y - drag.start.y;
-    commit((d) => {
-      for (const s of drag.nodes) { const n = d.nodes.find((n) => n.id === s.id); if (n) { n.x = place(s.x + dx); n.y = place(s.y + dy); } }
-    }, { quiet: true });
+    for (const s of drag.nodes) { const n = store.doc.nodes.find((n) => n.id === s.id); if (n) { n.x = place(s.x + dx); n.y = place(s.y + dy); } }
+    render();
   } else if (drag.mode === 'marquee') {
     marquee.x1 = w.x; marquee.y1 = w.y;
     if (!drag.moved && Math.abs(w.x - marquee.x0) * store.view.k + Math.abs(w.y - marquee.y0) * store.view.k > 3) { drag.moved = true; svg.classList.add('selecting'); }
     if (drag.moved) render();
   } else if (drag.mode === 'connect') {
     connecting.x = w.x; connecting.y = w.y;
-    connecting.over = nodeUnder(ev, connecting.from);
+    Object.assign(connecting, landing(ev, w, connecting.from));
     render();
   }
 });
 
-svg.addEventListener('pointerup', (ev) => {
+/** The drag is over: on a release it lands, on a cancel (the browser took the pointer) it is dropped where it stands. */
+function endDrag(ev, cancelled) {
   if (!drag) return;
+  const d = drag;
+  drag = null;
   svg.classList.remove('dragging', 'moving', 'connecting', 'selecting');
-  if (drag.mode === 'marquee') {
-    const caught = drag.moved ? nodesIn(marquee) : [];
+  if (d.mode === 'node' && d.moved) commit(() => {}, { quiet: true });   // the positions are in place; now tell everyone
+  if (d.mode === 'marquee') {
+    const caught = d.moved && !cancelled ? nodesIn(marquee) : [];
     marquee = null;
-    if (!drag.moved) select(null);
-    else if (caught.length || drag.add.length) selectNodes([...drag.add, ...caught]);
+    if (cancelled) render();
+    else if (!d.moved) select(null);
+    else if (caught.length || d.add.length) selectNodes([...d.add, ...caught]);
     else { select(null); render(); }
   }
-  if (drag.mode === 'connect') {
-    const to = nodeUnder(ev, connecting.from);
-    const from = connecting.from;
+  if (d.mode === 'connect') {
+    if (!cancelled) Object.assign(connecting, landing(ev, toWorld(ev), connecting.from));
+    const { from, fromSide, to, toSide } = connecting;
     connecting = null;
-    if (to) {
+    if (to && !cancelled) {
       const id = uid('e');
-      commit((d) => { d.edges.push({ id, from, to, when: '' }); });
+      // The default sides (out of the right, into the left) are left unwritten so a file stays terse.
+      commit((doc) => { doc.edges.push({ id, from, to, ...(fromSide !== 'right' && { fromSide }), ...(toSide !== 'left' && { toSide }), when: '' }); });
       select({ type: 'edge', id });
     } else render();
   }
-  drag = null;
-});
+}
+window.addEventListener('pointerup', (ev) => endDrag(ev, false));
+window.addEventListener('pointercancel', (ev) => endDrag(ev, true));
 
 svg.addEventListener('dblclick', (ev) => {
   if (ev.target.closest('[data-edge]')) return;
@@ -397,7 +466,8 @@ palette.addEventListener('pointerdown', (ev) => {
   placing = { kind: b.dataset.add, sx: ev.clientX, sy: ev.clientY, moved: false };
   try { b.setPointerCapture(ev.pointerId); } catch {}
 });
-palette.addEventListener('pointermove', (ev) => {
+palette.addEventListener('dragstart', (ev) => ev.preventDefault());
+window.addEventListener('pointermove', (ev) => {
   if (!placing) return;
   if (!placing.moved) {
     if (Math.hypot(ev.clientX - placing.sx, ev.clientY - placing.sy) < 4) return;
@@ -414,15 +484,14 @@ function endPlacing() {
   ghost.innerHTML = '';
   document.body.classList.remove('placing');
 }
-palette.addEventListener('pointerup', (ev) => {
+window.addEventListener('pointerup', (ev) => {
   if (!placing) return;
   const { kind, moved } = placing;
   endPlacing();
   if (!moved) addNode(kind);
   else if (overCanvas(ev)) { const w = toWorld(ev); addNode(kind, snap(w.x - OFFSET.x), snap(w.y - OFFSET.y)); }
 });
-palette.addEventListener('pointercancel', endPlacing);
-palette.addEventListener('lostpointercapture', () => { if (placing) endPlacing(); });
+window.addEventListener('pointercancel', () => { if (placing) endPlacing(); });
 
 /** Scale and centre the view on everything drawn. */
 export function fit() {
@@ -493,7 +562,10 @@ export function tidy() {
     x += snap(Math.max(COL, Math.max(...L.map((id) => gs.get(id).w)) + 60));
   }
   const minY = Math.min(...[...pos.values()].map((p) => p.y));
-  commit((d) => { for (const n of d.nodes) { const p = pos.get(n.id); if (p) { n.x = p.x; n.y = p.y - minY + 40; } } });
+  commit((d) => {
+    for (const n of d.nodes) { const p = pos.get(n.id); if (p) { n.x = p.x; n.y = p.y - minY + 40; } }
+    for (const e of d.edges) { delete e.fromSide; delete e.toSide; }
+  });
   fit();
 }
 

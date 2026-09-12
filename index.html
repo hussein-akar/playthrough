@@ -127,16 +127,17 @@
   #project .foot { margin: auto 14px 10px; padding-top: 10px; font-size: var(--fs-xs); }
 
   /* ==== stage & overlays ====================================================================== */
-  #stage { position: relative; overflow: hidden; background: var(--bg) radial-gradient(circle, #d3d7dd 1px, transparent 1px) 0 0 / 20px 20px; }
-  #stage svg { width: 100%; height: 100%; display: block; touch-action: none; }
+  #stage { grid-row: 2; grid-column: 2; position: relative; overflow: hidden; background: var(--bg) radial-gradient(circle, #d3d7dd 1px, transparent 1px) 0 0 / 20px 20px; }
+  #stage svg { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
   #stage svg.pannable, #stage svg.pannable * { cursor: grab; }
   #stage svg.dragging, #stage svg.dragging *, #stage svg.moving, #stage svg.moving .node { cursor: grabbing; }
   #stage svg.connecting, #stage svg.connecting .node, #stage svg.connecting .port { cursor: crosshair; }
+  #stage svg.connecting .node:hover .box { stroke-width: 1.5; filter: none; }   /* while a wire is out, the dots are the target, not the box */
   .marquee { fill: rgba(47, 111, 237, .08); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
   #palette, #zoom, #lint { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
   #zoom { display: flex; align-items: center; gap: 2px; padding: 3px; bottom: 10px; right: 10px; }
   /* The shape palette: a small card of thin-line icons in a grid, in the manner of a whiteboard's shapes panel. */
-  #palette { top: 50%; left: 12px; transform: translateY(-50%); width: 80px; padding: 10px 6px 6px; border-radius: 12px; }
+  #palette { top: 50%; left: 12px; transform: translateY(-50%); width: 80px; padding: 10px 6px 6px; border-radius: 12px; user-select: none; -webkit-user-select: none; }
   #palette h2 { margin: 0 0 6px; text-align: center; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   #palette .grid { display: grid; grid-template-columns: 1fr; gap: 2px; }
   #palette button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; height: 60px; padding: 3px 0 4px; border: 1px solid transparent; border-radius: var(--r2); background: transparent; color: var(--ink); cursor: grab; box-shadow: none; }
@@ -202,12 +203,16 @@
   .node.end { color: var(--end); }
   .node.selected .box { stroke-width: 2.5; filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 50%, transparent)); }
   .node.on .box { stroke: var(--accent); stroke-width: 3; fill: var(--accent-soft); }
-  .node.target .box { stroke: var(--accent); stroke-width: 3; fill: var(--accent-soft); stroke-dasharray: 6 3; }
   .node.stuck .box { stroke: var(--bad); stroke-width: 3; fill: #fff0f0; }
   .node.untouched .box { stroke-dasharray: 4 4; opacity: .55; }
   .node.untouched text { opacity: .6; }
-  .port { fill: #fff; stroke: var(--faint); stroke-width: 1.5; cursor: crosshair; transition: r .08s; }
-  .port:hover { r: 8; fill: var(--accent); stroke: var(--accent); }
+  /* The dots on a node's sides: hidden until the node is hovered or selected, all out while a wire is being dragged. */
+  .port { cursor: crosshair; }
+  .port .hit { fill: transparent; }
+  .port .dot { fill: #fff; stroke: var(--faint); stroke-width: 1.5; opacity: 0; transition: opacity .1s, r .08s; }
+  .node:hover .port .dot, .node.selected .port .dot, #stage svg.connecting .port .dot { opacity: 1; }
+  .port:hover .dot { r: 7; stroke: var(--accent); }
+  .port.src .dot, .port.hot .dot { opacity: 1; fill: var(--accent); stroke: var(--accent); }
   .badge { pointer-events: none; }
   .badge circle { fill: var(--accent); stroke: #fff; stroke-width: 2; }
   .badge.stuck circle { fill: var(--bad); }
@@ -217,7 +222,12 @@
   .edge path.wire { fill: none; stroke: var(--faint); stroke-width: 1.6; transition: stroke .1s; }
   .edge path.grab { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
   .edge:hover path.wire { stroke: var(--muted); stroke-width: 2.2; }
-  .edge.selected path.wire { stroke: var(--ink); stroke-width: 2.5; }
+  .edge.selected path.wire { stroke: #5b6675; stroke-width: 2.2; filter: drop-shadow(0 0 2.5px rgba(47, 111, 237, .5)); }
+  /* Status colours: the wire, its arrow (a marker per colour in the SVG) and the pill's border. A selected wire keeps its colour and gains the glow. */
+  .edge.c-success path.wire { stroke: var(--ok); }      .edge.c-success .label rect { stroke: var(--ok-line); }     .edge.c-success .label text { fill: var(--ok-ink); }
+  .edge.c-failed path.wire { stroke: var(--bad); }      .edge.c-failed .label rect { stroke: var(--bad-line); }     .edge.c-failed .label text { fill: var(--bad-ink); }
+  .edge.c-warning path.wire { stroke: var(--warn); }    .edge.c-warning .label rect { stroke: var(--warn-line); }   .edge.c-warning .label text { fill: var(--warn-ink); }
+  .edge.c-info path.wire { stroke: var(--accent); }     .edge.c-info .label rect { stroke: var(--accent-line); }    .edge.c-info .label text { fill: var(--accent-hover); }
   .edge.linked path.wire { stroke: var(--accent); stroke-width: 2.2; }
   .edge.on path.wire { stroke: var(--accent); stroke-width: 3; }
   .edge.untouched path.wire { stroke-dasharray: 5 5; opacity: .5; }
@@ -226,13 +236,13 @@
   .edge.else .label text { font-style: italic; fill: var(--muted); }
   .edge:hover .label rect { stroke: var(--faint); fill: var(--panel-2); }
   .edge.on .label rect { stroke: var(--accent); fill: #fff; }
-  .edge.selected .label rect { stroke: var(--ink); fill: #fff; }
+  .edge.selected .label rect { stroke: #8a94a3; fill: #fff; }
   .edge.bad .label rect { stroke: var(--bad); }
   .edge.bad .label text { fill: var(--bad); }
-  .connecting { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 4; pointer-events: none; }
+  .connecting { fill: none; stroke: var(--muted); stroke-width: 1.6; pointer-events: none; }   /* the wire being dragged looks like the wire it will become */
 
   /* ==== inspector ============================================================================= */
-  #inspector { min-width: 0; padding: var(--s3) 14px var(--s5); background: var(--panel); border-left: 1px solid var(--line); overflow: auto; }
+  #inspector { grid-row: 2; grid-column: 3; min-width: 0; padding: var(--s3) 14px var(--s5); background: var(--panel); border-left: 1px solid var(--line); overflow: auto; }
   #inspector h2 { margin: 20px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--line-2); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   #inspector h2:first-child { margin-top: 0; }
   #inspector h2 .muted { font-weight: 400; text-transform: none; letter-spacing: 0; }
@@ -242,6 +252,14 @@
   #inspector .row > * { flex: 1; min-width: 0; }
   #inspector .row > button { flex: 0 0 auto; }
   #inspector .errs { margin: -2px 0 8px; }
+  /* The status colour of an edge: a row of small swatches, the chosen one tinted. */
+  #inspector .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+  #inspector .swatch { height: 24px; padding: 0 8px 0 6px; font-size: var(--fs-sm); font-weight: 400; color: var(--muted); }
+  #inspector .swatch i { width: 10px; height: 10px; border-radius: 50%; background: var(--sw); }
+  #inspector .swatch.none i { background: none; border: 1.5px solid var(--faint); }
+  #inspector .swatch.c-success { --sw: var(--ok); } #inspector .swatch.c-failed { --sw: var(--bad); } #inspector .swatch.c-warning { --sw: var(--warn); } #inspector .swatch.c-info { --sw: var(--accent); }
+  #inspector .swatch.on { color: var(--ink); border-color: var(--sw, var(--line-strong)); background: color-mix(in srgb, var(--sw, var(--muted)) 9%, #fff); }
+  #inspector .row > select.insert { flex: 0 0 auto; width: 92px; color: var(--muted); font-size: var(--fs-sm); }
   #inspector .checks label { display: flex; gap: 8px; align-items: center; margin: 0; padding: 4px 0; font-size: var(--fs); color: var(--ink); }
   #inspector .checks label > span:first-of-type { flex: 1; }
   #inspector .checks .did { flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-xs); }
@@ -416,7 +434,7 @@
       <span class="sep"></span>
       <button class="small" data-zoom="tidy" title="Lay the flow out left to right from the start node">Tidy</button>
     </div>
-    <div id="hint">Drag a shape in from the left · drag on empty canvas to select · Space-drag or wheel to pan · ⌘-wheel or pinch to zoom · drag a node's ○ port onto another node to connect them · Delete removes the selection</div>
+    <div id="hint">Drag a shape in from the left · drag on empty canvas to select · Space-drag or wheel to pan · ⌘-wheel or pinch to zoom · drag from a dot on a node's side to a dot on another node to connect them · Delete removes the selection</div>
   </div>
 
   <div id="panelResizer" class="resizer" title="Drag to resize the panel"></div>
@@ -448,7 +466,7 @@
         <tr><td><kbd>Space</kbd>+<kbd>drag</kbd> · middle button · <kbd>wheel</kbd></td><td>pan</td></tr>
         <tr><td><kbd>⌘</kbd>+<kbd>wheel</kbd> · pinch</td><td>zoom</td></tr>
         <tr><td><kbd>double-click</kbd> empty canvas</td><td>add an action node there</td></tr>
-        <tr><td><kbd>drag</kbd> from a node's ○ port onto a node</td><td>connect them</td></tr>
+        <tr><td><kbd>drag</kbd> from a dot on a node's side to a dot on another node</td><td>connect them · the wire leaves and arrives on those sides</td></tr>
         <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node</td><td>add it to the selection, or take it out</td></tr>
         <tr><td><kbd>⌘A</kbd></td><td>select every node</td></tr>
         <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>

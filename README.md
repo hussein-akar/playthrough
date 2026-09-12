@@ -30,7 +30,7 @@ purpose: somebody assumed an wholesale order goes to post-processing, and the dr
 |---|---|
 | **Start** | Where a scenario enters. One per flow. |
 | **Action** | Something that happens: a document created, an event published. A scenario expects a set of these. An action may also *set* a state field. |
-| **Decision** | A fork. Each edge leaving it carries a condition; one edge may be *else*. |
+| **Decision** | A fork. Each edge leaving it carries a condition; one edge may be *else*. An edge may carry a short label, shown on the canvas in place of its condition, and a status colour: success, failed, warning or info. |
 | **End** | Where a scenario lands. A scenario may expect a particular one. |
 | **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text. Conditions can only mention declared inputs, so a typo is caught while drawing, not while running. |
 | **State** | Fields an action may set along the way, and a scenario may check at the end. |
@@ -45,6 +45,10 @@ deliveryDate == null
 ```
 
 Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons and arithmetic are all there is.
+
+Beside the condition on an edge sits an *insert…* menu with every declared input and state
+field, each enum's values and the operators: a pick lands at the cursor, so a guard is assembled
+from what the flow declares rather than typed from memory.
 
 The panel checks a condition or a set expression as you type: a name nobody declared or a
 missing bracket shows up under the field at once. Renaming an input or a state field rewrites
@@ -106,7 +110,7 @@ scenario for the else branch" is the sentence you want before the code exists.
 | Space-drag · middle button · wheel | pan |
 | ⌘-wheel · pinch | zoom |
 | double-click empty canvas | add an action node there |
-| drag from a node's ○ port onto a node | connect them |
+| drag from a dot on a node's side to a dot on another node | connect them, on those sides |
 | Shift-click a node | add it to the selection, or take it out |
 | ⌘A | select every node |
 | ⌘C · ⌘X · ⌘V · ⌘D | copy · cut · paste (at the pointer) · duplicate the selected nodes |

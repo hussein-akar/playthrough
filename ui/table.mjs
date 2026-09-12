@@ -28,8 +28,8 @@ export function render() {
     return;
   }
   const ends = doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label);
-  let html = `<thead><tr><th>#</th><th>Scenario</th>${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}
-    <th>tags</th><th class="expect">expected actions</th><th class="expect">lands on</th>${doc.state.map((f) => `<th class="expect">${esc(f.name)}</th>`).join('')}<th>result</th><th></th></tr></thead><tbody>`;
+  let html = `<thead><tr><th>#</th><th>Scenario</th><th>tags</th>${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}
+    <th class="expect">expected actions</th><th class="expect">lands on</th>${doc.state.map((f) => `<th class="expect">${esc(f.name)}</th>`).join('')}<th>result</th><th></th></tr></thead><tbody>`;
   doc.scenarios.forEach((s, k) => {
     const active = selection?.type === 'scenario' && selection.id === s.id;
     html += `<tr class="row ${active ? 'active' : ''}" data-row="${s.id}">
