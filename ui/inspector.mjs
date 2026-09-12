@@ -3,10 +3,12 @@
 // declared here.
 import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
-import { check } from '../lib/expr.mjs';
+import { check, compile, names } from '../lib/expr.mjs';
 import { knownNames, listsOf, parseRecords } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
+const sheet = document.getElementById('settings');   // the flow settings sheet: inputs, state, the cheat sheet
+const roots = [el, sheet];
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 /** True while the user is typing in a control inside `node`; a focused button does not count. */
 export const editing = (node) => { const a = document.activeElement; return node.contains(a) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName); };
@@ -21,6 +23,7 @@ export function render() {
   // Never rebuild under the user's cursor: a keystroke commits, and the commit re-renders. What
   // must follow the keystroke anyway (the verdict, the messages under the expressions) is patched
   // into the existing markup instead.
+  if (sheet.open && !editing(sheet)) sheet.querySelector('.body').innerHTML = settingsView(store.doc);
   if (editing(el)) { patchLive(); return; }
   const { doc, selection } = store;
   if (!selection) el.innerHTML = flowView(doc);
@@ -31,49 +34,100 @@ export function render() {
   patchLive();
 }
 
-el.addEventListener('focusout', () => setTimeout(() => { if (!el.contains(document.activeElement)) render(); }, 0));
+for (const r of roots) r.addEventListener('focusout', () => setTimeout(() => { if (!r.contains(document.activeElement)) render(); }, 0));
+
+/** Open the flow settings sheet, rendered fresh; it closes on its button or Escape. */
+export function openSettings() {
+  document.activeElement?.blur?.();
+  sheet.querySelector('.body').innerHTML = settingsView(store.doc);
+  sheet.showModal();
+  patchLive();
+}
+sheet.querySelector('[data-act="close-settings"]').addEventListener('click', () => sheet.close());
+sheet.addEventListener('close', () => render());
+document.getElementById('flowSettings').addEventListener('click', openSettings);
 
 // ---- views ------------------------------------------------------------------------------------
 // A control with `data-check` is validated by `problemsOf`; its messages go into the `.errs` box
 // that follows the control, or the `.row` it sits in. The views emit the boxes empty and
 // `patchChecks` fills them, at build time and again on every keystroke.
 
+/** How many guards and sets mention a name: a hint before renaming or removing it. */
+function usesOf(doc, name) {
+  const mentions = (src) => { try { return src?.trim() ? names(compile(src)).some((n) => n.split('.')[0] === name) : false; } catch { return false; } };
+  let n = 0;
+  for (const e of doc.edges) if (mentions(e.when)) n++;
+  for (const nd of doc.nodes) for (const [field, src] of Object.entries(nd.set ?? {})) if (field === name || mentions(String(src ?? ''))) n++;
+  return n;
+}
+const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n} time${n === 1 ? '' : 's'}` : 'not used yet'; };
+
+const CHEATSHEET = `<div class="muted">Guards read like <code>type in [Subscription, Refund]</code>, <code>isExpress</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
+    <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
+
+/** Nothing selected: the flow at a glance, and the way into its settings. */
 function flowView(doc) {
-  const inputs = doc.inputs.map((i, k) => `
-    <div class="row" data-input="${k}">
-      <input type="text" data-f="name" data-check value="${esc(i.name)}" placeholder="name">
-      <select data-f="type">${['enum', 'boolean', 'number', 'text', 'list'].map((t) => opt(t, i.type)).join('')}</select>
-      ${mover('mv-input', k, doc.inputs.length)}<button class="icon danger" data-act="rm-input" title="Remove">×</button>
-    </div><div class="errs"></div>
-    ${i.type === 'enum' ? `<div class="field" data-input="${k}"><input type="text" data-f="values" data-check value="${esc((i.values ?? []).join(', '))}" placeholder="values, comma separated"><div class="errs"></div></div>` : ''}
-    ${i.type === 'list' ? `<div class="fields" data-input="${k}">
-      ${(i.fields ?? []).map((f, j) => `<div class="row" data-lf="${j}">
-        <input type="text" data-f="fname" data-check value="${esc(f.name)}" placeholder="field">
-        <select data-f="ftype">${['enum', 'boolean', 'number', 'text'].map((t) => opt(t, f.type)).join('')}</select>
-        ${f.type === 'enum' ? `<input type="text" data-f="fvalues" value="${esc((f.values ?? []).join(', '))}" placeholder="values">` : ''}
-        ${mover('mv-field', j, i.fields.length)}<button class="icon danger" data-act="rm-field" title="Remove">×</button>
-      </div><div class="errs"></div>`).join('')}
-      <div class="actions"><button class="small" data-act="add-field">+ Field</button><span class="muted">a record of each list item; a scenario writes items as <code>status=OPEN, linked=yes</code>, one per line</span></div>
-    </div>` : ''}`).join('');
-  const state = doc.state.map((f, k) => `
-    <div class="row" data-state="${k}">
-      <input type="text" data-f="name" data-check value="${esc(f.name)}" placeholder="field">
-      <input type="text" class="expr" data-f="initial" data-check value="${esc(f.initial ?? '')}" placeholder="initial value" title="The value before any action sets it. Blank means null.">
-      ${mover('mv-state', k, doc.state.length)}<button class="icon danger" data-act="rm-state" title="Remove">×</button>
-    </div><div class="errs"></div>`).join('');
+  const count = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   return `
     <h2>Flow</h2>
     <div class="field"><label>Name</label><input type="text" data-doc="name" value="${esc(doc.name)}"></div>
     <div class="field"><label>What this flow is about</label><textarea data-doc="description" style="font-family: inherit">${esc(doc.description)}</textarea></div>
     <h2>Inputs <span class="muted">· what a scenario provides</span></h2>
-    ${inputs || '<div class="muted">No inputs yet. A guard can only mention an input declared here.</div>'}
-    <div class="actions"><button class="small" data-act="add-input">+ Input</button></div>
+    ${doc.inputs.length ? `<div class="summary-list">${doc.inputs.map((i) => `<div><b>${esc(i.name)}</b> <span class="muted">${esc(i.type)}${i.type === 'enum' ? ` · ${(i.values ?? []).map(esc).join(', ')}` : i.type === 'list' ? ` · ${(i.fields ?? []).map((f) => esc(f.name)).join(', ')}` : ''}</span></div>`).join('')}</div>` : '<div class="muted">No inputs yet.</div>'}
     <h2>State <span class="muted">· what actions may set</span></h2>
-    ${state || '<div class="muted">No state fields. Add one when an action needs to leave something behind that a scenario can check.</div>'}
-    <div class="actions"><button class="small" data-act="add-state">+ State field</button></div>
+    ${doc.state.length ? `<div class="summary-list">${doc.state.map((f) => `<div><b>${esc(f.name)}</b> <span class="muted">${f.initial == null || f.initial === '' ? 'null' : esc(f.initial)} at first</span></div>`).join('')}</div>` : '<div class="muted">No state fields.</div>'}
+    <div class="actions"><button class="primary small" data-act="flow-settings">Edit flow settings</button><span class="muted">${count(doc.inputs.length, 'input')} · ${count(doc.state.length, 'state field')}</span></div>
     <h2>Conditions</h2>
-    <div class="muted">Guards read like <code>type in [Subscription, Refund]</code>, <code>isExpress</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
-    <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
+    ${CHEATSHEET}`;
+}
+
+/** The flow settings sheet: the schema a scenario is written against, with room to edit it. */
+function settingsView(doc) {
+  const inputs = doc.inputs.map((i, k) => `
+    <div class="row" data-input="${k}">
+      <input type="text" data-f="name" data-check value="${esc(i.name)}" placeholder="name">
+      <select data-f="type">${['enum', 'boolean', 'number', 'text', 'list'].map((t) => opt(t, i.type)).join('')}</select>
+      ${i.type === 'enum' ? `<input type="text" class="values" data-f="values" data-check value="${esc((i.values ?? []).join(', '))}" placeholder="values, comma separated">` : `<span class="use muted">${uses(doc, i.name)}</span>`}
+      ${mover('mv-input', k, doc.inputs.length)}<button class="icon danger" data-act="rm-input" title="Remove">×</button>
+    </div><div class="errs"></div>
+    ${i.type === 'list' ? `<div class="fields" data-input="${k}">
+      ${(i.fields ?? []).map((f, j) => `<div class="row" data-lf="${j}">
+        <input type="text" data-f="fname" data-check value="${esc(f.name)}" placeholder="field">
+        <select data-f="ftype">${['enum', 'boolean', 'number', 'text'].map((t) => opt(t, f.type)).join('')}</select>
+        ${f.type === 'enum' ? `<input type="text" class="values" data-f="fvalues" value="${esc((f.values ?? []).join(', '))}" placeholder="values, comma separated">` : '<span class="use"></span>'}
+        ${mover('mv-field', j, i.fields.length)}<button class="icon danger" data-act="rm-field" title="Remove">×</button>
+      </div><div class="errs"></div>`).join('')}
+      <div class="actions"><button class="small" data-act="add-field">+ Field</button><span class="muted">the fields of one record; a scenario fills them in per record, or writes <code>status=OPEN, linked=yes</code> one per line</span></div>
+    </div>` : ''}`).join('');
+  const state = doc.state.map((f, k) => `
+    <div class="row" data-state="${k}">
+      <input type="text" data-f="name" data-check value="${esc(f.name)}" placeholder="field">
+      <input type="text" class="expr" data-f="initial" data-check value="${esc(f.initial ?? '')}" placeholder="initial value" title="The value before any action sets it. Blank means null.">
+      <span class="use muted">${uses(doc, f.name)}</span>
+      ${mover('mv-state', k, doc.state.length)}<button class="icon danger" data-act="rm-state" title="Remove">×</button>
+    </div><div class="errs"></div>`).join('');
+  return `
+    <section class="card">
+      <h3>About</h3>
+      <div class="two">
+        <div class="field"><label>Name</label><input type="text" data-doc="name" value="${esc(doc.name)}"></div>
+        <div class="field"><label>What this flow is about</label><textarea data-doc="description" style="font-family: inherit">${esc(doc.description)}</textarea></div>
+      </div>
+    </section>
+    <section class="card">
+      <h3>Inputs <span class="muted">· what a scenario provides, one column each in the table</span></h3>
+      ${inputs || '<div class="muted">No inputs yet. A guard can only mention what is declared here.</div>'}
+      <div class="actions"><button class="small" data-act="add-input">+ Input</button></div>
+    </section>
+    <section class="card">
+      <h3>State <span class="muted">· what actions may set, and a scenario may check at the end</span></h3>
+      ${state || '<div class="muted">No state fields. Add one when an action needs to leave something behind that a scenario can check.</div>'}
+      <div class="actions"><button class="small" data-act="add-state">+ State field</button></div>
+    </section>
+    <section class="card">
+      <h3>Conditions</h3>
+      ${CHEATSHEET}
+    </section>`;
 }
 
 function nodeView(doc, n) {
@@ -293,7 +347,7 @@ function patchHappened() {
 function patchChecks() {
   const known = knownNames(store.doc), lists = listsOf(store.doc);
   const boxes = new Map();   // the .row (or the control itself) → every message for the controls in it
-  for (const c of el.querySelectorAll('[data-check]')) {
+  for (const c of roots.flatMap((r) => [...r.querySelectorAll('[data-check]')])) {
     const ms = problemsOf(c, known, lists);
     c.classList.toggle('invalid', ms.some((m) => m.cls === 'err'));
     const box = c.closest('.row') ?? c;
@@ -378,7 +432,7 @@ export function acceptRun(id) {
 const taken = (doc, name, self) => doc.inputs.some((x) => x !== self && x.name === name) || doc.state.some((x) => x !== self && x.name === name);
 const follow = (doc, from, to, self) => { if (!taken(doc, from, self) && !taken(doc, to, self)) renameName(doc, from, to); };
 
-el.addEventListener('input', (ev) => {
+for (const r of roots) r.addEventListener('input', (ev) => {
   const t = ev.target;
   const d = t.dataset;
   if (d.doc) return commit((doc) => { doc[d.doc] = t.value; });
@@ -422,7 +476,7 @@ el.addEventListener('input', (ev) => {
   });
 });
 
-el.addEventListener('change', (ev) => {
+for (const r of roots) r.addEventListener('change', (ev) => {
   const t = ev.target;
   const d = t.dataset;
   if (d.insert != null) {
@@ -443,7 +497,7 @@ el.addEventListener('change', (ev) => {
   if (t.tagName === 'SELECT') { t.blur(); render(); }
 });
 
-el.addEventListener('click', (ev) => {
+for (const r of roots) r.addEventListener('click', (ev) => {
   const step = ev.target.closest('[data-step]');
   if (step) return select({ type: 'node', id: step.dataset.step });
   const drop = ev.target.closest('[data-drop]');
@@ -454,6 +508,7 @@ el.addEventListener('click', (ev) => {
   if (!b) return;
   const act = b.dataset.act;
   const sel = store.selection;
+  if (act === 'flow-settings') return openSettings();
   if (act === 'add-input') commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); });
   if (act === 'rm-input') commit((doc) => { doc.inputs.splice(Number(b.closest('[data-input]').dataset.input), 1); });
   if (act === 'add-rec') { const box = b.closest('[data-records]'), i = store.doc.inputs.find((x) => x.name === box.dataset.records), fields = (i?.fields ?? []).filter((f) => f.name); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const have = parseRecords(s.inputs[i.name], fields); have.push(Object.fromEntries(fields.map((f) => [f.name, f.type === 'enum' ? f.values?.[0] ?? '' : f.type === 'boolean' ? false : '']))); s.inputs[i.name] = recordsText(have, fields); }); }

@@ -73,6 +73,9 @@ every guard, set and scenario cell that mentioned it, in one undoable step.
 
 ## Drawing
 
+Inputs and state are declared in the flow settings sheet, opened from the gear beside the flow's
+name or from the panel when nothing is selected; the panel then shows them at a glance.
+
 The palette on the left holds the four shapes: click one to add it in the middle of the view, or
 drag it onto the canvas to put it exactly where it lands. The canvas has a zoom corner (−, +,
 fit, 1:1, with the current percentage) and a **Tidy** button that lays the flow out left to right

@@ -374,6 +374,34 @@
   dialog #modalBody textarea { width: 100%; min-height: 160px; margin-top: var(--s2); color: var(--ink); }
   dialog #modalBody input { margin-top: var(--s3); color: var(--ink); }
   dialog .buttons { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: var(--s2); margin-top: var(--s4); }   /* OK is first in the DOM (the default button for Enter) but sits on the right */
+  /* The flow settings sheet: wide, a card per section, its body scrolling under a fixed head. */
+  dialog.sheet { width: min(980px, calc(100vw - 48px)); max-width: none; max-height: calc(100vh - 48px); padding: 0; overflow: hidden; }
+  dialog.sheet[open] { display: flex; flex-direction: column; }
+  dialog.sheet .head { display: flex; align-items: center; gap: var(--s3); padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  dialog.sheet .head h3 { margin: 0; flex: 0 0 auto; }
+  dialog.sheet .head .muted { flex: 1; font-size: var(--fs-sm); }
+  dialog.sheet .body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 20px 20px; background: var(--bg); }
+  dialog.sheet .card { margin-bottom: 14px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
+  dialog.sheet .card h3 { margin: 0 0 10px; font-size: var(--fs); }
+  dialog.sheet .card h3 .muted { font-weight: 400; font-size: var(--fs-sm); }
+  dialog.sheet .two { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; }
+  dialog.sheet .field { margin-bottom: 0; }
+  dialog.sheet label { display: block; margin-bottom: 4px; font-size: var(--fs-sm); color: var(--muted); }
+  dialog.sheet .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  dialog.sheet .row > input[data-f="name"], dialog.sheet .row > input[data-f="fname"] { flex: 0 1 260px; }
+  dialog.sheet .row > select { flex: 0 0 130px; }
+  dialog.sheet .row > .values, dialog.sheet .row > input[data-f="initial"] { flex: 1 1 200px; }
+  dialog.sheet .row > .use { flex: 1 1 200px; font-size: var(--fs-sm); }
+  dialog.sheet .row > .mover { display: inline-flex; flex: 0 0 auto; }
+  dialog.sheet .mover button { width: 18px; height: var(--ctl); padding: 0; border-color: transparent; background: transparent; color: var(--faint); font-size: 12px; }
+  dialog.sheet .mover button:hover:not(:disabled) { color: var(--ink); background: var(--line-2); }
+  dialog.sheet .mover button:disabled { opacity: .3; }
+  dialog.sheet .row > button { flex: 0 0 auto; }
+  dialog.sheet .errs { margin: -2px 0 8px; }
+  dialog.sheet .fields { margin: -2px 0 12px 20px; padding-left: 12px; border-left: 2px solid var(--line); }
+  dialog.sheet .actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  dialog.sheet .actions .muted, dialog.sheet .muted { font-size: var(--fs-sm); line-height: 1.5; }
+  #inspector .summary-list > div { padding: 3px 0; font-size: var(--fs-sm); }
   dialog table.keys { border-collapse: collapse; font-size: var(--fs); }
   dialog table.keys td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
   dialog table.keys tr:last-child td { border-bottom: 0; }
@@ -407,6 +435,7 @@
   <header>
     <div class="brand">Play<span>through</span></div>
     <input id="docName" class="title" type="text" placeholder="Untitled flow" title="Flow name">
+    <button id="flowSettings" class="icon" title="Flow settings: inputs and state" aria-label="Flow settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M3.6 12.4l1.2-1.2M11.2 4.8l1.2-1.2"/></svg></button>
     <div class="group" aria-label="File">
       <button id="newDoc">New</button>
       <button id="openDoc">Open…</button>
@@ -502,6 +531,10 @@
       <div id="modalBody"></div>
       <div class="buttons"><button id="modalOk" value="ok" class="primary">OK</button><button id="modalCancel" value="cancel">Cancel</button></div>
     </form>
+  </dialog>
+  <dialog id="settings" class="sheet">
+    <div class="head"><h3>Flow settings</h3><span class="muted">changes apply as you type · ⌘Z undoes</span><button class="small" data-act="close-settings">Close</button></div>
+    <div class="body"></div>
   </dialog>
   <dialog id="helpDialog">
     <form method="dialog">
