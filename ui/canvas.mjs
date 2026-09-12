@@ -320,7 +320,7 @@ export function render() {
         const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y);
         if (len < 24) continue;
         const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, horiz = Math.abs(b.y - a.y) < 0.01;
-        out += `<rect class="handle grip" data-edge="${selEdge.id}" x="${cx - (horiz ? 8 : 2.5)}" y="${cy - (horiz ? 2.5 : 8)}" width="${horiz ? 16 : 5}" height="${horiz ? 5 : 16}" rx="2.5"/>`;
+        out += `<rect class="handle grip ${horiz ? 'h' : 'v'}" data-edge="${selEdge.id}" x="${cx - (horiz ? 8 : 2.5)}" y="${cy - (horiz ? 2.5 : 8)}" width="${horiz ? 16 : 5}" height="${horiz ? 5 : 16}" rx="2.5"/>`;
       }
     } else if (m && !(selEdge.label?.trim() || selEdge.when?.trim() || selEdge.else)) out += `<circle class="handle bend" data-edge="${selEdge.id}" cx="${m[0]}" cy="${m[1]}" r="5"/>`;
   }
