@@ -4,7 +4,7 @@
 import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check, compile, names } from '../lib/expr.mjs';
-import { knownNames, listsOf, parseRecords } from '../lib/run.mjs';
+import { knownNames, listsOf, parseRecords, initialIsExpression } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
 const sheet = document.getElementById('settings');   // the flow settings sheet: inputs, state, the cheat sheet
@@ -102,7 +102,7 @@ function settingsView(doc) {
   const state = doc.state.map((f, k) => `
     <div class="row" data-state="${k}">
       <input type="text" data-f="name" data-check value="${esc(f.name)}" placeholder="field">
-      <input type="text" class="expr" data-f="initial" data-check value="${esc(f.initial ?? '')}" placeholder="initial value" title="The value before any action sets it. Blank means null.">
+      <input type="text" class="expr" data-f="initial" data-check value="${esc(f.initial ?? '')}" placeholder="initial value, or an input's name" title="The value before any action sets it: a value as written, or an expression over the inputs, such as an input's name to start as a copy of it. Blank means null.">
       <span class="use muted">${uses(doc, f.name)}</span>
       ${mover('mv-state', k, doc.state.length)}<button class="icon danger" data-act="rm-state" title="Remove">×</button>
     </div><div class="errs"></div>`).join('');
@@ -376,9 +376,9 @@ function problemsOf(c, known, lists) {
     if ((i.fields ?? []).some((f, k) => k !== j && f.name === v)) return [err(`another field of ${i.name} is already called ${v}`)];
     return [];
   }
-  // The runner takes an initial value as it is written, not as an expression (see initialState in
-  // lib/run.mjs), so `pending` is a fine initial value and there is nothing to check here.
-  if (d.f === 'initial') return [];
+  // An initial value is taken as written unless it reads as an expression over the inputs, in
+  // which case it starts as that value; say which, so `pending` and `pendingOrders` both make sense.
+  if (d.f === 'initial') return initialIsExpression(doc, v) && !/^[0-9]/.test(v.trim()) && !doc.inputs.every((i) => !new RegExp(`\\b${i.name}\\b`).test(v)) ? [note(`starts as the value of ${v.trim()}`)] : [];
   if (d.f === 'name') {
     const row = c.closest('[data-input], [data-state]'), ix = Number(row.dataset.input ?? -1), sx = Number(row.dataset.state ?? -1);
     const taken = doc.inputs.filter((_, j) => j !== ix).map((x) => x.name).concat(doc.state.filter((_, j) => j !== sx).map((x) => x.name));

@@ -127,3 +127,24 @@ it('a flow filters a list and its scenarios count what is left', () => {
   assert.equal(results[0].result.state.kept.length, 1);
   assert.match(results[3].result.error.message, /in notices: "what"/);
 });
+
+it('an initial value that names an input starts as a copy of it; other text is taken as written', async () => {
+  const { initialState } = await import('../lib/run.mjs');
+  const flow = { inputs: [{ name: 'notices', type: 'list', fields: [{ name: 'status', type: 'text' }] }, { name: 'amount', type: 'number' }, { name: 'kind', type: 'enum', values: ['Subscription'] }],
+    state: [{ name: 'kept', initial: 'notices' }, { name: 'twice', initial: 'amount * 2' }, { name: 'label', initial: 'pending' }, { name: 'phrase', initial: 'in review' }, { name: 'k', initial: 'Subscription' }, { name: 'n', initial: '0' }] };
+  const s = initialState(flow, coerceInputs(flow, { notices: 'OPEN; CLOSED', amount: '21' }));
+  assert.equal(s.kept.length, 2);
+  assert.equal(s.twice, 42);
+  assert.equal(s.label, 'pending', 'an unknown bare word is not an expression');
+  assert.equal(s.phrase, 'in review');
+  assert.equal(s.k, 'Subscription');
+  assert.equal(s.n, 0);
+  assert.equal(initialState(flow).kept, 'notices', 'without inputs, as written');
+});
+
+it('a field used outside where gets told how a list is narrowed', async () => {
+  const { check } = await import('../lib/expr.mjs');
+  const msgs = check('status != CANCELLED', new Set(['notices', 'CANCELLED']), new Map([['notices', new Set(['status'])]]));
+  assert.match(msgs[0], /field of a notices record/);
+  assert.match(msgs[0], /notices where status/);
+});

@@ -78,7 +78,7 @@ it('the checker knows the fields of a list inside where', () => {
   const lists = new Map([['notices', new Set(['status', 'linked'])]]);
   assert.deepEqual(check('count(notices where status == OPEN and linked) > 0', known, lists), []);
   assert.deepEqual(check('notices where bogus == OPEN', known, lists), ["unknown name 'bogus'"]);
-  assert.deepEqual(check('status == OPEN', known, lists), ["unknown name 'status'"], 'a field is only a name inside where');
+  assert.match(check('status == OPEN', known, lists)[0], /field of a notices record.*notices where status/, 'a field is only a name inside where, and the message says so');
   assert.deepEqual(check('kept where status == OPEN', known, lists), [], 'a list held in state may use any list field');
   assert.deepEqual(check('count(nothing)', known, lists), ["unknown name 'nothing'"]);
 });
