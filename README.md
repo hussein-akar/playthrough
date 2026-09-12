@@ -165,12 +165,16 @@ page becomes a project:
 npm start -- ./specs       # or PLAYTHROUGH_DIR=./specs npm start; npm run start:example for a demo
 ```
 
-Every `*.json` in the folder is a flow. A sidebar lists them with their pass count (`3/4`), a ⚠
-when the drawing has problems, and *no scenarios* when nobody has written any yet. Click one to
-open it. **+ Flow** starts a new file; **Save** (or ⌘S) writes the open flow back to its file,
-and a flow that came in through **New**, **Open…**, **Example** or a link is added to the folder
-the first time it is saved. On a row, ✎ renames the file (the flow keeps its own name) and × deletes it. An optional `project.json` with a
-`name` names the project; otherwise the folder does. **Flows** in the header hides the sidebar.
+Every `*.json` in the folder, and in its subfolders, is a flow. A sidebar shows them as a tree:
+a folder groups related flows, its `+`/`−` folds it, and a flow dragged onto a folder moves
+there. Each flow shows its pass count (`3/4`), a ⚠ when the drawing has problems, and
+*no scenarios* when nobody has written any yet. Click one to open it. **+ Flow** starts a new
+file (a folder's own + puts it inside), **+ Folder** makes a folder, and **Save** (or ⌘S) writes
+the open flow back to its file; a flow that came in through **New**, **Open…**, **Example** or a
+link is added to the folder the first time it is saved. On a row, ✎ renames the file (slashes
+move it, `billing/intake`; the flow keeps its own name) and × deletes it; an empty folder can be
+deleted the same way. An optional `project.json` with a `name` names the project; otherwise the
+folder does. **Flows** in the header hides the sidebar.
 
 Put the folder in git. That is the whole collaboration story, on purpose: the pull request is
 the review, `git log` is the history, and a merge conflict in a flow file is a real disagreement

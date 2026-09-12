@@ -6,7 +6,15 @@ import { ask, prompt, notice, toast } from './dialog.mjs';
 
 const el = document.getElementById('project');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-export const project = { info: null };   // { name, dir, flows: [{ file, name, scenarios, passed, problems, mtime, broken? }] }
+export const project = { info: null };   // { name, dir, flows: [{ file, name, scenarios, passed, problems, mtime, broken? }], folders: [path] }
+
+// Folders the user folded shut, remembered per project.
+const foldKey = () => `playthrough.folded:${project.info?.dir ?? ''}`;
+const folded = new Set();
+const loadFolded = () => { folded.clear(); try { for (const f of JSON.parse(localStorage.getItem(foldKey()) ?? '[]')) folded.add(f); } catch {} };
+const saveFolded = () => { try { localStorage.setItem(foldKey(), JSON.stringify([...folded])); } catch {} };
+const folderOf = (file) => (file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '');
+const leaf = (path) => path.split('/').pop();
 
 /** Handlers the app plugs in: how to fit the canvas, how to ask before dropping unsaved work. */
 export const hooks = { fit() {}, replaceable: async () => true };
@@ -22,6 +30,7 @@ async function call(method, path, body) {
 export async function detect() {
   try { project.info = await call('GET', '/api/project'); } catch { project.info = null; return null; }
   document.body.classList.add('has-project');
+  loadFolded();
   render();
   return project.info;
 }
@@ -85,13 +94,13 @@ function saved(file, mtime) {
   return true;
 }
 
-/** A fresh, empty flow in the folder. */
-export async function create() {
+/** A fresh, empty flow, in `folder` (the root by default). */
+export async function create(folder = '') {
   if (!await hooks.replaceable('Start a new flow')) return;
-  const name = await prompt({ title: 'New flow', body: `A new file in ${project.info.dir}.`, placeholder: 'What the feature is called', ok: 'Create' });
+  const name = await prompt({ title: 'New flow', body: `A new file in ${project.info.dir}${folder ? `/${folder}` : ''}.`, placeholder: 'What the feature is called', ok: 'Create' });
   if (name == null) return;
   try {
-    const { file, mtime } = await call('POST', '/api/flows', { name, doc: {} });
+    const { file, mtime } = await call('POST', '/api/flows', { name, doc: {}, folder });
     setFile(file, mtime); load({ name }); hooks.fit();
     toast(`Created ${file}`);
     refresh();
@@ -101,21 +110,44 @@ export async function create() {
   }
 }
 
-/** Another file name for a flow, made from what is typed the way a new file's name is. */
+/** Another file name for a flow, made from what is typed the way a new file's name is; slashes move it into folders. */
 export async function rename(file) {
-  const current = file.replace(/\.json$/, '');
-  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. The flow keeps its own name.', value: current, ok: 'Rename' });
+  const current = leaf(file).replace(/\.json$/, '');
+  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. Slashes put it in a folder, billing/intake. The flow keeps its own name.', value: current, ok: 'Rename' });
   if (name == null) return;
+  return move(file, { name });
+}
+
+/** Put a flow's file elsewhere: under another name, in another folder, or both. */
+async function move(file, { name = leaf(file).replace(/\.json$/, ''), folder = null } = {}) {
   try {
-    const { file: to, mtime } = await call('POST', `/api/flows/${encodeURIComponent(file)}/rename`, { name });
+    const { file: to, mtime } = await call('POST', `/api/flows/${encodeURIComponent(file)}/rename`, { name, ...(folder != null && { folder }) });
     if (to === file) return;
     if (store.file === file) { setFile(to, mtime); emit(); }
-    toast(`Renamed to ${to}`);
+    toast(folder != null ? `Moved to ${to}` : `Renamed to ${to}`);
     refresh();
   } catch (e) {
     if (e.code === 'EXISTS') notice('That name is taken', `${e.message}. Pick another.`);
-    else notice(`Could not rename ${file}`, e.message);
+    else notice(`Could not move ${file}`, e.message);
   }
+}
+
+/** A new folder, under `parent` (the root by default). */
+export async function createFolder(parent = '') {
+  const name = await prompt({ title: 'New folder', body: `A folder in ${project.info.dir}${parent ? `/${parent}` : ''} to group flows. Its name is made lower-case, words joined by dashes.`, placeholder: 'Folder name', ok: 'Create' });
+  if (name == null) return;
+  const slug = name.split('/').map((x) => x.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')).filter(Boolean).join('/');
+  if (!slug) return;
+  const path = parent ? `${parent}/${slug}` : slug;
+  try { await call('POST', '/api/folders', { path }); folded.delete(path); saveFolded(); toast(`Created ${path}/`); refresh(); }
+  catch (e) { notice('Could not create the folder', e.message); }
+}
+
+export async function removeFolder(path) {
+  const ok = await ask({ title: `Delete ${path}/?`, body: 'Only an empty folder can be deleted; move or delete its flows first.', ok: 'Delete', danger: true });
+  if (!ok) return;
+  try { await call('DELETE', `/api/folders/${encodeURIComponent(path)}`); toast(`Deleted ${path}/`); refresh(); }
+  catch (e) { notice(`Could not delete ${path}/`, e.code === 'NOTEMPTY' ? 'It still has flows or folders in it.' : e.message); }
 }
 
 export async function remove(file) {
@@ -136,7 +168,7 @@ export function render() {
   if (!info) return;
   const cur = store.file;
   const live = store.results;
-  const row = (f) => {
+  const row = (f, depth) => {
     const active = f.file === cur;
     const n = active ? store.doc.scenarios.length : f.scenarios;
     const p = active ? (live?.passed ?? 0) : f.passed;
@@ -145,31 +177,80 @@ export function render() {
     const status = f.broken ? `<span class="bad" title="${esc(f.broken)}">cannot be read</span>`
       : !n ? `<span class="muted">${problems ? `${problems} problem${problems === 1 ? '' : 's'}` : 'no scenarios'}</span>`
       : `<span class="${p === n ? 'ok' : 'bad'}">${p}/${n}</span>${problems ? ` <span class="bad" title="drawing problems">⚠</span>` : ''}`;
-    return `<li class="${active ? 'active' : ''}${f.broken ? ' broken' : ''}" data-file="${esc(f.file)}" title="${esc(f.file)}">
+    return `<li class="flow ${active ? 'active' : ''}${f.broken ? ' broken' : ''}" style="--depth: ${depth}" data-file="${esc(f.file)}" title="${esc(f.file)}" draggable="true">
       <span class="name">${esc(name)}${active && store.dirty ? '<i class="dot" title="Changed since the last save"></i>' : ''}</span>
       <span class="status">${status}</span>
-      <span class="tools"><button class="link rn" data-rn="${esc(f.file)}" title="Rename ${esc(f.file)}" aria-label="Rename">✎</button><button class="link rm" data-rm="${esc(f.file)}" title="Delete ${esc(f.file)}" aria-label="Delete">×</button></span>
+      <span class="tools"><button class="link rn" data-rn="${esc(f.file)}" title="Rename or move ${esc(f.file)}" aria-label="Rename">✎</button><button class="link rm" data-rm="${esc(f.file)}" title="Delete ${esc(f.file)}" aria-label="Delete">×</button></span>
     </li>`;
   };
+  // The tree: every folder the server saw, plus any a flow's path implies; flows sit in theirs.
+  const folders = new Set(info.folders ?? []);
+  for (const f of info.flows) { let p = folderOf(f.file); while (p) { folders.add(p); p = folderOf(p); } }
+  const kids = (parent) => [...folders].filter((p) => folderOf(p) === parent).sort();
+  const flowsIn = (folder) => info.flows.filter((f) => folderOf(f.file) === folder);
+  const countIn = (folder) => info.flows.filter((f) => f.file.startsWith(`${folder}/`)).length;
+  const tree = (parent, depth) => kids(parent).map((path) => {
+    const shut = folded.has(path), n = countIn(path);
+    return `<li class="folder${shut ? ' shut' : ''}" style="--depth: ${depth}" data-folder="${esc(path)}" title="${esc(path)}/">
+      <button class="caret" data-fold="${esc(path)}" title="${shut ? 'Expand' : 'Collapse'}" aria-label="${shut ? 'Expand' : 'Collapse'}">${shut ? '+' : '−'}</button>
+      <span class="name">${esc(leaf(path))}</span>
+      <span class="status"><span class="muted">${n || ''}</span></span>
+      <span class="tools"><button class="link" data-newin="${esc(path)}" title="New flow in ${esc(path)}/" aria-label="New flow here">+</button><button class="link" data-newfolder="${esc(path)}" title="New folder in ${esc(path)}/" aria-label="New folder here">▸+</button><button class="link rm" data-rmdir="${esc(path)}" title="Delete ${esc(path)}/ (when empty)" aria-label="Delete folder">×</button></span>
+    </li>${shut ? '' : tree(path, depth + 1) + flowsIn(path).map((f) => row(f, depth + 1)).join('')}`;
+  }).join('');
   const unfiled = !cur && (store.doc.nodes.length || store.doc.scenarios.length)
-    ? `<li class="active unfiled" title="Not in the folder yet: Save adds it"><span class="name">${esc(store.doc.name || 'Untitled flow')}<i class="dot"></i></span><span class="status muted">not in the folder</span></li>` : '';
+    ? `<li class="active unfiled" style="--depth: 0" title="Not in the folder yet: Save adds it"><span class="name">${esc(store.doc.name || 'Untitled flow')}<i class="dot"></i></span><span class="status muted">not in the folder</span></li>` : '';
+  const empty = !info.flows.length && !folders.size && !unfiled;
   el.innerHTML = `
-    <div class="head"><span class="pname" title="${esc(info.dir)}">${esc(info.name)}</span><button class="small primary" id="newFlow" title="A new flow file in ${esc(info.dir)}">+ Flow</button></div>
-    <ul>${unfiled}${info.flows.map(row).join('')}</ul>
-    ${!info.flows.length && !unfiled ? `<p class="muted empty">No flows in ${esc(info.dir)} yet. Draw one and Save, or press + Flow.</p>` : ''}
-    <p class="muted foot" title="${esc(info.dir)}">${esc(info.dir.split('/').filter(Boolean).pop() ?? info.dir)}/ · ${info.flows.length} flow${info.flows.length === 1 ? '' : 's'}</p>`;
+    <div class="head"><span class="pname" title="${esc(info.dir)}">${esc(info.name)}</span><span class="grow"></span><button class="small" id="newFolder" title="A new folder in ${esc(info.dir)}">+ Folder</button><button class="small primary" id="newFlow" title="A new flow file in ${esc(info.dir)}">+ Flow</button></div>
+    <ul data-folder="">${unfiled}${tree('', 0)}${flowsIn('').map((f) => row(f, 0)).join('')}</ul>
+    ${empty ? `<p class="muted empty">No flows in ${esc(info.dir)} yet. Draw one and Save, or press + Flow.</p>` : ''}
+    <p class="muted foot" title="${esc(info.dir)}">${esc(info.dir.split('/').filter(Boolean).pop() ?? info.dir)}/ · ${info.flows.length} flow${info.flows.length === 1 ? '' : 's'}${folders.size ? ` · ${folders.size} folder${folders.size === 1 ? '' : 's'}` : ''}</p>`;
 }
 
 el.addEventListener('click', async (ev) => {
+  const fold = ev.target.closest('[data-fold]');
+  if (fold) { const p = fold.dataset.fold; if (folded.has(p)) folded.delete(p); else folded.add(p); saveFolded(); return render(); }
   const rm = ev.target.closest('[data-rm]');
   if (rm) return remove(rm.dataset.rm);
   const rn = ev.target.closest('[data-rn]');
   if (rn) return rename(rn.dataset.rn);
+  const rmdir = ev.target.closest('[data-rmdir]');
+  if (rmdir) return removeFolder(rmdir.dataset.rmdir);
+  const newin = ev.target.closest('[data-newin]');
+  if (newin) return create(newin.dataset.newin);
+  const newfolder = ev.target.closest('[data-newfolder]');
+  if (newfolder) return createFolder(newfolder.dataset.newfolder);
   if (ev.target.closest('#newFlow')) return create();
+  if (ev.target.closest('#newFolder')) return createFolder();
+  const folderLi = ev.target.closest('li[data-folder]');
+  if (folderLi) { const p = folderLi.dataset.folder; if (folded.has(p)) folded.delete(p); else folded.add(p); saveFolded(); return render(); }
   const li = ev.target.closest('li[data-file]');
   if (!li || li.classList.contains('broken')) return;
   if (li.dataset.file === store.file) return;
   open(li.dataset.file);
+});
+
+// A flow dragged onto a folder (or onto the list's empty space, for the root) moves there.
+let dragging = null;
+el.addEventListener('dragstart', (ev) => { const li = ev.target.closest('li[data-file]'); if (!li) return ev.preventDefault(); dragging = li.dataset.file; ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', dragging); });
+el.addEventListener('dragend', () => { dragging = null; for (const x of el.querySelectorAll('.over')) x.classList.remove('over'); });
+const dropTarget = (ev) => ev.target.closest('li[data-folder]') ?? ev.target.closest('ul[data-folder]');
+el.addEventListener('dragover', (ev) => {
+  if (!dragging) return;
+  const t = dropTarget(ev);
+  if (!t) return;
+  ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
+  for (const x of el.querySelectorAll('.over')) if (x !== t) x.classList.remove('over');
+  t.classList.add('over');
+});
+el.addEventListener('drop', (ev) => {
+  const t = dropTarget(ev);
+  if (!t || !dragging) return;
+  ev.preventDefault();
+  const to = t.dataset.folder, file = dragging;
+  dragging = null;
+  if (folderOf(file) !== to) move(file, { folder: to });
 });
 
 subscribe(render);

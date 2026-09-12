@@ -3,20 +3,48 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openProject, listFlows, readFlow, writeFlow, deleteFlow, renameFlow, fileFor, isFlowFile } from '../lib/project.mjs';
+import { openProject, listFlows, listFolders, readFlow, writeFlow, deleteFlow, renameFlow, createFolder, deleteFolder, fileFor, isFlowFile, isFolderPath, folderOf } from '../lib/project.mjs';
 
 const fresh = () => mkdtemp(join(tmpdir(), 'playthrough-'));
 const example = JSON.parse(await readFile(new URL('../examples/order.json', import.meta.url), 'utf8'));
 
-test('file names: one segment, .json, never a dot-file or a walk up the tree', () => {
+test('file names: good segments, .json at the end, never a dot-file or a walk up the tree', () => {
   assert.equal(fileFor('Order intake'), 'order-intake.json');
   assert.equal(fileFor('  ??  '), 'flow.json');
+  assert.equal(fileFor('Billing / Refund intake'), 'billing/refund-intake.json', 'slashes name the folders on the way');
   assert.ok(isFlowFile('a-b.json'));
+  assert.ok(isFlowFile('a/b.json'));
+  assert.ok(isFlowFile('a/b/c.json'));
   assert.ok(!isFlowFile('../a.json'));
-  assert.ok(!isFlowFile('a/b.json'));
+  assert.ok(!isFlowFile('a/../b.json'));
   assert.ok(!isFlowFile('.hidden.json'));
+  assert.ok(!isFlowFile('a/.hidden.json'));
   assert.ok(!isFlowFile('project.json'));
   assert.ok(!isFlowFile('a.txt'));
+  assert.ok(!isFlowFile('a/'));
+  assert.ok(isFolderPath('billing/refunds') && !isFolderPath('../x') && !isFolderPath('a.json') && !isFolderPath(''));
+  assert.equal(folderOf('billing/refunds/intake.json'), 'billing/refunds');
+  assert.equal(folderOf('intake.json'), '');
+});
+
+test('flows live in folders: listed as a tree, created inside one, moved between them, folders made and removed', async () => {
+  const dir = await fresh();
+  await writeFlow(dir, 'root.json', { name: 'Root' });
+  await writeFlow(dir, 'billing/refunds/intake.json', { name: 'Intake' });   // the folders are made on the way
+  await createFolder(dir, 'billing/holds');
+  await writeFile(join(dir, 'billing/notes.txt'), 'ignored');
+  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['billing/refunds/intake.json', 'root.json']);
+  assert.deepEqual(await listFolders(dir), ['billing', 'billing/holds', 'billing/refunds']);
+  // rename keeps the folder; a folder argument moves; slashes in the name spell the folders
+  assert.equal((await renameFlow(dir, 'billing/refunds/intake.json', 'Refund intake')).file, 'billing/refunds/refund-intake.json');
+  assert.equal((await renameFlow(dir, 'billing/refunds/refund-intake.json', 'refund-intake', 'billing/holds')).file, 'billing/holds/refund-intake.json');
+  assert.equal((await renameFlow(dir, 'root.json', 'root', '')).file, 'root.json');
+  assert.equal((await renameFlow(dir, 'root.json', 'archive/old/root')).file, 'archive/old/root.json');
+  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['archive/old/root.json', 'billing/holds/refund-intake.json']);
+  await assert.rejects(deleteFolder(dir, 'billing/holds'), (e) => e.code === 'NOTEMPTY');
+  await deleteFolder(dir, 'billing/refunds');
+  assert.deepEqual(await listFolders(dir), ['archive', 'archive/old', 'billing', 'billing/holds']);
+  await assert.rejects(createFolder(dir, '../out'), (e) => e.code === 'BADNAME');
 });
 
 test('a project is named by project.json, else by its folder', async () => {
