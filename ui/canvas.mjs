@@ -143,7 +143,7 @@ export function render() {
 
   if (!doc.nodes.length) {
     const r = svg.getBoundingClientRect();
-    out += `<g class="empty-hint" transform="translate(${r.width / 2} ${r.height / 2})"><text class="big" y="-8">Nothing drawn yet</text><text y="16">Double-click anywhere to add an action, or use the buttons above</text></g>`;
+    out += `<g class="empty-hint" transform="translate(${r.width / 2} ${r.height / 2})"><text class="big" y="-8">Nothing drawn yet</text><text y="16">Drag a shape in from the palette on the left, or double-click anywhere to add an action</text></g>`;
   }
   svg.innerHTML = out;
   zoomPct.textContent = `${Math.round(view.k * 100)}%`;
@@ -165,13 +165,39 @@ function nodesIn(m) {
 
 let drag = null; // { mode: 'pan'|'node'|'connect'|'marquee'|'none', ... }
 
+// Space is the pan modifier, as in Figma: held, a drag on empty canvas pans instead of selecting.
+// The hold is remembered so a Space that panned is not also a Space that plays the scenario.
+let spaceHeld = false, spaceUsed = false;
+const typing = (t) => ['INPUT', 'TEXTAREA', 'SELECT'].includes(t?.tagName) || t?.isContentEditable;
+window.addEventListener('keydown', (ev) => {
+  if (ev.key !== ' ' || typing(ev.target) || document.querySelector('dialog[open]')) return;
+  ev.preventDefault();
+  if (ev.repeat) return;
+  spaceHeld = true; spaceUsed = false;
+  svg.classList.add('pannable');
+});
+window.addEventListener('keyup', (ev) => {
+  if (ev.key !== ' ' || !spaceHeld) return;
+  spaceHeld = false;
+  svg.classList.remove('pannable');
+  if (!spaceUsed && store.selection?.type === 'scenario') document.dispatchEvent(new Event('play'));
+});
+window.addEventListener('blur', () => { spaceHeld = false; svg.classList.remove('pannable'); });
+
 svg.addEventListener('pointerdown', (ev) => {
-  if (ev.button !== 0) return;
+  if (ev.button !== 0 && ev.button !== 1) return;
+  const w = toWorld(ev);
+  try { svg.setPointerCapture(ev.pointerId); } catch {}
+  if (ev.button === 1 || spaceHeld) {
+    ev.preventDefault();
+    spaceUsed = true;
+    drag = { mode: 'pan', sx: ev.clientX, sy: ev.clientY, vx: store.view.x, vy: store.view.y, moved: false };
+    svg.classList.add('dragging');
+    return;
+  }
   const port = ev.target.closest('[data-port]');
   const nodeEl = ev.target.closest('[data-node]');
   const edgeEl = ev.target.closest('[data-edge]');
-  const w = toWorld(ev);
-  try { svg.setPointerCapture(ev.pointerId); } catch {}
   if (port) {
     connecting = { from: port.dataset.port, x: w.x, y: w.y, over: null };
     drag = { mode: 'connect' };
@@ -193,16 +219,14 @@ svg.addEventListener('pointerdown', (ev) => {
   } else if (edgeEl) {
     select({ type: 'edge', id: edgeEl.dataset.edge });
     drag = { mode: 'none' };
-  } else if (ev.shiftKey) {
-    marquee = { x0: w.x, y0: w.y, x1: w.x, y1: w.y };
-    drag = { mode: 'marquee', add: selectedNodeIds() };
-    svg.classList.add('selecting');
-    render();
   } else {
-    drag = { mode: 'pan', sx: ev.clientX, sy: ev.clientY, vx: store.view.x, vy: store.view.y, moved: false };
-    svg.classList.add('dragging');
+    // Dragging on empty canvas draws a rubber band. Shift keeps what was already selected and adds
+    // to it; without Shift a plain click clears the selection, as it always did.
+    marquee = { x0: w.x, y0: w.y, x1: w.x, y1: w.y };
+    drag = { mode: 'marquee', add: ev.shiftKey ? selectedNodeIds() : [], moved: false };
   }
 });
+svg.addEventListener('auxclick', (ev) => ev.preventDefault());
 
 /** The node under the pointer, other than the one a connection starts from. */
 function nodeUnder(ev, except) {
@@ -210,7 +234,10 @@ function nodeUnder(ev, except) {
   return id && id !== except ? id : null;
 }
 
+let pointer = null; // last world position of the pointer over the canvas, where a paste lands
+svg.addEventListener('pointerleave', () => { pointer = null; });
 svg.addEventListener('pointermove', (ev) => {
+  pointer = toWorld(ev);
   if (!drag) return;
   const w = toWorld(ev);
   if (drag.mode === 'pan') {
@@ -229,7 +256,8 @@ svg.addEventListener('pointermove', (ev) => {
     }, { quiet: true });
   } else if (drag.mode === 'marquee') {
     marquee.x1 = w.x; marquee.y1 = w.y;
-    render();
+    if (!drag.moved && Math.abs(w.x - marquee.x0) * store.view.k + Math.abs(w.y - marquee.y0) * store.view.k > 3) { drag.moved = true; svg.classList.add('selecting'); }
+    if (drag.moved) render();
   } else if (drag.mode === 'connect') {
     connecting.x = w.x; connecting.y = w.y;
     connecting.over = nodeUnder(ev, connecting.from);
@@ -240,12 +268,12 @@ svg.addEventListener('pointermove', (ev) => {
 svg.addEventListener('pointerup', (ev) => {
   if (!drag) return;
   svg.classList.remove('dragging', 'moving', 'connecting', 'selecting');
-  if (drag.mode === 'pan' && !drag.moved) select(null);
   if (drag.mode === 'marquee') {
-    // Shift-drag from empty canvas adds what the band touches to whatever was already selected.
-    const caught = nodesIn(marquee);
+    const caught = drag.moved ? nodesIn(marquee) : [];
     marquee = null;
-    selectNodes([...drag.add, ...caught]);
+    if (!drag.moved) select(null);
+    else if (caught.length || drag.add.length) selectNodes([...drag.add, ...caught]);
+    else { select(null); render(); }
   }
   if (drag.mode === 'connect') {
     const to = nodeUnder(ev, connecting.from);
@@ -285,10 +313,20 @@ function zoomAt(k, mx, my) {
 }
 function zoomCentre(k) { const r = svg.getBoundingClientRect(); zoomAt(k, r.width / 2, r.height / 2); }
 
+// The wheel pans, as on a trackpad; ⌘-wheel, Ctrl-wheel and a pinch (which browsers report as a
+// Ctrl-wheel) zoom about the pointer. The pinch deltas are tiny and a mouse notch is huge, so the
+// step is clamped to keep both usable.
 svg.addEventListener('wheel', (ev) => {
   ev.preventDefault();
-  const r = svg.getBoundingClientRect();
-  zoomAt(store.view.k * Math.exp(-ev.deltaY * 0.0012), ev.clientX - r.left, ev.clientY - r.top);
+  if (ev.ctrlKey || ev.metaKey) {
+    const r = svg.getBoundingClientRect();
+    const d = Math.max(-40, Math.min(40, ev.deltaY));
+    zoomAt(store.view.k * Math.exp(-d * 0.008), ev.clientX - r.left, ev.clientY - r.top);
+  } else {
+    const m = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 100 : 1;
+    store.view.x -= ev.deltaX * m; store.view.y -= ev.deltaY * m;
+    render();
+  }
 }, { passive: false });
 
 // The zoom corner: −, the current percentage, +, fit, 1:1 and the auto-layout.
@@ -328,6 +366,63 @@ export function addNode(kind, x, y) {
   commit((d) => { d.nodes.push({ id, kind, label, x, y }); });
   select({ type: 'node', id });
 }
+
+// ---- palette ----------------------------------------------------------------------------------
+
+// A shape is clicked to add it in the middle of the view or dragged in to put it where it lands. A
+// ghost of the node at the canvas's zoom follows the pointer and fades while it is off the canvas.
+const palette = document.getElementById('palette');
+const ghost = document.getElementById('ghost');
+const OFFSET = { x: 65, y: 25 }; // where the pointer sits inside a freshly placed node
+let placing = null; // { kind, sx, sy, moved }
+
+const overCanvas = (ev) => { const el = document.elementFromPoint(ev.clientX, ev.clientY); return !!el && (el === svg || svg.contains(el)); };
+
+function drawGhost(kind) {
+  const label = { start: 'Start', end: 'End', decision: 'Decision?', action: 'Action' }[kind];
+  const g = geom({ kind, label, x: 0, y: 0 });
+  const k = store.view.k;
+  ghost.innerHTML = `<svg width="${g.w * k}" height="${g.h * k}"><g class="node ${kind}" transform="scale(${k})">${shape({ kind }, g)}<text class="kind" x="${g.cx}" y="${g.y + 15}" text-anchor="middle">${kind}</text><text x="${g.cx}" y="${g.y + 32}" text-anchor="middle">${esc(label)}</text></g></svg>`;
+}
+function moveGhost(ev) {
+  const k = store.view.k;
+  ghost.style.transform = `translate(${ev.clientX - OFFSET.x * k}px, ${ev.clientY - OFFSET.y * k}px)`;
+  ghost.classList.toggle('off', !overCanvas(ev));
+}
+
+palette.addEventListener('pointerdown', (ev) => {
+  const b = ev.target.closest('[data-add]');
+  if (!b || ev.button !== 0) return;
+  ev.preventDefault();
+  placing = { kind: b.dataset.add, sx: ev.clientX, sy: ev.clientY, moved: false };
+  try { b.setPointerCapture(ev.pointerId); } catch {}
+});
+palette.addEventListener('pointermove', (ev) => {
+  if (!placing) return;
+  if (!placing.moved) {
+    if (Math.hypot(ev.clientX - placing.sx, ev.clientY - placing.sy) < 4) return;
+    placing.moved = true;
+    drawGhost(placing.kind);
+    ghost.hidden = false;
+    document.body.classList.add('placing');
+  }
+  moveGhost(ev);
+});
+function endPlacing() {
+  placing = null;
+  ghost.hidden = true;
+  ghost.innerHTML = '';
+  document.body.classList.remove('placing');
+}
+palette.addEventListener('pointerup', (ev) => {
+  if (!placing) return;
+  const { kind, moved } = placing;
+  endPlacing();
+  if (!moved) addNode(kind);
+  else if (overCanvas(ev)) { const w = toWorld(ev); addNode(kind, snap(w.x - OFFSET.x), snap(w.y - OFFSET.y)); }
+});
+palette.addEventListener('pointercancel', endPlacing);
+palette.addEventListener('lostpointercapture', () => { if (placing) endPlacing(); });
 
 /** Scale and centre the view on everything drawn. */
 export function fit() {
@@ -415,6 +510,125 @@ export function alignSelected(axis) {
     for (const n of picked) n[key] = v;
   });
 }
+
+// ---- clipboard --------------------------------------------------------------------------------
+
+// The clipboard holds copies of the selected nodes and of the edges between them, positioned from
+// their own top-left corner. It lives in memory: the system clipboard stays free for text.
+let clipboard = null; // { nodes, edges, w, h, origin: { x, y } }
+
+function bundleSelection() {
+  const ids = new Set(selectedNodeIds());
+  if (!ids.size) return null;
+  const nodes = store.doc.nodes.filter((n) => ids.has(n.id));
+  const gs = nodes.map(geom);
+  const x0 = Math.min(...gs.map((g) => g.x)), y0 = Math.min(...gs.map((g) => g.y));
+  const w = Math.max(...gs.map((g) => g.x + g.w)) - x0, h = Math.max(...gs.map((g) => g.y + g.h)) - y0;
+  return {
+    nodes: nodes.map((n) => ({ ...structuredClone(n), x: n.x - x0, y: n.y - y0 })),
+    edges: store.doc.edges.filter((e) => ids.has(e.from) && ids.has(e.to)).map((e) => structuredClone(e)),
+    w, h, origin: { x: x0, y: y0 },
+  };
+}
+
+/** Put a bundle on the canvas with its top-left at (x, y), fresh ids throughout, and select it. */
+function place(bundle, x, y) {
+  const ids = new Map(bundle.nodes.map((n) => [n.id, uid('n')]));
+  commit((d) => {
+    for (const n of bundle.nodes) d.nodes.push({ ...structuredClone(n), id: ids.get(n.id), x: snap(x + n.x), y: snap(y + n.y) });
+    for (const e of bundle.edges) d.edges.push({ ...structuredClone(e), id: uid('e'), from: ids.get(e.from), to: ids.get(e.to) });
+  });
+  selectNodes([...ids.values()]);
+}
+
+export function hasClipboard() { return !!clipboard; }
+export function copySelection() { const b = bundleSelection(); if (b) clipboard = b; return !!b; }
+export function cutSelection() { if (copySelection()) deleteSelectedNodes(); }
+
+/** Paste centred on the pointer when it is over the canvas, else a step down and right of where the copy came from. */
+export function paste(at = pointer) {
+  if (!clipboard) return;
+  if (at) place(clipboard, at.x - clipboard.w / 2, at.y - clipboard.h / 2);
+  else {
+    clipboard.origin = { x: clipboard.origin.x + GRID * 2, y: clipboard.origin.y + GRID * 2 };
+    place(clipboard, clipboard.origin.x, clipboard.origin.y);
+  }
+}
+
+/** A copy of the selection a step down and right, leaving the clipboard alone. */
+export function duplicateSelection() {
+  const b = bundleSelection();
+  if (b) place(b, b.origin.x + GRID * 2, b.origin.y + GRID * 2);
+}
+
+// ---- context menu -----------------------------------------------------------------------------
+
+// A small menu on right-click: the four shapes (added where the menu was opened) and Paste on empty
+// canvas; Copy, Cut, Duplicate and Delete on a node; Delete on an edge.
+const ctx = document.getElementById('ctx');
+let ctxAt = null; // world position the menu was opened at
+
+function closeCtx() { ctx.hidden = true; ctx.innerHTML = ''; ctxAt = null; }
+const KIND_LABEL = { start: 'Start', action: 'Action', decision: 'Decision', end: 'End' };
+
+function openCtx(ev, items) {
+  ctx.innerHTML = items.map((it) => it === '-' ? '<hr>' : `<button data-act="${it.act}"${it.off ? ' disabled' : ''}>${it.icon ?? ''}<span>${esc(it.label)}</span>${it.key ? `<kbd>${it.key}</kbd>` : ''}</button>`).join('');
+  ctx.hidden = false;
+  const r = ctx.getBoundingClientRect();
+  ctx.style.left = `${Math.min(ev.clientX, window.innerWidth - r.width - 8)}px`;
+  ctx.style.top = `${Math.min(ev.clientY, window.innerHeight - r.height - 8)}px`;
+}
+
+svg.addEventListener('contextmenu', (ev) => {
+  ev.preventDefault();
+  closeCtx();
+  ctxAt = toWorld(ev);
+  const nodeEl = ev.target.closest('[data-node]');
+  const edgeEl = ev.target.closest('[data-edge]');
+  if (nodeEl) {
+    const id = nodeEl.dataset.node;
+    if (!isSelectedNode(id)) select({ type: 'node', id });
+    const n = selectedNodeIds().length, what = n > 1 ? `${n} nodes` : 'node';
+    openCtx(ev, [
+      { act: 'copy', label: `Copy ${what}`, key: '⌘C' },
+      { act: 'cut', label: `Cut ${what}`, key: '⌘X' },
+      { act: 'duplicate', label: `Duplicate ${what}`, key: '⌘D' },
+      '-',
+      { act: 'delete', label: `Delete ${what}`, key: '⌫' },
+    ]);
+  } else if (edgeEl) {
+    select({ type: 'edge', id: edgeEl.dataset.edge });
+    openCtx(ev, [{ act: 'delete-edge', label: 'Delete connection', key: '⌫' }]);
+  } else {
+    openCtx(ev, [
+      ...Object.entries(KIND_LABEL).map(([kind, label]) => ({ act: `add:${kind}`, label, icon: `<i class="dot ${kind}"></i>` })),
+      '-',
+      { act: 'paste', label: 'Paste', key: '⌘V', off: !clipboard },
+      { act: 'select-all', label: 'Select all', key: '⌘A', off: !store.doc.nodes.length },
+    ]);
+  }
+});
+
+ctx.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-act]');
+  if (!b || b.disabled) return;
+  const act = b.dataset.act, at = ctxAt;
+  closeCtx();
+  if (act.startsWith('add:')) addNode(act.slice(4), snap(at.x - OFFSET.x), snap(at.y - OFFSET.y));
+  else if (act === 'paste') paste(at);
+  else if (act === 'select-all') selectNodes(store.doc.nodes.map((n) => n.id));
+  else if (act === 'copy') copySelection();
+  else if (act === 'cut') cutSelection();
+  else if (act === 'duplicate') duplicateSelection();
+  else if (act === 'delete') deleteSelectedNodes();
+  else if (act === 'delete-edge') { const id = store.selection?.id; commit((d) => { d.edges = d.edges.filter((e) => e.id !== id); }); select(null); }
+});
+// The menu goes away on any press outside it, on Escape, on a wheel turn and when the window changes.
+window.addEventListener('pointerdown', (ev) => { if (!ctx.hidden && !ctx.contains(ev.target)) closeCtx(); }, true);
+window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !ctx.hidden) closeCtx(); });
+svg.addEventListener('wheel', () => { if (!ctx.hidden) closeCtx(); }, { passive: true });
+window.addEventListener('resize', () => { if (!ctx.hidden) closeCtx(); });
+window.addEventListener('blur', () => { if (!ctx.hidden) closeCtx(); });
 
 /** Remove every selected node and each edge that touched one of them, in one undo step. */
 export function deleteSelectedNodes() {

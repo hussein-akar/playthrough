@@ -52,13 +52,21 @@ every guard, set and scenario cell that mentioned it, in one undoable step.
 
 ## Drawing
 
-The canvas has a zoom corner (−, +, fit, 1:1, with the current percentage) and a **Tidy**
-button that lays the flow out left to right from the start node, in one undoable step. Nodes
-snap to a 20px grid while dragging (hold Alt for free placement); arrow keys nudge the selected
-nodes by one grid step, Shift by five. Double-click a node to edit its label straight away.
+The palette on the left holds the four shapes: click one to add it in the middle of the view, or
+drag it onto the canvas to put it exactly where it lands. The canvas has a zoom corner (−, +,
+fit, 1:1, with the current percentage) and a **Tidy** button that lays the flow out left to right
+from the start node, in one undoable step. Nodes snap to a 20px grid while dragging (hold Alt for
+free placement); arrow keys nudge the selected nodes by one grid step, Shift by five.
+Double-click a node to edit its label straight away.
 
-Several nodes can be selected at once: Shift-click adds a node or takes it out, Shift-drag on
-empty canvas catches every node the band touches, and ⌘A takes them all. Dragging any node of the
+Moving around works as in Figma: the wheel (or two fingers on a trackpad) pans, ⌘-wheel or a
+pinch zooms, and holding Space or the middle button turns a drag into a pan.
+
+Several nodes can be selected at once: dragging on empty canvas draws a band that catches every
+node it touches, Shift-drag adds to what is already selected, Shift-click adds a node or takes it
+out, and ⌘A takes them all. ⌘C, ⌘X and ⌘V copy, cut and paste the selection with the edges
+between its nodes, and ⌘D duplicates it. A right-click on the canvas opens a small menu with the
+same, plus the four shapes on empty canvas. Dragging any node of the
 selection moves the whole of it, the arrow keys nudge it, Delete removes it with the edges that
 touched it, and the panel offers *Align left* and *Align top*. Each of these is one undo step.
 
@@ -93,11 +101,16 @@ scenario for the else branch" is the sentence you want before the code exists.
 
 | Key | Does |
 |---|---|
-| drag empty canvas · wheel | pan · zoom |
+| click or drag a shape from the palette | add a node · place it where it drops |
+| drag empty canvas | rubber-band select (Shift adds to the selection) |
+| Space-drag · middle button · wheel | pan |
+| ⌘-wheel · pinch | zoom |
 | double-click empty canvas | add an action node there |
 | drag from a node's ○ port onto a node | connect them |
-| Shift-click a node · Shift-drag empty canvas | add to the selection · rubber-band select |
+| Shift-click a node | add it to the selection, or take it out |
 | ⌘A | select every node |
+| ⌘C · ⌘X · ⌘V · ⌘D | copy · cut · paste (at the pointer) · duplicate the selected nodes |
+| right-click | a menu: add a shape or paste on empty canvas; copy, cut, duplicate or delete a node |
 | drag a selected node | move the whole selection together |
 | Delete / Backspace | remove the selected nodes, edge or scenario |
 | ⌘Z · ⇧⌘Z | undo · redo |

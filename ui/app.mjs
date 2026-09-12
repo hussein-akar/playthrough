@@ -105,7 +105,6 @@ $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('coverage').addEventListener('click', () => { store.showCoverage = !store.showCoverage; emit(); });
 $('addScenario').addEventListener('click', table.addScenario);
-for (const b of document.querySelectorAll('#palette [data-add]')) b.addEventListener('click', () => canvas.addNode(b.dataset.add));
 $('help').addEventListener('click', () => $('helpDialog').showModal());
 window.addEventListener('beforeunload', (ev) => { if (store.dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
@@ -176,6 +175,11 @@ document.addEventListener('keydown', (ev) => {
   if (mod && ev.key.toLowerCase() === 's') { ev.preventDefault(); save(); return; }
   if (typing) return;
   if (mod && ev.key.toLowerCase() === 'a') { ev.preventDefault(); selectNodes(store.doc.nodes.map((n) => n.id)); return; }
+  // Copy, cut, paste and duplicate work on the selected nodes; with nothing selected the browser keeps them.
+  if (mod && ev.key.toLowerCase() === 'c') { if (canvas.copySelection()) ev.preventDefault(); return; }
+  if (mod && ev.key.toLowerCase() === 'x') { if (store.selection?.type === 'node') { ev.preventDefault(); canvas.cutSelection(); } return; }
+  if (mod && ev.key.toLowerCase() === 'v') { if (canvas.hasClipboard()) { ev.preventDefault(); canvas.paste(); } return; }
+  if (mod && ev.key.toLowerCase() === 'd') { if (store.selection?.type === 'node') { ev.preventDefault(); canvas.duplicateSelection(); } return; }
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && store.selection) {
     ev.preventDefault();
     const sel = store.selection;
@@ -187,7 +191,6 @@ document.addEventListener('keydown', (ev) => {
     select(null);
   }
   if (ev.key === 'Escape') select(null);
-  if (ev.key === ' ' && store.selection?.type === 'scenario') { ev.preventDefault(); play(); }
   if (ev.key === 'f') canvas.fit();
   if (ev.key === '?') { ev.preventDefault(); $('helpDialog').showModal(); }
 });

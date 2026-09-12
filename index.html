@@ -14,7 +14,7 @@
     --ok: #1f9d55; --ok-soft: #e9f7ee; --ok-line: #cdebd8; --ok-ink: #14602f;
     --bad: #d64545; --bad-soft: #fdeaea; --bad-line: #f5cdcd; --bad-ink: #8a1f1f;
     --warn: #d98c0d; --warn-soft: #fff7e6; --warn-line: #f0d49a; --warn-ink: #7a4d00;
-    --start: var(--ok); --action: var(--accent); --decision: var(--warn); --end: #4b5563;
+    --start: var(--ok); --action: var(--accent); --decision: var(--warn); --end: #c93a3a;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
     --fs: 13px; --fs-sm: 12px; --fs-xs: 11px;
@@ -30,6 +30,7 @@
 
   /* ==== base ================================================================================== */
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }                       /* the attribute wins over any display rule below */
   html, body { height: 100%; margin: 0; }
   body { font: var(--fs)/1.45 var(--font); color: var(--ink); background: var(--bg); display: grid; grid-template-rows: var(--header-h) 1fr var(--table-h); grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); height: 100vh; overflow: hidden; --side-w: 0px; }
   body.has-project:not(.side-hidden) { --side-w: 220px; }
@@ -127,18 +128,47 @@
 
   /* ==== stage & overlays ====================================================================== */
   #stage { position: relative; overflow: hidden; background: var(--bg) radial-gradient(circle, #d3d7dd 1px, transparent 1px) 0 0 / 20px 20px; }
-  #stage svg { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
-  #stage svg.dragging, #stage svg.moving, #stage svg.moving .node { cursor: grabbing; }
+  #stage svg { width: 100%; height: 100%; display: block; touch-action: none; }
+  #stage svg.pannable, #stage svg.pannable * { cursor: grab; }
+  #stage svg.dragging, #stage svg.dragging *, #stage svg.moving, #stage svg.moving .node { cursor: grabbing; }
   #stage svg.connecting, #stage svg.connecting .node, #stage svg.connecting .port { cursor: crosshair; }
-  #stage svg.selecting { cursor: crosshair; }
   .marquee { fill: rgba(47, 111, 237, .08); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
   #palette, #zoom, #lint { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
-  #palette, #zoom { display: flex; align-items: center; gap: 2px; padding: 3px; }
-  #palette { top: 10px; left: 10px; }
-  #zoom { bottom: 10px; right: 10px; }
-  #palette button, #zoom button { border-color: transparent; }
-  #palette button:hover, #zoom button:hover { border-color: transparent; background: var(--line-2); }
-  #palette .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+  #zoom { display: flex; align-items: center; gap: 2px; padding: 3px; bottom: 10px; right: 10px; }
+  /* The shape palette: a small card of thin-line icons in a grid, in the manner of a whiteboard's shapes panel. */
+  #palette { top: 50%; left: 12px; transform: translateY(-50%); width: 80px; padding: 10px 6px 6px; border-radius: 12px; }
+  #palette h2 { margin: 0 0 6px; text-align: center; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  #palette .grid { display: grid; grid-template-columns: 1fr; gap: 2px; }
+  #palette button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; height: 60px; padding: 3px 0 4px; border: 1px solid transparent; border-radius: var(--r2); background: transparent; color: var(--ink); cursor: grab; box-shadow: none; }
+  #palette button:hover { background: var(--line-2); border-color: transparent; }
+  #palette button:active { background: var(--accent-soft); }
+  #palette button:focus-visible { outline: none; box-shadow: var(--ring); }
+  #palette button span { font-size: var(--fs-xs); color: var(--muted); line-height: 1.2; }
+  #palette .shape { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+  #palette .shape .fill { fill: currentColor; stroke: none; }
+  #palette [data-add="start"] .shape { color: var(--start); }
+  #palette [data-add="action"] .shape { color: var(--action); }
+  #palette [data-add="decision"] .shape { color: var(--decision); }
+  #palette [data-add="end"] .shape { color: var(--end); }
+  #zoom button { border-color: transparent; }
+  #zoom button:hover { border-color: transparent; background: var(--line-2); }
+  /* The right-click menu on the canvas. */
+  #ctx { position: fixed; z-index: 30; min-width: 176px; display: flex; flex-direction: column; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
+  #ctx button { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; font-weight: 400; text-align: left; box-shadow: none; }
+  #ctx button:hover:not(:disabled) { background: var(--line-2); }
+  #ctx button:disabled { opacity: .45; cursor: default; }
+  #ctx button span { flex: 1; }
+  #ctx button kbd { font: var(--fs-xs) var(--font); color: var(--muted); }
+  #ctx hr { margin: 4px 0; border: 0; border-top: 1px solid var(--line-2); }
+  #ctx .dot { width: 14px; height: 9px; border: 1.5px solid currentColor; border-radius: 3px; }
+  #ctx .dot.start, #ctx .dot.end { border-radius: 5px; }
+  #ctx .dot.start { color: var(--start); } #ctx .dot.action { color: var(--action); } #ctx .dot.decision { color: var(--decision); } #ctx .dot.end { color: var(--end); }
+  /* The shape being dragged in from the palette, drawn at the canvas's zoom under the pointer. */
+  #ghost { position: fixed; top: 0; left: 0; z-index: 20; pointer-events: none; opacity: .85; transition: opacity .1s; }
+  #ghost.off { opacity: .35; }
+  #ghost svg { display: block; overflow: visible; }
+  body.placing, body.placing * { cursor: grabbing !important; }
+  body.placing #stage svg, body.placing #stage svg * { cursor: copy !important; }
   #zoom .pct { min-width: 40px; text-align: center; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
   #zoom .sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line); }
   #lint { top: 10px; right: 10px; max-width: min(360px, calc(100% - 320px)); padding: 6px 10px; font-size: var(--fs-sm); line-height: 1.4; color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); display: none; }
@@ -165,7 +195,12 @@
   .node:hover .box { filter: drop-shadow(0 2px 5px rgba(16, 24, 40, .18)); }
   .node:hover:not(.selected):not(.on):not(.stuck) .box { stroke-width: 2.5; }
   .node.bad .box { stroke: var(--bad); stroke-dasharray: 4 3; }
-  .node.selected .box { stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 4px rgba(47, 111, 237, .45)); }
+  /* Selection keeps the node's own colour: a heavier outline and a glow in that colour, not the accent. */
+  .node.start { color: var(--start); }
+  .node.action { color: var(--action); }
+  .node.decision { color: var(--decision); }
+  .node.end { color: var(--end); }
+  .node.selected .box { stroke-width: 2.5; filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 50%, transparent)); }
   .node.on .box { stroke: var(--accent); stroke-width: 3; fill: var(--accent-soft); }
   .node.target .box { stroke: var(--accent); stroke-width: 3; fill: var(--accent-soft); stroke-dasharray: 6 3; }
   .node.stuck .box { stroke: var(--bad); stroke-width: 3; fill: #fff0f0; }
@@ -352,12 +387,25 @@
   <nav id="project" aria-label="Project"></nav>
   <div id="stage">
     <svg id="canvas"></svg>
-    <div id="palette">
-      <button class="small" data-add="start"><i class="dot" style="background: var(--start)"></i>Start</button>
-      <button class="small" data-add="action"><i class="dot" style="background: var(--action)"></i>Action</button>
-      <button class="small" data-add="decision"><i class="dot" style="background: var(--decision)"></i>Decision</button>
-      <button class="small" data-add="end"><i class="dot" style="background: var(--end)"></i>End</button>
+    <div id="palette" role="toolbar" aria-label="Shapes">
+      <h2>Shapes</h2>
+      <div class="grid">
+        <button data-add="start" title="Start · click to add, or drag it onto the canvas">
+          <svg class="shape" viewBox="0 0 32 32"><rect x="3" y="9" width="26" height="14" rx="7"/><path class="fill" d="M14,13 L19,16 L14,19 Z"/></svg><span>Start</span>
+        </button>
+        <button data-add="action" title="Action · click to add, or drag it onto the canvas">
+          <svg class="shape" viewBox="0 0 32 32"><rect x="3" y="8" width="26" height="16" rx="3.5"/></svg><span>Action</span>
+        </button>
+        <button data-add="decision" title="Decision · click to add, or drag it onto the canvas">
+          <svg class="shape" viewBox="0 0 32 32"><path d="M8,8 H24 L29,13 V19 L24,24 H8 L3,19 V13 Z"/></svg><span>Decision</span>
+        </button>
+        <button data-add="end" title="End · click to add, or drag it onto the canvas">
+          <svg class="shape" viewBox="0 0 32 32"><rect x="3" y="9" width="26" height="14" rx="7"/><rect class="fill" x="13.5" y="13.5" width="5" height="5" rx="1"/></svg><span>End</span>
+        </button>
+      </div>
     </div>
+    <div id="ghost" hidden></div>
+    <div id="ctx" role="menu" hidden></div>
     <div id="lint"></div>
     <div id="zoom">
       <button class="small icon" data-zoom="out" title="Zoom out">−</button>
@@ -368,7 +416,7 @@
       <span class="sep"></span>
       <button class="small" data-zoom="tidy" title="Lay the flow out left to right from the start node">Tidy</button>
     </div>
-    <div id="hint">Drag to pan · wheel to zoom · double-click to add an action · drag a node's ○ port onto another node to connect them · Shift-click or Shift-drag to select several · Delete removes the selection</div>
+    <div id="hint">Drag a shape in from the left · drag on empty canvas to select · Space-drag or wheel to pan · ⌘-wheel or pinch to zoom · drag a node's ○ port onto another node to connect them · Delete removes the selection</div>
   </div>
 
   <div id="panelResizer" class="resizer" title="Drag to resize the panel"></div>
@@ -395,11 +443,16 @@
     <form method="dialog">
       <h3>Keys</h3>
       <table class="keys">
-        <tr><td><kbd>drag</kbd> empty canvas · <kbd>wheel</kbd></td><td>pan · zoom</td></tr>
+        <tr><td><kbd>click</kbd> or <kbd>drag</kbd> a shape from the palette</td><td>add a node · place it where it drops</td></tr>
+        <tr><td><kbd>drag</kbd> empty canvas</td><td>rubber-band select (<kbd>Shift</kbd> adds to the selection)</td></tr>
+        <tr><td><kbd>Space</kbd>+<kbd>drag</kbd> · middle button · <kbd>wheel</kbd></td><td>pan</td></tr>
+        <tr><td><kbd>⌘</kbd>+<kbd>wheel</kbd> · pinch</td><td>zoom</td></tr>
         <tr><td><kbd>double-click</kbd> empty canvas</td><td>add an action node there</td></tr>
         <tr><td><kbd>drag</kbd> from a node's ○ port onto a node</td><td>connect them</td></tr>
-        <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node · <kbd>Shift</kbd>+<kbd>drag</kbd> empty canvas</td><td>add to the selection · rubber-band select</td></tr>
+        <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node</td><td>add it to the selection, or take it out</td></tr>
         <tr><td><kbd>⌘A</kbd></td><td>select every node</td></tr>
+        <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>
+        <tr><td><kbd>right-click</kbd></td><td>a menu: add a shape or paste on empty canvas; copy, cut, duplicate or delete a node</td></tr>
         <tr><td><kbd>drag</kbd> a selected node</td><td>move the whole selection together</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected nodes, edge or scenario</td></tr>
         <tr><td><kbd>⌘Z</kbd> · <kbd>⇧⌘Z</kbd></td><td>undo · redo</td></tr>
