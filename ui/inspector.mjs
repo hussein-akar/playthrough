@@ -98,9 +98,9 @@ function flowView(doc) {
   const passed = store.results?.passed ?? 0;
   return `
     <section class="card about"><div class="head"><h3>${esc(doc.name) || 'Untitled flow'}</h3>${pencil('')}</div>${doc.description?.trim() ? `<div class="muted">${esc(doc.description)}</div>` : '<div class="muted empty">No description yet.</div>'}</section>
-    ${card('Scenarios', doc.scenarios.length, doc.scenarios.length ? `<span class="tally ${passed === doc.scenarios.length ? 'ok' : 'bad'}">${passed}/${doc.scenarios.length}</span>` : '', scenarios.join('') || '<div class="muted empty">No scenarios yet. Each one is played through the drawing as you type.</div>', '<button class="small primary" data-act="add-scn">+ Scenario</button>')}
     ${card('Inputs', doc.inputs.length, pencil('input:0'), inputs.join('') || '<div class="muted empty">No inputs yet. A guard can only mention what is declared here.</div>', '<button class="small" data-act="add-input-open">+ Input</button>')}
-    ${card('State', doc.state.length, pencil('state:0'), state.join('') || '<div class="muted empty">No state fields. Add one when an action needs to leave something behind.</div>', '<button class="small" data-act="add-state-open">+ State field</button>')}`;
+    ${card('State', doc.state.length, pencil('state:0'), state.join('') || '<div class="muted empty">No state fields. Add one when an action needs to leave something behind.</div>', '<button class="small" data-act="add-state-open">+ State field</button>')}
+    ${card('Scenarios', doc.scenarios.length, doc.scenarios.length ? `<span class="tally ${passed === doc.scenarios.length ? 'ok' : 'bad'}">${passed}/${doc.scenarios.length}</span>` : '', scenarios.join('') || '<div class="muted empty">No scenarios yet. Each one is played through the drawing as you type.</div>', '<button class="small primary" data-act="add-scn">+ Scenario</button>')}`;
 }
 
 /** The flow settings drawer: the schema a scenario is written against, with room to edit it. */
