@@ -46,6 +46,9 @@ test('flows live in folders: listed as a tree, created inside one, moved between
   await assert.rejects(deleteFolder(dir, 'billing/holds'), (e) => e.code === 'NOTEMPTY');
   await deleteFolder(dir, 'billing/refunds');
   assert.deepEqual(await listFolders(dir), ['archive', 'archive/old', 'billing', 'billing/holds']);
+  await deleteFolder(dir, 'billing', { all: true });
+  assert.deepEqual(await listFolders(dir), ['archive', 'archive/old']);
+  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['archive/old/root.json']);
   await assert.rejects(createFolder(dir, '../out'), (e) => e.code === 'BADNAME');
 });
 

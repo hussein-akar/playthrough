@@ -150,11 +150,18 @@ export async function createFolder(parent = '') {
   catch (e) { notice('Could not create the folder', e.message); }
 }
 
+/** Delete a group. One with flows or groups in it goes with all of them, after saying how many. */
 export async function removeFolder(path) {
-  const ok = await ask({ title: `Delete the group ${path}/?`, body: 'Only an empty group can be deleted; move or delete its flows first.', ok: 'Delete', danger: true });
+  const flows = project.info.flows.filter((f) => f.file.startsWith(`${path}/`)).length;
+  const groups = (project.info.folders ?? []).filter((p) => p.startsWith(`${path}/`)).length;
+  const inside = [flows && `${flows} flow${flows === 1 ? '' : 's'}`, groups && `${groups} group${groups === 1 ? '' : 's'}`].filter(Boolean).join(' and ');
+  const ok = await ask({ title: `Delete the group ${path}/?`, body: inside ? `It holds ${inside}; all of them are deleted with it. If the folder is in git, the history still has them.` : 'The empty folder is removed.', ok: inside ? 'Delete all' : 'Delete', danger: true });
   if (!ok) return;
-  try { await call('DELETE', `/api/folders/${encodeURIComponent(path)}`); toast(`Deleted ${path}/`); refresh(); }
-  catch (e) { notice(`Could not delete ${path}/`, e.code === 'NOTEMPTY' ? 'It still has flows or groups in it.' : e.message); }
+  try {
+    await call('DELETE', `/api/folders/${encodeURIComponent(path)}${inside ? '?all=1' : ''}`);
+    if (store.file?.startsWith(`${path}/`)) { setFile(null, null); setDirty(store.doc.nodes.length > 0); emit(); }
+    toast(`Deleted ${path}/`); refresh();
+  } catch (e) { notice(`Could not delete ${path}/`, e.message); }
 }
 
 export async function remove(file) {
