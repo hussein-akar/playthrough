@@ -242,7 +242,9 @@
   /* The ends of the selected wire, draggable to another dot. */
   .handle { fill: #fff; stroke: var(--accent); stroke-width: 1.5; cursor: grab; }
   .handle:hover { r: 7; fill: var(--accent-soft); }
-  .handle.bend { cursor: move; }
+  .handle.bend, .handle.grip { cursor: move; }
+  .handle.grip { fill: var(--accent); stroke: #fff; stroke-width: 1; }
+  .handle.grip:hover { fill: var(--accent-hover); }
   .edge.selected path.grab, .edge.selected .label { cursor: move; }   /* a selected wire can be pulled */
   /* The bar over a selected wire: smooth or square, and the colour. */
   #edgebar { position: absolute; z-index: 15; display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }

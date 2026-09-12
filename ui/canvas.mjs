@@ -67,9 +67,8 @@ export function edgePath(a, b, fromSide, toSide, shape, via) {
   const na = NORMAL[fs], nb = NORMAL[ts];
   if (shape === 'square') {
     const pts = via ? viaRoute(p, q, na, nb, via) : squareRoute(p, q, na, nb, a, b);
-    // The pill rides the level run, under the pointer while the wire is being pulled.
-    const lo = Math.min(p.x + na[0] * STUB, q.x + nb[0] * STUB), hi = Math.max(p.x + na[0] * STUB, q.x + nb[0] * STUB);
-    return { d: rounded(pts), mid: via ? [Math.max(lo, Math.min(hi, via.x)), via.y] : midOf(pts) };
+    // The pill rides the wire at the point nearest the pull, so it stays under the pointer while the wire is dragged.
+    return { d: rounded(pts), mid: via ? nearestOn(pts, via) : midOf(pts), pts };
   }
   if (via) {
     const d1 = reach(p, via), d2 = reach(via, q), len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
@@ -125,11 +124,33 @@ function squareRoute(p, q, na, nb, ga, gb) {
   return pts.filter((c, i) => !i || i === pts.length - 1 || !((pts[i - 1].x === c.x && c.x === pts[i + 1].x) || (pts[i - 1].y === c.y && c.y === pts[i + 1].y)));
 }
 
-/** The corners of a square wire pulled to V: out of each port, then a level run at V's height between the two stubs, so the wire runs where it was dropped. */
+/**
+ * The corners of a square wire pulled to V. Dropped between the two ends, V moves the middle run
+ * of the usual Z sideways; dropped beyond them, the wire makes a detour that runs level with V,
+ * which is how it is pulled clear of a box.
+ */
 function viaRoute(p, q, na, nb, V) {
   const a = { x: p.x + na[0] * STUB, y: p.y + na[1] * STUB }, b = { x: q.x + nb[0] * STUB, y: q.y + nb[1] * STUB };
-  const pts = [p, a, { x: a.x, y: V.y }, { x: b.x, y: V.y }, b, q].filter((c, i, all) => !i || Math.abs(c.x - all[i - 1].x) > 0.01 || Math.abs(c.y - all[i - 1].y) > 0.01);
+  const between = (v, s, t) => v > Math.min(s, t) && v < Math.max(s, t);
+  const ah = na[1] === 0, bh = nb[1] === 0;
+  let mids;
+  if (ah && bh) mids = between(V.y, a.y, b.y) ? [{ x: V.x, y: a.y }, { x: V.x, y: b.y }] : [{ x: a.x, y: V.y }, { x: b.x, y: V.y }];
+  else if (!ah && !bh) mids = between(V.x, a.x, b.x) ? [{ x: a.x, y: V.y }, { x: b.x, y: V.y }] : [{ x: V.x, y: a.y }, { x: V.x, y: b.y }];
+  else mids = [{ x: a.x, y: V.y }, { x: b.x, y: V.y }];
+  const pts = [p, a, ...mids, b, q].filter((c, i, all) => !i || Math.abs(c.x - all[i - 1].x) > 0.01 || Math.abs(c.y - all[i - 1].y) > 0.01);
   return pts.filter((c, i) => !i || i === pts.length - 1 || !((pts[i - 1].x === c.x && c.x === pts[i + 1].x) || (pts[i - 1].y === c.y && c.y === pts[i + 1].y)));
+}
+
+/** The point on a polyline nearest to V. */
+function nearestOn(pts, V) {
+  let best = [pts[0].x, pts[0].y], bd = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((V.x - a.x) * dx + (V.y - a.y) * dy) / l2));
+    const x = a.x + dx * t, y = a.y + dy * t, d = Math.hypot(V.x - x, V.y - y);
+    if (d < bd) { bd = d; best = [x, y]; }
+  }
+  return best;
 }
 
 /** A polyline as a path whose corners are rounded off, as far as the runs on either side allow. */
@@ -264,9 +285,18 @@ export function render() {
   if (selEdge && gs.has(selEdge.from) && gs.has(selEdge.to)) {
     const p = portAt(gs.get(selEdge.from), side(selEdge.fromSide, 'right')), q = portAt(gs.get(selEdge.to), side(selEdge.toSide, 'left'));
     out += `<circle class="handle" data-handle="from" data-edge="${selEdge.id}" cx="${p.x}" cy="${p.y}" r="5.5"/><circle class="handle" data-handle="to" data-edge="${selEdge.id}" cx="${q.x}" cy="${q.y}" r="5.5"/>`;
-    // The middle of the wire can be pulled: by its pill when it has one, else by this handle.
+    // The wire can be pulled by any part of it. A square wire shows a grip on each of its runs; a
+    // smooth one a grip at its middle, unless its pill already sits there.
     const m = mids.get(selEdge.id);
-    if (m && !(selEdge.label?.trim() || selEdge.when?.trim() || selEdge.else)) out += `<circle class="handle bend" data-edge="${selEdge.id}" cx="${m[0]}" cy="${m[1]}" r="5"/>`;
+    const pts = edgePath(gs.get(selEdge.from), gs.get(selEdge.to), selEdge.fromSide, selEdge.toSide, selEdge.shape, selEdge.via).pts;
+    if (pts) {
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y);
+        if (len < 24) continue;
+        const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, horiz = Math.abs(b.y - a.y) < 0.01;
+        out += `<rect class="handle grip" data-edge="${selEdge.id}" x="${cx - (horiz ? 8 : 2.5)}" y="${cy - (horiz ? 2.5 : 8)}" width="${horiz ? 16 : 5}" height="${horiz ? 5 : 16}" rx="2.5"/>`;
+      }
+    } else if (m && !(selEdge.label?.trim() || selEdge.when?.trim() || selEdge.else)) out += `<circle class="handle bend" data-edge="${selEdge.id}" cx="${m[0]}" cy="${m[1]}" r="5"/>`;
   }
 
   if (connecting) {
@@ -406,9 +436,10 @@ svg.addEventListener('pointerdown', (ev) => {
     drag = { mode: 'node', start: w, nodes, moved: false };
   } else if (edgeEl) {
     const id = edgeEl.dataset.edge;
-    // A wire that is already selected is picked up: dragging it pulls it through wherever it is dropped.
-    if (store.selection?.type === 'edge' && store.selection.id === id) drag = { mode: 'bend', id, start: w, moved: false };
-    else { select({ type: 'edge', id }); drag = { mode: 'none' }; }
+    // Pressing a wire selects it and picks it up in the same gesture: moving the pointer pulls the
+    // wire through wherever it is dropped, a plain click just selects.
+    if (!(store.selection?.type === 'edge' && store.selection.id === id)) select({ type: 'edge', id });
+    drag = { mode: 'bend', id, start: w, moved: false };
   } else {
     // Dragging on empty canvas draws a rubber band. Shift keeps what was already selected and adds
     // to it; without Shift a plain click clears the selection, as it always did.
@@ -457,7 +488,7 @@ window.addEventListener('pointermove', (ev) => {
   if (!drag) return;
   last = { clientX: ev.clientX, clientY: ev.clientY, altKey: ev.altKey };
   dragTo(ev);
-  if (!panRaf && drag.mode !== 'pan' && drag.mode !== 'none' && edgePush(ev)) panRaf = requestAnimationFrame(edgePan);
+  if (!panRaf && (drag.mode === 'connect' || drag.moved) && edgePush(ev)) panRaf = requestAnimationFrame(edgePan);
 });
 
 // A wire, a node or a band dragged to the edge of the window pans the view that way, faster the
