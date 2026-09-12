@@ -62,9 +62,13 @@ test('a group is renamed with everything in it, in place or under other groups, 
   assert.deepEqual(await renameFolder(dir, 'sales-orders/pending', 'archive/pending'), { folder: 'archive/pending' }, 'a / spells out where it goes');
   assert.deepEqual(await listFolders(dir), ['archive', 'archive/pending', 'sales-orders']);
   assert.equal((await readFlow(dir, 'archive/pending/payment.json')).doc.name, 'Payment');
+  assert.deepEqual(await renameFolder(dir, 'archive/pending', 'pending', ''), { folder: 'pending' }, 'a folder argument moves it, the root being the empty string');
+  assert.deepEqual(await renameFolder(dir, 'pending', 'pending', 'sales-orders'), { folder: 'sales-orders/pending' });
+  assert.deepEqual(await listFolders(dir), ['archive', 'sales-orders', 'sales-orders/pending']);
   assert.deepEqual(await renameFolder(dir, 'archive', 'archive'), { folder: 'archive' }, 'same name: nothing happens');
   await assert.rejects(renameFolder(dir, 'sales-orders', 'archive'), (e) => e.code === 'EXISTS');
   await assert.rejects(renameFolder(dir, 'archive', 'archive/inside'), (e) => e.code === 'BADNAME');
+  await assert.rejects(renameFolder(dir, 'sales-orders', 'sales-orders', 'sales-orders/pending'), (e) => e.code === 'BADNAME', 'nor under one of its own groups');
   await assert.rejects(renameFolder(dir, '../x', 'y'), (e) => e.code === 'BADNAME');
   await assert.rejects(renameFolder(dir, 'archive', '??'), (e) => e.code === 'BADNAME');
   await assert.rejects(renameFolder(dir, 'missing', 'x'), (e) => e.code === 'ENOENT');

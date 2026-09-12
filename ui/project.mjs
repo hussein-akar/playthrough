@@ -154,17 +154,23 @@ export async function createFolder(parent = '') {
 export async function renameFolder(path) {
   const name = await prompt({ title: `Rename the group ${path}/`, body: 'The folder name is made from this: lower-case, words joined by dashes. A / moves it under other groups, billing/holds. The flows in it come along.', value: leaf(path), ok: 'Rename' });
   if (name == null) return;
+  return moveFolder(path, { name });
+}
+
+/** Put a group elsewhere: under another name, under another group ('' for the root), or both. Everything in it comes along. */
+async function moveFolder(path, { name = leaf(path), folder = null } = {}) {
   try {
-    const { folder: to } = await call('POST', `/api/folders/${encodeURIComponent(path)}/rename`, { name });
+    const { folder: to } = await call('POST', `/api/folders/${encodeURIComponent(path)}/rename`, { name, ...(folder != null && { folder }) });
     if (to === path) return;
     if (store.file?.startsWith(`${path}/`)) { setFile(`${to}${store.file.slice(path.length)}`, store.mtime); emit(); }
     for (const f of [...folded]) if (f === path || f.startsWith(`${path}/`)) { folded.delete(f); folded.add(`${to}${f.slice(path.length)}`); }
+    if (folder != null) folded.delete(folder);
     saveFolded();
-    toast(`Renamed to ${to}/`);
+    toast(folder != null ? `Moved to ${to}/` : `Renamed to ${to}/`);
     refresh();
   } catch (e) {
     if (e.code === 'EXISTS') notice('That name is taken', `${e.message}. Pick another.`);
-    else notice(`Could not rename ${path}/`, e.message);
+    else notice(`Could not move ${path}/`, e.message);
   }
 }
 
@@ -252,7 +258,7 @@ export function render() {
   const countIn = (folder) => info.flows.filter((f) => f.file.startsWith(`${folder}/`)).length;
   const tree = (parent, depth) => kids(parent).map((path) => {
     const shut = folded.has(path), n = countIn(path);
-    return `<li class="folder${shut ? ' shut' : ''}" style="--depth: ${depth}" data-folder="${esc(path)}" title="${esc(path)}/">
+    return `<li class="folder${shut ? ' shut' : ''}" style="--depth: ${depth}" data-folder="${esc(path)}" title="${esc(path)}/" draggable="true">
       <button class="caret" data-fold="${esc(path)}" title="${shut ? 'Expand' : 'Collapse'}" aria-label="${shut ? 'Expand' : 'Collapse'}">${shut ? '+' : '−'}</button>
       <span class="name">${esc(leaf(path))}</span>
       <span class="status"><span class="muted">${n || ''}</span></span>
@@ -294,26 +300,40 @@ el.addEventListener('click', async (ev) => {
   open(li.dataset.file);
 });
 
-// A flow dragged onto a folder (or onto the list's empty space, for the root) moves there.
-let dragging = null;
-el.addEventListener('dragstart', (ev) => { const li = ev.target.closest('li[data-file]'); if (!li) return ev.preventDefault(); dragging = li.dataset.file; ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', dragging); });
+// A flow or a group dragged onto a folder (or onto the list's empty space, for the root) moves
+// there; a group brings everything in it, and cannot be dropped on itself or inside itself.
+let dragging = null;   // { file } or { folder }
+el.addEventListener('dragstart', (ev) => {
+  const li = ev.target.closest('li[data-file], li[data-folder]');
+  if (!li || ev.target.closest('button')) return ev.preventDefault();
+  dragging = li.dataset.file != null ? { file: li.dataset.file } : { folder: li.dataset.folder };
+  ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', dragging.file ?? dragging.folder);
+});
 el.addEventListener('dragend', () => { dragging = null; for (const x of el.querySelectorAll('.over')) x.classList.remove('over'); });
-const dropTarget = (ev) => ev.target.closest('li[data-folder]') ?? ev.target.closest('ul[data-folder]');
+const dropTarget = (ev) => {
+  const t = ev.target.closest('li[data-folder]') ?? ev.target.closest('ul[data-folder]');
+  if (!t || !dragging) return null;
+  const to = t.dataset.folder;
+  if (dragging.file != null) return folderOf(dragging.file) === to ? null : t;
+  const from = dragging.folder;
+  return to === from || to === folderOf(from) || to.startsWith(`${from}/`) ? null : t;
+};
 el.addEventListener('dragover', (ev) => {
   if (!dragging) return;
   const t = dropTarget(ev);
+  for (const x of el.querySelectorAll('.over')) if (x !== t) x.classList.remove('over');
   if (!t) return;
   ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
-  for (const x of el.querySelectorAll('.over')) if (x !== t) x.classList.remove('over');
   t.classList.add('over');
 });
 el.addEventListener('drop', (ev) => {
   const t = dropTarget(ev);
-  if (!t || !dragging) return;
+  if (!t) return;
   ev.preventDefault();
-  const to = t.dataset.folder, file = dragging;
+  const to = t.dataset.folder, what = dragging;
   dragging = null;
-  if (folderOf(file) !== to) move(file, { folder: to });
+  if (what.file != null) move(what.file, { folder: to });
+  else moveFolder(what.folder, { folder: to });
 });
 
 subscribe(render);

@@ -172,8 +172,9 @@ npm start -- ./specs       # or PLAYTHROUGH_DIR=./specs npm start; npm run start
 ```
 
 Every `*.json` in the folder, and in its subfolders, is a flow. A sidebar shows them as a tree:
-a group (a subfolder on disk) keeps related flows together, its `+`/`−` folds it, and a flow
-dragged onto a group moves there. Each flow shows its pass count (`3/4`), a ⚠ when the drawing
+a group (a subfolder on disk) keeps related flows together, its `+`/`−` folds it, and a flow or
+a group dragged onto another group moves there, a group with everything in it; dropped on the
+list's empty space it goes back to the root. Each flow shows its pass count (`3/4`), a ⚠ when the drawing
 has problems, and *no scenarios* when nobody has written any yet. Click one to open it. **+ Flow**
 starts a new file, and a `/` in its name puts it in a group, made if it is not there yet
 (`billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty

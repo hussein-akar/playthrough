@@ -31,7 +31,7 @@ const readBody = (req) => new Promise((resolve, reject) => { let s = ''; req.on(
 /**
  * GET /api/project · GET|PUT|DELETE /api/flows/:file · POST /api/flows (a new file for a name, in a
  * folder) · POST /api/flows/:file/rename (a name, and maybe a folder to move to) · POST /api/folders ·
- * POST /api/folders/:path/rename (a name) · DELETE /api/folders/:path (?all=1 takes everything in it). A path inside the project travels URL-encoded, slashes included.
+ * POST /api/folders/:path/rename (a name, and maybe a folder to move under) · DELETE /api/folders/:path (?all=1 takes everything in it). A path inside the project travels URL-encoded, slashes included.
  */
 async function api(req, res, url) {
   if (!project) return send(res, 404, { error: 'no project folder: start the server with one, e.g. npm start -- ./specs' });
@@ -43,7 +43,7 @@ async function api(req, res, url) {
     if (what === 'project' && req.method === 'PUT') { const { name } = JSON.parse(await readBody(req) || '{}'); const r = await setProjectName(project.dir, name); project.name = r.name; return send(res, 200, r); }
     if (what === 'project' && req.method === 'GET') return send(res, 200, { name: project.name, dir: shownDir, flows: await listFlows(project.dir), folders: await listFolders(project.dir) });
     if (what === 'folders' && !file && req.method === 'POST') { const { path } = JSON.parse(await readBody(req) || '{}'); return send(res, 201, await createFolder(project.dir, path)); }
-    if (what === 'folders' && file && verb === 'rename' && req.method === 'POST') { const { name } = JSON.parse(await readBody(req) || '{}'); return send(res, 200, await renameFolder(project.dir, file, name)); }
+    if (what === 'folders' && file && verb === 'rename' && req.method === 'POST') { const { name, folder } = JSON.parse(await readBody(req) || '{}'); return send(res, 200, await renameFolder(project.dir, file, name, folder ?? null)); }
     if (what === 'folders' && file && !verb && req.method === 'DELETE') return send(res, 200, await deleteFolder(project.dir, file, { all: url.searchParams.get('all') === '1' }));
     if (what === 'folders') return send(res, 405, { error: `${req.method} is not something ${url.pathname} does` });
     if (what === 'flows' && !file && req.method === 'POST') {
