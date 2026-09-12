@@ -28,14 +28,16 @@ export function render() {
     return;
   }
   const ends = doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label);
-  let html = `<thead><tr><th>#</th><th>Scenario</th><th>tags</th>${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}
+  // The tags column appears once a scenario has a tag (given in its panel): until then it is noise.
+  const tagged = doc.scenarios.some((s) => s.tags?.length);
+  let html = `<thead><tr><th>#</th><th>Scenario</th>${tagged ? '<th>tags</th>' : ''}${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}
     <th class="expect">expected actions</th><th class="expect">lands on</th>${doc.state.map((f) => `<th class="expect">${esc(f.name)}</th>`).join('')}<th>result</th><th></th></tr></thead><tbody>`;
   doc.scenarios.forEach((s, k) => {
     const active = selection?.type === 'scenario' && selection.id === s.id;
     html += `<tr class="row ${active ? 'active' : ''}" data-row="${s.id}">
       <td class="muted">${k + 1}</td>
       <td><input type="text" class="name" data-f="name" value="${esc(s.name)}" placeholder="what is being tried"></td>
-      <td><input type="text" class="tags" data-f="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12" title="Tags, comma-separated"></td>
+      ${tagged ? `<td><input type="text" class="tags" data-f="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12" title="Tags, comma-separated"></td>` : ''}
       ${doc.inputs.map((i) => `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`, true)}</td>`).join('')}
       <td class="expect actions">${chips(s, results)}</td>
       <td class="expect"><select data-f="end"><option value="">any</option>${ends.map((e) => `<option value="${esc(e)}" ${s.expect.end === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></td>

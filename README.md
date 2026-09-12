@@ -75,9 +75,9 @@ every guard, set and scenario cell that mentioned it, in one undoable step.
 ## Drawing
 
 The gear at the foot of the palette (or *Flow settings…* in the right-click menu) shows the flow
-in the side panel: its scenarios with their verdicts and a play button each, its inputs and its
-state. A pencil or a row opens the settings drawer, where inputs and state are declared. The
-panel otherwise shows whatever is selected and goes away when nothing is.
+in the side panel: itself, its inputs and its state. A pencil or a row opens the settings drawer,
+where inputs and state are declared. The panel otherwise shows whatever is selected and goes away
+when nothing is. The scenario table runs the full width of the window; its top edge is a grip.
 
 The palette on the left holds the four shapes: click one to add it in the middle of the view, or
 drag it onto the canvas to put it exactly where it lands. The canvas has a zoom corner (−, +,
@@ -118,9 +118,10 @@ scenario fails and it is the drawing that is right, **Use this run as the expect
 *accept run* in the row) copies what actually happened into the expectation. In the table, Enter
 on the last row starts the next scenario and *+N more* opens the full list of issues.
 
-A scenario can carry **tags**, comma-separated in its row or its panel: `edge`, a ticket number,
-whose case it is. Every tag shows above the table with its pass count, and clicking one narrows
-the table to it (a row added while narrowed gets the tag). The Markdown export carries the tags
+A scenario can carry **tags**, comma-separated in its panel: `edge`, a ticket number, whose case
+it is. The table grows a tags column once any scenario has one. Every tag shows above the table
+with its pass count, and clicking one narrows the table to it (a row added while narrowed gets
+the tag). The Markdown export carries the tags
 and ends the scenario table with a tally per tag.
 
 **Coverage** dims every node and edge that no scenario touches. In a review, "nobody wrote a

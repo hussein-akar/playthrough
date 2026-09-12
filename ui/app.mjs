@@ -215,6 +215,24 @@ document.addEventListener('keydown', (ev) => {
   window.addEventListener('resize', () => { width = apply(width); });
 }
 
+// ---- table height ---------------------------------------------------------------------------------
+
+{
+  const key = 'playthrough.tableHeight', bar = $('tableResizer');
+  const apply = (h) => { h = Math.max(120, Math.min(h, window.innerHeight - 220)); document.body.style.setProperty('--table-h', `${h}px`); return h; };
+  let height = apply(Number(localStorage.getItem(key)) || 280);
+  bar.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    bar.setPointerCapture(ev.pointerId); bar.classList.add('on');
+    const startY = ev.clientY, startH = height;
+    const move = (e) => { height = apply(startH + startY - e.clientY); canvas.render(); };
+    const up = () => { bar.classList.remove('on'); bar.removeEventListener('pointermove', move); localStorage.setItem(key, String(height)); };
+    bar.addEventListener('pointermove', move);
+    bar.addEventListener('pointerup', up, { once: true });
+  });
+  window.addEventListener('resize', () => { height = apply(height); });
+}
+
 // ---- boot -------------------------------------------------------------------------------------
 
 /** A `#d=…` link in the address bar: read it, drop it, and open it unless that would lose work. */
