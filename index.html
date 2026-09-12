@@ -231,6 +231,7 @@
   .port .hit { fill: transparent; }
   .port .dot { fill: #fff; stroke: var(--faint); stroke-width: 1.5; opacity: 0; transition: opacity .1s, r .08s; }
   .node.selected .port .dot, #stage svg.connecting .node:hover .port .dot { opacity: 1; }
+  #stage svg.moving .port .dot { opacity: 0; }   /* not while the node is being dragged */
   .port:hover .dot { r: 7; stroke: var(--accent); }
   .port.src .dot, .port.hot .dot { opacity: 1; fill: var(--accent); stroke: var(--accent); }
   .badge { pointer-events: none; }
