@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openProject, listFlows, listFolders, readFlow, writeFlow, deleteFlow, renameFlow, createFolder, deleteFolder, fileFor, isFlowFile, isFolderPath, folderOf } from '../lib/project.mjs';
+import { openProject, listFlows, listFolders, readFlow, writeFlow, deleteFlow, renameFlow, createFolder, renameFolder, deleteFolder, fileFor, isFlowFile, isFolderPath, folderOf } from '../lib/project.mjs';
 
 const fresh = () => mkdtemp(join(tmpdir(), 'playthrough-'));
 const example = JSON.parse(await readFile(new URL('../examples/simple/checkout.json', import.meta.url), 'utf8'));
@@ -50,6 +50,24 @@ test('flows live in folders: listed as a tree, created inside one, moved between
   assert.deepEqual(await listFolders(dir), ['archive', 'archive/old']);
   assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['archive/old/root.json']);
   await assert.rejects(createFolder(dir, '../out'), (e) => e.code === 'BADNAME');
+});
+
+test('a group is renamed with everything in it, in place or under other groups, never onto another or into itself', async () => {
+  const dir = await fresh();
+  await writeFlow(dir, 'orders/checkout.json', { name: 'Checkout' });
+  await writeFlow(dir, 'orders/pending/payment.json', { name: 'Payment' });
+  await createFolder(dir, 'archive');
+  assert.deepEqual(await renameFolder(dir, 'orders', 'Sales Orders!'), { folder: 'sales-orders' });
+  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['sales-orders/checkout.json', 'sales-orders/pending/payment.json']);
+  assert.deepEqual(await renameFolder(dir, 'sales-orders/pending', 'archive/pending'), { folder: 'archive/pending' }, 'a / spells out where it goes');
+  assert.deepEqual(await listFolders(dir), ['archive', 'archive/pending', 'sales-orders']);
+  assert.equal((await readFlow(dir, 'archive/pending/payment.json')).doc.name, 'Payment');
+  assert.deepEqual(await renameFolder(dir, 'archive', 'archive'), { folder: 'archive' }, 'same name: nothing happens');
+  await assert.rejects(renameFolder(dir, 'sales-orders', 'archive'), (e) => e.code === 'EXISTS');
+  await assert.rejects(renameFolder(dir, 'archive', 'archive/inside'), (e) => e.code === 'BADNAME');
+  await assert.rejects(renameFolder(dir, '../x', 'y'), (e) => e.code === 'BADNAME');
+  await assert.rejects(renameFolder(dir, 'archive', '??'), (e) => e.code === 'BADNAME');
+  await assert.rejects(renameFolder(dir, 'missing', 'x'), (e) => e.code === 'ENOENT');
 });
 
 test('a project is named by project.json, else by its folder', async () => {

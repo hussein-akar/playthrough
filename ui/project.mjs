@@ -150,6 +150,24 @@ export async function createFolder(parent = '') {
   catch (e) { notice('Could not create the folder', e.message); }
 }
 
+/** Another name for a group, made the way a new group's is; everything in it comes along, and the open flow's path follows. */
+export async function renameFolder(path) {
+  const name = await prompt({ title: `Rename the group ${path}/`, body: 'The folder name is made from this: lower-case, words joined by dashes. A / moves it under other groups, billing/holds. The flows in it come along.', value: leaf(path), ok: 'Rename' });
+  if (name == null) return;
+  try {
+    const { folder: to } = await call('POST', `/api/folders/${encodeURIComponent(path)}/rename`, { name });
+    if (to === path) return;
+    if (store.file?.startsWith(`${path}/`)) { setFile(`${to}${store.file.slice(path.length)}`, store.mtime); emit(); }
+    for (const f of [...folded]) if (f === path || f.startsWith(`${path}/`)) { folded.delete(f); folded.add(`${to}${f.slice(path.length)}`); }
+    saveFolded();
+    toast(`Renamed to ${to}/`);
+    refresh();
+  } catch (e) {
+    if (e.code === 'EXISTS') notice('That name is taken', `${e.message}. Pick another.`);
+    else notice(`Could not rename ${path}/`, e.message);
+  }
+}
+
 /** Delete a group. One with flows or groups in it goes with all of them, after saying how many. */
 export async function removeFolder(path) {
   const flows = project.info.flows.filter((f) => f.file.startsWith(`${path}/`)).length;
@@ -238,7 +256,7 @@ export function render() {
       <button class="caret" data-fold="${esc(path)}" title="${shut ? 'Expand' : 'Collapse'}" aria-label="${shut ? 'Expand' : 'Collapse'}">${shut ? '+' : '−'}</button>
       <span class="name">${esc(leaf(path))}</span>
       <span class="status"><span class="muted">${n || ''}</span></span>
-      <span class="tools"><button class="link" data-newin="${esc(path)}" title="New flow in ${esc(path)}/" aria-label="New flow here">+</button><button class="link rm" data-rmdir="${esc(path)}" title="Delete the group ${esc(path)}/ (when empty)" aria-label="Delete group">×</button></span>
+      <span class="tools"><button class="link" data-newin="${esc(path)}" title="New flow in ${esc(path)}/" aria-label="New flow here">+</button><button class="link rn" data-rndir="${esc(path)}" title="Rename or move the group ${esc(path)}/" aria-label="Rename group">✎</button><button class="link rm" data-rmdir="${esc(path)}" title="Delete the group ${esc(path)}/, with everything in it" aria-label="Delete group">×</button></span>
     </li>${shut ? '' : tree(path, depth + 1) + flowsIn(path).map((f) => row(f, depth + 1)).join('')}`;
   }).join('');
   const unfiled = !cur && (store.doc.nodes.length || store.doc.scenarios.length)
@@ -260,6 +278,8 @@ el.addEventListener('click', async (ev) => {
   if (rn) return rename(rn.dataset.rn);
   const rmdir = ev.target.closest('[data-rmdir]');
   if (rmdir) return removeFolder(rmdir.dataset.rmdir);
+  const rndir = ev.target.closest('[data-rndir]');
+  if (rndir) return renameFolder(rndir.dataset.rndir);
   const newin = ev.target.closest('[data-newin]');
   if (newin) return create(newin.dataset.newin);
   const newfolder = ev.target.closest('[data-newfolder]');
