@@ -2,7 +2,8 @@
 // kept under examples/ and listed in examples/presets.json. A card says what is in one, as the
 // tree the sidebar would show; a flow's name opens just that flow on the page; Load it starts
 // over from the preset; and in a project folder, Add to this one writes the preset's flows in
-// beside what is already there.
+// beside what is already there. In a folder a preset lands under a group of its own name,
+// `advanced/orders/checkout.json`, so two presets, or a preset and your own flows, keep apart.
 import { store, load, setFile, emptyDoc } from './store.mjs';
 import { ask, notice, toast } from './dialog.mjs';
 import * as project from './project.mjs';
@@ -12,7 +13,10 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 const folderOf = (file) => (file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '');
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-let manifest = null;   // [{ id, name, description, dir?, flows: [{ file, doc }] }], fetched once
+let manifest = null;   // [{ id, name, description, dir?, flows: [{ file, doc }] }], fetched once; `file` is the path inside the preset's own group
+
+/** The group a preset's flows go under in a folder: its id, `advanced/`. */
+const groupOf = (p) => p.id;
 
 /** The presets with their flows read in. */
 export async function presets() {
@@ -20,7 +24,7 @@ export async function presets() {
   const { presets: list } = await (await fetch('examples/presets.json')).json();
   manifest = await Promise.all(list.map(async (p) => ({
     ...p,
-    flows: await Promise.all((p.flows ?? []).map(async (file) => ({ file, doc: await (await fetch(`${p.dir}/${file}`)).json() }))),
+    flows: await Promise.all((p.flows ?? []).map(async (file) => ({ file: `${groupOf(p)}/${file}`, doc: await (await fetch(`${p.dir}/${file}`)).json() }))),
   })));
   return manifest;
 }
@@ -41,14 +45,16 @@ export async function show() {
 const close = () => $('presetsDialog').close();
 
 function render(list) {
-  const inProject = !!project.project.info;
+  const info = project.project.info;
+  const inProject = !!info;
   $('presetsList').innerHTML = list.map((p) => {
     const groups = new Set();
     for (const f of p.flows) { let g = folderOf(f.file); while (g) { groups.add(g); g = folderOf(g); } }
     const meta = [plural(p.flows.length, 'flow'), groups.size && plural(groups.size, 'group')].filter(Boolean).join(', ');
+    const where = inProject && p.flows.length ? `<p class="where">In ${esc(info.dir)} it goes under <code>${esc(groupOf(p))}/</code>.</p>` : '';
     return `<div class="preset" data-preset="${esc(p.id)}">
       <div class="head"><h4>${esc(p.name)}</h4><span class="meta">${meta}</span></div>
-      <p>${esc(p.description)}</p>
+      <p>${esc(p.description)}</p>${where}
       ${tree(p)}
       <div class="buttons">
         <button type="button" class="primary" data-load="${esc(p.id)}">Load it</button>
@@ -104,7 +110,7 @@ async function loadPreset(p) {
     const inside = [have && plural(have, 'flow'), groups && plural(groups, 'group')].filter(Boolean).join(' and ');
     const ok = await ask({
       title: p.flows.length ? `Replace everything in ${info.dir} with the ${p.name} preset?` : `Empty ${info.dir}?`,
-      body: `The ${inside} there now are deleted first${p.flows.length ? `, then the preset's ${plural(p.flows.length, 'flow')} are written in` : ''}. If the folder is in git, the history still has what is there now.`,
+      body: `The ${inside} there now are deleted first${p.flows.length ? `, then the preset's ${plural(p.flows.length, 'flow')} are written in under ${groupOf(p)}/` : ''}. If the folder is in git, the history still has what is there now.`,
       ok: p.flows.length ? 'Replace' : 'Empty it', danger: true,
     });
     if (!ok) return;
@@ -125,7 +131,7 @@ async function addPreset(p) {
   try {
     const { written, skipped } = await project.putFlows(p.flows, { skipExisting: true });
     await project.refresh();
-    toast(written.length ? `Added ${plural(written.length, 'flow')}${skipped.length ? `; ${skipped.length} already there, left as ${skipped.length === 1 ? 'it was' : 'they were'}` : ''}` : 'Every flow of the preset is already in the folder', 4000);
+    toast(written.length ? `Added ${plural(written.length, 'flow')} under ${groupOf(p)}/${skipped.length ? `; ${skipped.length} already there, left as ${skipped.length === 1 ? 'it was' : 'they were'}` : ''}` : 'Every flow of the preset is already in the folder', 4000);
     if (written.length && !store.file && !store.doc.nodes.length) await project.open(written[0], { quiet: true });
   } catch (e) { await project.refresh(); notice('Could not add the preset', e.message); }
 }

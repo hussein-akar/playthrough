@@ -241,12 +241,14 @@ with list inputs, state set along the way and edges with labels and colours.
 | **Simple** | A shop in two flows, *Checkout* and *Returns*, at the root of the folder. |
 | **Advanced** | The same shop in six flows and three groups: `orders/` (checkout, payment), `fulfilment/` (pick and pack, delivery) and `after-sale/` (returns, refunds). List inputs, `where`, `count`, state, labelled and coloured edges, and a scenario for every branch. |
 
-Each card shows its flows as the tree the sidebar would show. A flow's name opens just that flow on
-the page, not in any file. **Load it** starts over from the preset: without a project folder the
-page shows the preset's first flow; with one, the folder is emptied, after a question that says
-how much is in it, and the preset's flows are written in, groups and all. **Add to this one**
-(only with a folder) writes the preset's flows in beside what is there, leaving alone any file
-that already exists.
+Each card shows its flows as the tree the sidebar would show. In a folder a preset lands under a
+group of its own name, so the Advanced one is `advanced/orders/checkout.json` and so on, and two
+presets, or a preset and your own flows, keep apart. A flow's name opens just that flow on the
+page, not in any file. **Load it** starts over from the preset: without a project folder the page
+shows the preset's first flow; with one, the folder is emptied, after a question that says how much
+is in it, and the preset's flows are written in, groups and all. **Add to this one** (only with a
+folder) writes the preset's flows in beside what is there, leaving alone any file that already
+exists.
 
 *Import* takes a flow's JSON pasted into a box and puts it on the page. *Export* shows the flow
 on the page as JSON, and puts it on the clipboard, to paste into another page's Import or into a
