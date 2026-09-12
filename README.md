@@ -180,7 +180,7 @@ starts a new file, and a `/` in its name puts it in a group, made if it is not t
 (`Billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty
 group, named as you type it; **Save** (or ⌘S) writes the open flow back to its file, and a flow that came in through
 **New**, **Open…**, **Import**, a preset or a link is added to the folder the first time it is saved. On a
-row, ✎ renames the file (a `/` moves it; the flow keeps its own name) and × deletes it; a group's
+row, ✎ renames the file, as typed with `.json` at the end (a `/` moves it; the flow keeps its own name) and × deletes it; a group's
 ✎ renames the folder, with everything in it coming along (a `/` moves it under other groups), and
 its × deletes it with everything in it, after saying how much that is. The project's name sits in the header, in place of the flow's: type there
 to name it once, and it is kept in `project.json`; until then the folder's name is used. **Flows** in the header hides the sidebar.

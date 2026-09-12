@@ -9,10 +9,10 @@ const fresh = () => mkdtemp(join(tmpdir(), 'playthrough-'));
 const example = JSON.parse(await readFile(new URL('../examples/simple/checkout.json', import.meta.url), 'utf8'));
 
 test('file names: good segments, .json at the end, never a dot-file or a walk up the tree', () => {
-  assert.equal(fileFor('Pick and pack'), 'pick-and-pack.json');
+  assert.equal(fileFor('Pick and pack'), 'Pick and pack.json', 'the name as typed');
   assert.equal(fileFor('  ??  '), 'flow.json');
-  assert.equal(fileFor('Billing / Refund intake'), 'Billing/refund-intake.json', 'slashes name the folders on the way, kept as typed');
-  assert.equal(fileFor('Sales Orders!/ Q1 / Checkout'), 'Sales Orders/Q1/checkout.json');
+  assert.equal(fileFor('Billing / Refund intake'), 'Billing/Refund intake.json', 'slashes name the folders on the way');
+  assert.equal(fileFor('Sales Orders!/ Q1 / Checkout?'), 'Sales Orders/Q1/Checkout.json', 'less what a path cannot hold');
   assert.ok(isFlowFile('a-b.json'));
   assert.ok(isFlowFile('a/b.json'));
   assert.ok(isFlowFile('a/b/c.json'));
@@ -39,11 +39,11 @@ test('flows live in folders: listed as a tree, created inside one, moved between
   assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['billing/refunds/intake.json', 'root.json']);
   assert.deepEqual(await listFolders(dir), ['billing', 'billing/holds', 'billing/refunds']);
   // rename keeps the folder; a folder argument moves; slashes in the name spell the folders
-  assert.equal((await renameFlow(dir, 'billing/refunds/intake.json', 'Refund intake')).file, 'billing/refunds/refund-intake.json');
-  assert.equal((await renameFlow(dir, 'billing/refunds/refund-intake.json', 'refund-intake', 'billing/holds')).file, 'billing/holds/refund-intake.json');
+  assert.equal((await renameFlow(dir, 'billing/refunds/intake.json', 'Refund intake')).file, 'billing/refunds/Refund intake.json');
+  assert.equal((await renameFlow(dir, 'billing/refunds/Refund intake.json', 'Refund intake', 'billing/holds')).file, 'billing/holds/Refund intake.json');
   assert.equal((await renameFlow(dir, 'root.json', 'root', '')).file, 'root.json');
   assert.equal((await renameFlow(dir, 'root.json', 'archive/old/root')).file, 'archive/old/root.json');
-  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['archive/old/root.json', 'billing/holds/refund-intake.json']);
+  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['archive/old/root.json', 'billing/holds/Refund intake.json']);
   await assert.rejects(deleteFolder(dir, 'billing/holds'), (e) => e.code === 'NOTEMPTY');
   await deleteFolder(dir, 'billing/refunds');
   assert.deepEqual(await listFolders(dir), ['archive', 'archive/old', 'billing', 'billing/holds']);
@@ -51,6 +51,7 @@ test('flows live in folders: listed as a tree, created inside one, moved between
   assert.deepEqual(await listFolders(dir), ['archive', 'archive/old']);
   assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['archive/old/root.json']);
   await assert.rejects(createFolder(dir, '../out'), (e) => e.code === 'BADNAME');
+  assert.equal((await renameFlow(dir, 'archive/old/root.json', '../up')).file, 'up.json', 'a name cannot walk up the tree: the dots are no folder, so this is a path to the root');
 });
 
 test('a group is renamed with everything in it, in place or under other groups, never onto another or into itself', async () => {
@@ -67,6 +68,9 @@ test('a group is renamed with everything in it, in place or under other groups, 
   assert.deepEqual(await renameFolder(dir, 'pending', 'pending', 'Sales Orders'), { folder: 'Sales Orders/pending' });
   assert.deepEqual(await listFolders(dir), ['archive', 'Sales Orders', 'Sales Orders/pending']);
   assert.deepEqual(await renameFolder(dir, 'archive', 'archive'), { folder: 'archive' }, 'same name: nothing happens');
+  assert.deepEqual(await renameFolder(dir, 'archive', 'Archive'), { folder: 'Archive' }, 'a change of case only is a rename, even where the disk ignores case');
+  assert.deepEqual(await listFolders(dir), ['Archive', 'Sales Orders', 'Sales Orders/pending']);
+  assert.deepEqual(await renameFolder(dir, 'Archive', 'archive'), { folder: 'archive' });
   await assert.rejects(renameFolder(dir, 'Sales Orders', 'archive'), (e) => e.code === 'EXISTS');
   await assert.rejects(renameFolder(dir, 'archive', 'archive/inside'), (e) => e.code === 'BADNAME');
   await assert.rejects(renameFolder(dir, 'Sales Orders', 'Sales Orders', 'Sales Orders/pending'), (e) => e.code === 'BADNAME', 'nor under one of its own groups');
@@ -102,13 +106,15 @@ test('rename makes the file name from the new name, keeps the mtime, and will no
   const dir = await fresh();
   const mtime = await writeFlow(dir, 'old-name.json', { name: 'Old name' });
   await writeFlow(dir, 'taken.json', { name: 'Taken' });
-  const r = await renameFlow(dir, 'old-name.json', 'New Name!');
-  assert.equal(r.file, 'new-name.json');
+  const r = await renameFlow(dir, 'old-name.json', ' New Name! ');
+  assert.equal(r.file, 'New Name.json');
   assert.equal(Math.round(r.mtime), Math.round(mtime));
-  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['new-name.json', 'taken.json']);
-  assert.equal((await readFlow(dir, 'new-name.json')).doc.name, 'Old name');   // the flow's own name is not the file's
-  await assert.rejects(renameFlow(dir, 'new-name.json', 'taken'), (e) => e.code === 'EXISTS');
-  assert.deepEqual(await renameFlow(dir, 'new-name.json', 'new name'), { file: 'new-name.json', mtime: r.mtime });   // same name: nothing happens
+  assert.deepEqual((await listFlows(dir)).map((f) => f.file), ['New Name.json', 'taken.json']);
+  assert.equal((await readFlow(dir, 'New Name.json')).doc.name, 'Old name');   // the flow's own name is not the file's
+  await assert.rejects(renameFlow(dir, 'New Name.json', 'taken'), (e) => e.code === 'EXISTS');
+  assert.equal((await renameFlow(dir, 'New Name.json', 'new name')).file, 'new name.json', 'a change of case only is a rename, even where the disk ignores case');
+  assert.equal((await renameFlow(dir, 'new name.json', 'New Name')).file, 'New Name.json');
+  assert.deepEqual(await renameFlow(dir, 'New Name.json', 'New Name'), { file: 'New Name.json', mtime: r.mtime });   // same name: nothing happens
   await assert.rejects(renameFlow(dir, 'missing.json', 'x'), (e) => e.code === 'ENOENT');
   await assert.rejects(renameFlow(dir, '../x.json', 'x'), (e) => e.code === 'BADNAME');
 });

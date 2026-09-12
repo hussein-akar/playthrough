@@ -122,7 +122,7 @@ export async function create(folder = '') {
 /** Another file name for a flow, made from what is typed the way a new file's name is; slashes move it into folders. */
 export async function rename(file) {
   const current = leaf(file).replace(/\.json$/, '');
-  const name = await prompt({ title: `Rename ${file}`, body: 'The file name is made from this: lower-case, words joined by dashes, .json at the end. A / puts it in a group, Billing/intake, made if it is not there yet. The flow keeps its own name.', value: current, ok: 'Rename' });
+  const name = await prompt({ title: `Rename ${file}`, body: 'The file is named as you type it, .json at the end. A / puts it in a group, Billing/Intake, made if it is not there yet. The flow keeps its own name.', value: current, ok: 'Rename' });
   if (name == null) return;
   return move(file, { name });
 }
