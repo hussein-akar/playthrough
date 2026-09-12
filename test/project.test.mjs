@@ -15,6 +15,8 @@ test('file names: good segments, .json at the end, never a dot-file or a walk up
   assert.ok(isFlowFile('a-b.json'));
   assert.ok(isFlowFile('a/b.json'));
   assert.ok(isFlowFile('a/b/c.json'));
+  assert.ok(isFlowFile('Shop Returns Automation/flow-1.json'), 'a folder made by hand may have spaces');
+  assert.ok(!isFlowFile(' a/b.json'));
   assert.ok(!isFlowFile('../a.json'));
   assert.ok(!isFlowFile('a/../b.json'));
   assert.ok(!isFlowFile('.hidden.json'));
