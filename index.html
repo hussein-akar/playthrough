@@ -224,11 +224,13 @@
   .node.stuck .box { stroke: var(--bad); stroke-width: 3; fill: #fff0f0; }
   .node.untouched .box { stroke-dasharray: 4 4; opacity: .55; }
   .node.untouched text { opacity: .6; }
-  /* The dots on a node's sides: hidden until the node is hovered or selected, all out while a wire is being dragged. */
-  .port { cursor: crosshair; }
+  /* The dots on a node's sides: shown on the selected node, and on the node under the pointer while a
+     wire is being dragged; hidden dots take no presses, so the border of any other node just drags it. */
+  .port { cursor: crosshair; pointer-events: none; }
+  .node.selected .port, #stage svg.connecting .port { pointer-events: auto; }
   .port .hit { fill: transparent; }
   .port .dot { fill: #fff; stroke: var(--faint); stroke-width: 1.5; opacity: 0; transition: opacity .1s, r .08s; }
-  .node:hover .port .dot, .node.selected .port .dot, #stage svg.connecting .port .dot { opacity: 1; }
+  .node.selected .port .dot, #stage svg.connecting .node:hover .port .dot { opacity: 1; }
   .port:hover .dot { r: 7; stroke: var(--accent); }
   .port.src .dot, .port.hot .dot { opacity: 1; fill: var(--accent); stroke: var(--accent); }
   .badge { pointer-events: none; }
@@ -554,7 +556,7 @@
       <span class="sep"></span>
       <button class="small" data-zoom="tidy" title="Lay the flow out left to right from the start node">Tidy</button>
     </div>
-    <div id="hint">Drag a shape in from the left · drag on empty canvas to select · Space-drag or wheel to pan · ⌘-wheel or pinch to zoom · drag from a dot on a node's side to a dot on another node to connect them · Delete removes the selection</div>
+    <div id="hint">Drag a shape in from the left · drag on empty canvas to select · Space-drag or wheel to pan · ⌘-wheel or pinch to zoom · select a node and drag from a dot on its side to another node to connect them · Delete removes the selection</div>
   </div>
 
   <div id="panelResizer" class="resizer" title="Drag to resize the panel"></div>
@@ -591,7 +593,7 @@
         <tr><td><kbd>drag</kbd> empty canvas</td><td>rubber-band select (<kbd>Shift</kbd> adds to the selection)</td></tr>
         <tr><td><kbd>Space</kbd>+<kbd>drag</kbd> · middle button · <kbd>wheel</kbd></td><td>pan</td></tr>
         <tr><td><kbd>⌘</kbd>+<kbd>wheel</kbd> · pinch</td><td>zoom</td></tr>
-        <tr><td><kbd>drag</kbd> from a dot on a node's side to a dot on another node</td><td>connect them · the wire leaves and arrives on those sides</td></tr>
+        <tr><td><kbd>drag</kbd> from a dot on the selected node's side to another node</td><td>connect them · the wire leaves and arrives on those sides; the dots show on the selected node, and on the node under the pointer while a wire is out</td></tr>
         <tr><td><kbd>drag</kbd> an end of the selected wire</td><td>move that end to another dot or node</td></tr>
         <tr><td><kbd>drag</kbd> a wire</td><td>pull it through that point, out of the way · <kbd>double-click</kbd> straightens it</td></tr>
         <tr><td><kbd>drag</kbd> a wire's pill</td><td>slide the label along the wire · <kbd>double-click</kbd> puts it back in the middle</td></tr>

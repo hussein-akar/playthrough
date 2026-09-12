@@ -139,7 +139,7 @@ scenario for the else branch" is the sentence you want before the code exists.
 | drag empty canvas | rubber-band select (Shift adds to the selection) |
 | Space-drag · middle button · wheel | pan |
 | ⌘-wheel · pinch | zoom |
-| drag from a dot on a node's side to a dot on another node | connect them, on those sides |
+| drag from a dot on the selected node's side to another node | connect them, on those sides; the dots show on the selected node, and under the pointer while a wire is out |
 | drag an end of the selected wire | move that end to another dot or node |
 | drag a wire | pull it through that point, out of the way; double-click straightens it |
 | drag a wire's pill | slide the label along the wire; double-click puts it back in the middle |
