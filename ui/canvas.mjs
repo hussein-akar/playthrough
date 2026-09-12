@@ -67,20 +67,57 @@ export function edgePath(a, b, fromSide, toSide, shape, via) {
   const na = NORMAL[fs], nb = NORMAL[ts];
   if (shape === 'square') {
     const pts = via ? viaRoute(p, q, na, nb, via) : squareRoute(p, q, na, nb, a, b);
-    return { d: rounded(pts), mid: midOf(pts), pts };
+    return { d: rounded(pts), mid: midOf(pts), pts, poly: pts };
   }
+  const cubic = (a, c1, c2, b) => ({ d: `C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${b.x},${b.y}`, poly: sample(a, c1, c2, b) });
   if (via) {
     const d1 = reach(p, via), d2 = reach(via, q), len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
     const t = { x: (q.x - p.x) / len, y: (q.y - p.y) / len }, k = Math.min(d1, d2) * 0.6;
-    return {
-      d: `M${p.x},${p.y} C${p.x + na[0] * d1},${p.y + na[1] * d1} ${via.x - t.x * k},${via.y - t.y * k} ${via.x},${via.y} C${via.x + t.x * k},${via.y + t.y * k} ${q.x + nb[0] * d2},${q.y + nb[1] * d2} ${q.x},${q.y}`,
-      mid: [via.x, via.y],
-    };
+    const s1 = cubic(p, [p.x + na[0] * d1, p.y + na[1] * d1], [via.x - t.x * k, via.y - t.y * k], via);
+    const s2 = cubic(via, [via.x + t.x * k, via.y + t.y * k], [q.x + nb[0] * d2, q.y + nb[1] * d2], q);
+    return { d: `M${p.x},${p.y} ${s1.d} ${s2.d}`, mid: [via.x, via.y], poly: [...s1.poly, ...s2.poly.slice(1)] };
   }
   const d = reach(p, q);
   const p1 = [p.x + na[0] * d, p.y + na[1] * d], p2 = [q.x + nb[0] * d, q.y + nb[1] * d];
   const mid = [(p.x + 3 * p1[0] + 3 * p2[0] + q.x) / 8, (p.y + 3 * p1[1] + 3 * p2[1] + q.y) / 8];
-  return { d: `M${p.x},${p.y} C${p1[0]},${p1[1]} ${p2[0]},${p2[1]} ${q.x},${q.y}`, mid };
+  const seg = cubic(p, p1, p2, q);
+  return { d: `M${p.x},${p.y} ${seg.d}`, mid, poly: seg.poly };
+}
+
+/** A cubic curve as a run of points, close enough to slide a pill along. */
+function sample(a, c1, c2, b, n = 24) {
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t;
+    out.push({ x: u * u * u * a.x + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * b.x, y: u * u * u * a.y + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * b.y });
+  }
+  return out;
+}
+
+/** The point a fraction `f` of the way along a polyline, by length. */
+function alongAt(pts, f) {
+  const lens = pts.slice(1).map((c, i) => Math.hypot(c.x - pts[i].x, c.y - pts[i].y));
+  let left = Math.max(0, Math.min(1, f)) * lens.reduce((s, l) => s + l, 0);
+  for (let i = 0; i < lens.length; i++) {
+    if (left <= lens[i] || i === lens.length - 1) { const t = lens[i] ? Math.min(1, left / lens[i]) : 0; return [pts[i].x + (pts[i + 1].x - pts[i].x) * t, pts[i].y + (pts[i + 1].y - pts[i].y) * t]; }
+    left -= lens[i];
+  }
+  return [pts[0].x, pts[0].y];
+}
+
+/** The fraction of the way along a polyline, by length, of the point nearest to V. */
+function fractionNear(pts, V) {
+  const lens = pts.slice(1).map((c, i) => Math.hypot(c.x - pts[i].x, c.y - pts[i].y));
+  const total = lens.reduce((s, l) => s + l, 0) || 1;
+  let best = 0, bd = Infinity, run = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((V.x - a.x) * dx + (V.y - a.y) * dy) / l2));
+    const d = Math.hypot(V.x - (a.x + dx * t), V.y - (a.y + dy * t));
+    if (d < bd) { bd = d; best = (run + lens[i - 1] * t) / total; }
+    run += lens[i - 1];
+  }
+  return best;
 }
 
 /** How far a smooth wire runs out of its ports before bending: half the distance, but capped so a long wire is straight in the middle rather than one huge S. */
@@ -214,7 +251,7 @@ export function render() {
   for (const e of doc.edges) {
     const a = gs.get(e.from), b = gs.get(e.to);
     if (!a || !b || connecting?.edge === e.id) continue;   // a wire whose end is in hand is drawn as the preview
-    const { d, mid } = edgePath(a, b, e.fromSide, e.toSide, e.shape, e.via);
+    const { d, mid, poly } = edgePath(a, b, e.fromSide, e.toSide, e.shape, e.via);
     mids.set(e.id, mid);
     const sel = selection?.type === 'edge' && selection.id === e.id;
     const on = edgesOn.has(e.id);
@@ -230,9 +267,9 @@ export function render() {
     const tip = label && (when || e.else) ? `${label} · ${e.else ? 'else' : when}` : full;
     out += `<g class="${cls}" data-edge="${e.id}"><title>${esc(tip)}</title><path class="grab" d="${d}"/><path class="wire" d="${d}" marker-end="url(#${marker})"/>`;
     if (text) {
-      // The pill sits on the wire's middle unless it has been moved, in which case it keeps that
-      // distance from the middle and follows the wire around.
-      const w = text.length * 6.6 + 14, at = e.labelOff ? [mid[0] + e.labelOff.dx, mid[1] + e.labelOff.dy] : mid;
+      // The pill sits at the wire's middle unless it has been slid along the wire, in which case it
+      // keeps its place along the wire's length, wherever the wire goes.
+      const w = text.length * 6.6 + 14, at = e.labelAt != null ? alongAt(poly, e.labelAt) : mid;
       out += `<g class="label"><rect x="${at[0] - w / 2}" y="${at[1] - 10}" width="${w}" height="20"/><text x="${at[0]}" y="${at[1] + 4}" text-anchor="middle">${esc(text)}</text></g>`;
     }
     out += `</g>`;
@@ -426,8 +463,8 @@ svg.addEventListener('pointerdown', (ev) => {
   } else if (edgeEl) {
     const id = edgeEl.dataset.edge;
     // Pressing a wire selects it and picks it up in the same gesture: moving the pointer pulls the
-    // wire through wherever it is dropped, a plain click just selects. Pressing its pill picks up
-    // the pill alone, so the label can be moved clear of whatever it sits on.
+    // wire through wherever it is dropped, a plain click just selects. Pressing its pill slides the
+    // pill along the wire instead, so the label can sit clear of whatever it was on.
     if (!(store.selection?.type === 'edge' && store.selection.id === id)) select({ type: 'edge', id });
     drag = { mode: ev.target.closest('.label') ? 'label' : 'bend', id, start: w, moved: false };
   } else {
@@ -526,7 +563,7 @@ function dragTo(ev) {
   } else if (drag.mode === 'label') {
     if (!drag.moved) { if (Math.hypot(w.x - drag.start.x, w.y - drag.start.y) * store.view.k < 3) return; drag.moved = true; mark(); svg.classList.add('moving'); }
     const e = store.doc.edges.find((e) => e.id === drag.id), a = e && geom(store.doc.nodes.find((n) => n.id === e.from)), b = e && geom(store.doc.nodes.find((n) => n.id === e.to));
-    if (a && b) { const { mid } = edgePath(a, b, e.fromSide, e.toSide, e.shape, e.via); e.labelOff = { dx: Math.round(w.x - mid[0]), dy: Math.round(w.y - mid[1]) }; render(); }
+    if (a && b) { const { poly } = edgePath(a, b, e.fromSide, e.toSide, e.shape, e.via); e.labelAt = Math.round(fractionNear(poly, w) * 1000) / 1000; render(); }
   } else if (drag.mode === 'marquee') {
     marquee.x1 = w.x; marquee.y1 = w.y;
     if (!drag.moved && Math.abs(w.x - marquee.x0) * store.view.k + Math.abs(w.y - marquee.y0) * store.view.k > 3) { drag.moved = true; svg.classList.add('selecting'); }
@@ -585,7 +622,7 @@ svg.addEventListener('dblclick', (ev) => {
   if (edgeEl) {
     // A double-click on the pill puts it back on the wire; on the wire, it straightens a pull.
     const id = edgeEl.dataset.edge, e = store.doc.edges.find((e) => e.id === id);
-    if (ev.target.closest('.label')) { if (e?.labelOff) commit((d) => { delete d.edges.find((e) => e.id === id).labelOff; }); }
+    if (ev.target.closest('.label')) { if (e?.labelAt != null) commit((d) => { delete d.edges.find((e) => e.id === id).labelAt; }); }
     else if (e?.via) commit((d) => { delete d.edges.find((e) => e.id === id).via; });
     return;
   }
@@ -876,7 +913,7 @@ export function tidy() {
     for (const n of d.nodes) { const p = pos.get(n.id); if (p) { n.x = p.x; n.y = p.y - minY + 40; } }
     const bypass = new Set(chains.map((c) => `${c.from}>${c.to}`));
     for (const e of d.edges) {
-      delete e.fromSide; delete e.toSide; delete e.via; delete e.labelOff;
+      delete e.fromSide; delete e.toSide; delete e.via; delete e.labelAt;
       if (bypass.has(`${e.from}>${e.to}`)) { e.fromSide = 'bottom'; e.toSide = 'bottom'; }
     }
   });

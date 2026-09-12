@@ -114,7 +114,7 @@ scenario for the else branch" is the sentence you want before the code exists.
 | drag from a dot on a node's side to a dot on another node | connect them, on those sides |
 | drag an end of the selected wire | move that end to another dot or node |
 | drag a wire | pull it through that point, out of the way; double-click straightens it |
-| drag a wire's pill | move the label on its own; double-click puts it back |
+| drag a wire's pill | slide the label along the wire; double-click puts it back in the middle |
 | Shift-click a node | add it to the selection, or take it out |
 | ⌘A | select every node |
 | ⌘C · ⌘X · ⌘V · ⌘D | copy · cut · paste (at the pointer) · duplicate the selected nodes |
