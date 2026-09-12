@@ -6,12 +6,12 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, relative } from 'node:path';
-import { openProject, listFlows, listFolders, readFlow, writeFlow, deleteFlow, renameFlow, createFolder, deleteFolder, fileFor, under } from './lib/project.mjs';
+import { openProject, setProjectName, listFlows, listFolders, readFlow, writeFlow, deleteFlow, renameFlow, createFolder, deleteFolder, fileFor, under } from './lib/project.mjs';
 
 const root = new URL('.', import.meta.url).pathname;
 const port = Number(process.env.PORT ?? 8095);
 const dirArg = process.argv[2] ?? process.env.PLAYTHROUGH_DIR;
-const project = dirArg ? await openProject(dirArg) : null;
+const project = dirArg ? await openProject(dirArg) : null;   // its name is updated in place when renamed
 // The folder as the page names it: relative when it is inside the working directory, else in full.
 const shownDir = project ? (() => { const r = relative(process.cwd(), project.dir); return r && !r.startsWith('..') ? r : project.dir; })() : null;
 
@@ -40,6 +40,7 @@ async function api(req, res, url) {
   const [, what, raw, verb] = m;
   const file = raw == null ? null : decodeURIComponent(raw);
   try {
+    if (what === 'project' && req.method === 'PUT') { const { name } = JSON.parse(await readBody(req) || '{}'); const r = await setProjectName(project.dir, name); project.name = r.name; return send(res, 200, r); }
     if (what === 'project' && req.method === 'GET') return send(res, 200, { name: project.name, dir: shownDir, flows: await listFlows(project.dir), folders: await listFolders(project.dir) });
     if (what === 'folders' && !file && req.method === 'POST') { const { path } = JSON.parse(await readBody(req) || '{}'); return send(res, 201, await createFolder(project.dir, path)); }
     if (what === 'folders' && file && req.method === 'DELETE') return send(res, 200, await deleteFolder(project.dir, file));

@@ -20,7 +20,11 @@ subscribe(() => {
 
 function renderHeader() {
   const { doc, results } = store;
+  // In a project the header names the project; the flow's own name lives in its panel and the sidebar.
+  const info = project.project.info;
+  $('docName').hidden = !!info; $('projectName').hidden = !info;
   if (document.activeElement !== $('docName')) $('docName').value = doc.name;
+  if (info && document.activeElement !== $('projectName')) $('projectName').value = info.name;
   const n = doc.scenarios.length;
   const p = results?.passed ?? 0;
   const problems = store.problems.length;
@@ -31,7 +35,7 @@ function renderHeader() {
   $('redo').disabled = !store.redo.length;
   $('saveDoc').classList.toggle('dirty', store.dirty);
   $('saveDoc').title = store.dirty ? 'Changed since the last save' : '';
-  document.title = `${store.dirty ? '• ' : ''}${doc.name || 'Untitled flow'} – Playthrough`;
+  document.title = `${store.dirty ? '• ' : ''}${doc.name || 'Untitled flow'}${info ? ` · ${info.name}` : ''} – Playthrough`;
   $('coverage').classList.toggle('on', store.showCoverage);
   if (store.showCoverage && results) {
     const u = results.coverage.untouchedNodes.length + results.coverage.untouchedEdges.length;
@@ -61,6 +65,8 @@ async function copy(text, what) {
 // ---- header -----------------------------------------------------------------------------------
 
 $('docName').addEventListener('input', (ev) => commit((d) => { d.name = ev.target.value; }));
+$('projectName').addEventListener('change', (ev) => project.renameProject(ev.target.value));
+$('projectName').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ev.target.blur(); });
 /** New/Example throw the current drawing away; when it is not in a file yet, ask first. */
 async function replaceable(what) {
   if (!store.dirty || !store.doc.nodes.length) return true;

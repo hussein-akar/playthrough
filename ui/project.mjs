@@ -94,6 +94,13 @@ function saved(file, mtime) {
   return true;
 }
 
+/** Name the project; it is written to project.json in the folder. */
+export async function renameProject(name) {
+  if (!project.info) return;
+  try { const r = await call('PUT', '/api/project', { name }); project.info.name = r.name; render(); }
+  catch (e) { notice('Could not name the project', e.message); }
+}
+
 /** A fresh, empty flow, in `folder` (the root by default). */
 export async function create(folder = '') {
   if (!await hooks.replaceable('Start a new flow')) return;
