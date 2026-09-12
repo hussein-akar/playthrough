@@ -401,7 +401,21 @@
   dialog.sheet .fields { margin: -2px 0 12px 20px; padding-left: 12px; border-left: 2px solid var(--line); }
   dialog.sheet .actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-top: 6px; }
   dialog.sheet .actions .muted, dialog.sheet .muted { font-size: var(--fs-sm); line-height: 1.5; }
-  #inspector .summary-list > div { padding: 3px 0; font-size: var(--fs-sm); }
+  /* The panel's flow view: a card per section, its items as rows that open the settings sheet. */
+  #inspector .card { margin: 14px 0; padding: 10px 12px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
+  #inspector .card .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  #inspector .card .head h3 { flex: 1; margin: 0; font-size: var(--fs); font-weight: 600; }
+  #inspector .card .head .count { min-width: 18px; height: 18px; padding: 0 5px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); font-size: var(--fs-xs); line-height: 16px; text-align: center; color: var(--muted); }
+  #inspector .card .head .pencil { width: 24px; height: 24px; color: var(--muted); }
+  #inspector .card .head .pencil svg { width: 14px; height: 14px; }
+  #inspector .card .item { display: flex; align-items: center; gap: 8px; width: 100%; height: auto; margin-bottom: 4px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r1); background: var(--panel); text-align: left; font-weight: 400; white-space: normal; }
+  #inspector .card .item:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+  #inspector .card .item .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  #inspector .card .item .detail { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: var(--fs-xs); color: var(--muted); }
+  #inspector .card .item .chev { flex: 0 0 auto; color: var(--faint); }
+  #inspector .card .empty { padding: 2px 0 6px; }
+  #inspector .card .foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+  #inspector .card > .muted { line-height: 1.5; }
   dialog table.keys { border-collapse: collapse; font-size: var(--fs); }
   dialog table.keys td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
   dialog table.keys tr:last-child td { border-bottom: 0; }
