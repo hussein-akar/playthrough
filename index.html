@@ -344,8 +344,8 @@
   /* ==== scenarios ============================================================================= */
   #scenarios { position: relative; grid-column: 1 / -1; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-top: 1px solid var(--line); }
   /* The grip on the table's top edge: a band to drag, a pill in its middle saying so, as on a drawer. */
-  #tableResizer { position: absolute; top: -4px; left: 0; right: 0; height: 9px; z-index: 5; cursor: row-resize; }
-  #tableResizer i { position: absolute; top: 2px; left: 50%; width: 44px; height: 4px; border-radius: 2px; background: var(--faint); opacity: .55; transform: translateX(-50%); transition: background .1s, opacity .1s; }
+  #tableResizer { position: absolute; top: 0; left: 0; right: 0; height: 12px; z-index: 5; cursor: row-resize; }
+  #tableResizer i { position: absolute; top: 5px; left: 50%; width: 44px; height: 4px; border-radius: 2px; background: var(--faint); opacity: .55; transform: translateX(-50%); transition: background .1s, opacity .1s; }
   #tableResizer:hover i, #tableResizer.on i { background: var(--accent); opacity: 1; }
   #scenarios .bar { display: flex; align-items: center; gap: 10px; flex: none; height: 36px; padding: 0 var(--s3); border-bottom: 1px solid var(--line); }
   #scenarios .bar h2 { margin: 0; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
