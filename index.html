@@ -283,6 +283,12 @@
   #inspector .fields .actions { margin-top: 4px; }
   #inspector .fields .actions .muted { flex: 1 1 160px; }
   textarea.records { font-family: var(--mono); font-size: var(--fs-sm); min-height: 72px; }
+  /* The records of a list input as rows of controls, one per record, the field names once above. */
+  #inspector .records .rec { margin-bottom: 4px; }
+  #inspector .records .rec.head { margin-bottom: 2px; font-size: var(--fs-xs); color: var(--muted); }
+  #inspector .records .rec.head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #inspector .records .rec.head > .x { flex: 0 0 var(--ctl); }
+  #inspector .records .actions { margin-top: 2px; }
   #table input.records { font-family: var(--mono); font-size: var(--fs-xs); }
   #inspector .row > select.insert { flex: 0 0 auto; width: 92px; color: var(--muted); font-size: var(--fs-sm); }
   #inspector .checks label { display: flex; gap: 8px; align-items: center; margin: 0; padding: 4px 0; font-size: var(--fs); color: var(--ink); }

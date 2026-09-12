@@ -4,7 +4,7 @@
 import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check } from '../lib/expr.mjs';
-import { knownNames, listsOf } from '../lib/run.mjs';
+import { knownNames, listsOf, parseRecords } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -168,7 +168,7 @@ function scenarioView(doc, s) {
     <div class="field"><label>Name</label><input type="text" data-scn="name" value="${esc(s.name)}"></div>
     <div class="field"><label>Tags <span class="muted">· comma-separated; the table can be narrowed to one</span></label><input type="text" data-scn="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12"></div>
     <h2>Inputs</h2>
-    ${doc.inputs.map((i) => `<div class="field"><label>${esc(i.name)}</label>${inputControl(i, s.inputs[i.name], `data-scn-input="${esc(i.name)}"`)}</div>`).join('') || '<div class="muted">The flow declares no inputs yet.</div>'}
+    ${doc.inputs.map((i) => `<div class="field"><label>${esc(i.name)}${i.type === 'list' ? recordsToggle(i, s.inputs[i.name]) : ''}</label>${i.type === 'list' && !recordsAsText.has(i.name) && readable(i, s.inputs[i.name]) ? recordsForm(i, s.inputs[i.name]) : inputControl(i, s.inputs[i.name], `data-scn-input="${esc(i.name)}"`)}</div>`).join('') || '<div class="muted">The flow declares no inputs yet.</div>'}
     <h2>Expected actions <span class="muted">· in flow order; ✓ happened in the last run</span></h2>
     <div class="checks">${actions.map((a) => `<label><input type="checkbox" data-scn-action="${esc(a)}" ${want.has(a) ? 'checked' : ''}> <span>${esc(a)}</span><span class="did"></span></label>`).join('') || '<div class="muted">No action nodes in the flow yet.</div>'}</div>
     <h2>Expected landing</h2>
@@ -202,6 +202,45 @@ export function flowOrder(doc) {
     return post.reverse();
   };
   return walk(doc.nodes.filter((n) => n.kind === 'start').map((n) => n.id)).concat(walk(doc.nodes.map((n) => n.id)));
+}
+
+// ---- the records of a list input -------------------------------------------------------------
+// The fields are declared, so a scenario fills a row of controls per record and presses Add for
+// the next one. The text form underneath is what is stored (and what the table shows), so the
+// two stay interchangeable; text that the form cannot read is edited as text.
+
+const recordsAsText = new Set();   // list inputs the user chose to edit as text
+const readable = (i, value) => { try { parseRecords(value, i.fields ?? []); return true; } catch { return false; } };
+
+function recordsToggle(i, value) {
+  if (!readable(i, value)) return ' <span class="muted">· could not be read as records; fix the text</span>';
+  return recordsAsText.has(i.name) ? `<button class="link" data-act="records-form" data-list="${esc(i.name)}">use the form</button>` : `<button class="link" data-act="records-text" data-list="${esc(i.name)}">edit as text</button>`;
+}
+
+function recordsForm(i, value) {
+  const fields = (i.fields ?? []).filter((f) => f.name);
+  const records = parseRecords(value, fields);
+  const cell = (f, v) => inputControl(f, v, `data-rf="${esc(f.name)}" title="${esc(f.name)}" placeholder="${esc(f.name)}"`);
+  return `<div class="records" data-records="${esc(i.name)}">
+    ${records.length ? `<div class="row rec head">${fields.map((f) => `<span>${esc(f.name)}</span>`).join('')}<span class="x"></span></div>` : ''}
+    ${records.map((r, k) => `<div class="row rec" data-rec="${k}">${fields.map((f) => cell(f, r[f.name])).join('')}<button class="icon danger" data-act="rm-rec" title="Remove this record">×</button></div>`).join('')}
+    <div class="actions"><button class="small" data-act="add-rec">+ Add</button>${records.length ? '' : '<span class="muted">no records: an empty list</span>'}</div>
+  </div>`;
+}
+
+/** The records as the text that is stored: one per line, every field named, values that need it quoted. */
+function recordsText(records, fields) {
+  const word = (v) => (v == null ? '' : typeof v === 'boolean' ? (v ? 'yes' : 'no') : /[,;"\n]/.test(String(v)) ? JSON.stringify(String(v)) : String(v));
+  return records.map((r) => fields.map((f) => `${f.name}=${word(r[f.name])}`).join(', ')).join('\n');
+}
+
+/** What the form says right now, written back into the scenario. */
+function applyRecords(box) {
+  const name = box.dataset.records, i = store.doc.inputs.find((x) => x.name === name);
+  if (!i) return;
+  const fields = (i.fields ?? []).filter((f) => f.name);
+  const records = [...box.querySelectorAll('.rec[data-rec]')].map((row) => Object.fromEntries(fields.map((f) => [f.name, row.querySelector(`[data-rf="${CSS.escape(f.name)}"]`)?.value ?? ''])));
+  commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); s.inputs[name] = recordsText(records, fields); });
 }
 
 export function inputControl(i, value, attrs, compact = false) {
@@ -344,6 +383,7 @@ el.addEventListener('input', (ev) => {
   if (d.edge === 'when' || d.edge === 'label') return commit((doc) => { const e = doc.edges.find((e) => e.id === store.selection.id); e[d.edge] = t.value; });
   if (d.scn) return commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); if (d.scn === 'end') s.expect.end = t.value; else if (d.scn === 'tags') s.tags = parseTags(t.value); else s[d.scn] = t.value; });
   if (d.scnInput) return commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); s.inputs[d.scnInput] = t.value; });
+  if (d.rf != null) return applyRecords(t.closest('[data-records]'));
   if (d.scnState) return commit((doc) => { const s = doc.scenarios.find((s) => s.id === store.selection.id); s.expect.state ??= {}; s.expect.state[d.scnState] = t.value; });
   // Renaming an input or a state field carries every mention of it along, in the same commit, so
   // the guards keep working and one undo brings the old name back everywhere.
@@ -413,6 +453,10 @@ el.addEventListener('click', (ev) => {
   const sel = store.selection;
   if (act === 'add-input') commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); });
   if (act === 'rm-input') commit((doc) => { doc.inputs.splice(Number(b.closest('[data-input]').dataset.input), 1); });
+  if (act === 'add-rec') { const box = b.closest('[data-records]'), i = store.doc.inputs.find((x) => x.name === box.dataset.records), fields = (i?.fields ?? []).filter((f) => f.name); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const have = parseRecords(s.inputs[i.name], fields); have.push(Object.fromEntries(fields.map((f) => [f.name, f.type === 'enum' ? f.values?.[0] ?? '' : f.type === 'boolean' ? false : '']))); s.inputs[i.name] = recordsText(have, fields); }); }
+  if (act === 'rm-rec') { const box = b.closest('[data-records]'), i = store.doc.inputs.find((x) => x.name === box.dataset.records), fields = (i?.fields ?? []).filter((f) => f.name), k = Number(b.closest('[data-rec]').dataset.rec); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const have = parseRecords(s.inputs[i.name], fields); have.splice(k, 1); s.inputs[i.name] = recordsText(have, fields); }); }
+  if (act === 'records-text') recordsAsText.add(b.dataset.list);
+  if (act === 'records-form') recordsAsText.delete(b.dataset.list);
   if (act === 'add-field') commit((doc) => { const i = doc.inputs[Number(b.closest('[data-input]').dataset.input)]; i.fields ??= []; i.fields.push({ name: `field${i.fields.length + 1}`, type: 'text' }); });
   if (act === 'rm-field') commit((doc) => { const i = doc.inputs[Number(b.closest('[data-input]').dataset.input)]; i.fields.splice(Number(b.closest('[data-lf]').dataset.lf), 1); });
   if (act === 'add-state') commit((doc) => { doc.state.push({ name: `field${doc.state.length + 1}`, initial: null }); });
