@@ -217,7 +217,7 @@ let connecting = null; // { node, side, end: 'to'|'from', edge: id|null, x, y, h
 let marquee = null;    // { x0, y0, x1, y1 } in world coordinates while a rubber band is being drawn
 
 export function render() {
-  const { doc, view, selection, showCoverage, results, problems, playhead } = store;
+  const { doc, view, selection, problems, playhead } = store;
   const gs = new Map(doc.nodes.map((n) => [n.id, geom(n)]));
 
   // What the selected scenario touched, up to the playhead if one is set.
@@ -233,8 +233,6 @@ export function render() {
     });
     if (active.result.error && (playhead == null || playhead >= active.result.steps.length)) stuckAt = active.result.error.at;
   }
-  const untouchedN = new Set(showCoverage && results ? results.coverage.untouchedNodes : []);
-  const untouchedE = new Set(showCoverage && results ? results.coverage.untouchedEdges : []);
   const badN = new Set(problems.filter((p) => p.node).map((p) => p.node));
   const badE = new Set(problems.filter((p) => p.edge).map((p) => p.edge));
   const selN = new Set(selectedNodeIds());
@@ -261,7 +259,7 @@ export function render() {
     const label = e.label?.trim() ?? '', when = e.when?.trim() ?? '';
     const full = label || (e.else ? 'else' : when);
     const color = EDGE_COLORS[e.color] ? e.color : null;
-    const cls = ['edge', sel && 'selected', linked && 'linked', on && 'on', e.else && !label && 'else', color && `c-${color}`, untouchedE.has(e.id) && 'untouched', badE.has(e.id) && 'bad'].filter(Boolean).join(' ');
+    const cls = ['edge', sel && 'selected', linked && 'linked', on && 'on', e.else && !label && 'else', color && `c-${color}`, badE.has(e.id) && 'bad'].filter(Boolean).join(' ');
     const text = full.length > 34 ? full.slice(0, 32) + '…' : full;
     const marker = on ? 'arrow-on' : color ? `arrow-${color}` : sel ? 'arrow-sel' : 'arrow';
     const tip = label && (when || e.else) ? `${label} · ${e.else ? 'else' : when}` : full;
@@ -279,7 +277,7 @@ export function render() {
     const g = gs.get(n.id);
     const sel = selN.has(n.id);
     const steps = nodeSteps.get(n.id);
-    const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', untouchedN.has(n.id) && 'untouched', badN.has(n.id) && 'bad'].filter(Boolean).join(' ');
+    const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', badN.has(n.id) && 'bad'].filter(Boolean).join(' ');
     out += `<g class="${cls}" data-node="${n.id}">${shape(n, g)}`;
     out += `<text class="kind" x="${g.cx}" y="${g.y + 15}" text-anchor="middle">${n.kind}</text>`;
     g.lines.forEach((l, i) => { out += `<text x="${g.cx}" y="${g.y + 32 + i * 16}" text-anchor="middle">${esc(l)}</text>`; });
@@ -662,8 +660,8 @@ svg.addEventListener('wheel', (ev) => {
   }
 }, { passive: false });
 
-// The zoom corner: −, the current percentage, +, fit, 1:1 and the auto-layout.
-for (const b of document.querySelectorAll('#zoom [data-zoom]')) b.addEventListener('click', () => {
+// The bar over the drawing: the auto-layout, fit, and −, the percentage (back to 100%), +.
+for (const b of document.querySelectorAll('#stage [data-zoom]')) b.addEventListener('click', () => {
   const z = b.dataset.zoom;
   if (z === 'in') zoomCentre(store.view.k * 1.25);
   else if (z === 'out') zoomCentre(store.view.k / 1.25);

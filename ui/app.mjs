@@ -27,23 +27,24 @@ function renderHeader() {
   $('docName').hidden = !!info; $('projectName').hidden = !info;
   if (document.activeElement !== $('docName')) $('docName').value = doc.name;
   if (info && document.activeElement !== $('projectName')) $('projectName').value = info.name;
+  // How the flow stands, a pill each: whether the scenarios pass, and whether the drawing has problems (a click goes to the first).
   const n = doc.scenarios.length;
   const p = results?.passed ?? 0;
   const problems = store.problems.length;
-  $('summary').innerHTML = n
-    ? `${n} scenario${n === 1 ? '' : 's'} · <b class="ok">${p} pass</b>${n - p ? ` · <b class="bad">${n - p} fail</b>` : ''}${problems ? ` · <b class="bad">${problems} drawing problem${problems === 1 ? '' : 's'}</b>` : ''}`
-    : `${doc.nodes.length} node${doc.nodes.length === 1 ? '' : 's'}${problems ? ` · <b class="bad">${problems} drawing problem${problems === 1 ? '' : 's'}</b>` : ''}`;
+  const verdict = !n ? '<span class="pill">no scenarios</span>' : p === n ? `<span class="pill ok">${n === 1 ? 'the scenario passes' : `all ${n} pass`}</span>` : `<span class="pill bad">${n - p} of ${n} fail</span>`;
+  const drawing = problems ? `<button class="pill bad" data-problem title="Go to the first one">${problems} drawing problem${problems === 1 ? '' : 's'}</button>` : '';
+  if ($('summary').written !== verdict + drawing) { $('summary').innerHTML = verdict + drawing; $('summary').written = verdict + drawing; }
+  $('stateChip').hidden = !store.dirty;
   $('undo').disabled = !store.undo.length;
   $('redo').disabled = !store.redo.length;
-  $('saveDoc').classList.toggle('dirty', store.dirty);
-  $('saveDoc').title = store.dirty ? 'Changed since the last save' : '';
   document.title = `${store.dirty ? '• ' : ''}${doc.name || 'Untitled flow'}${info ? ` · ${info.name}` : ''} – Playthrough`;
-  $('coverage').classList.toggle('on', store.showCoverage);
-  if (store.showCoverage && results) {
-    const u = results.coverage.untouchedNodes.length + results.coverage.untouchedEdges.length;
-    $('coverage').textContent = u ? `Coverage · ${u} untouched` : 'Coverage · all touched';
-  } else $('coverage').textContent = 'Coverage';
 }
+$('summary').addEventListener('click', (ev) => {
+  if (!ev.target.closest('[data-problem]')) return;
+  const p = store.problems[0];
+  if (p?.node) select({ type: 'node', id: p.node });
+  else if (p?.edge) select({ type: 'edge', id: p.edge });
+});
 
 function renderLint() {
   const box = $('lint');
@@ -77,8 +78,7 @@ async function replaceable(what) {
 }
 project.hooks.fit = canvas.fit;
 project.hooks.replaceable = replaceable;
-// New, Open…, Import and a preset's flow put an unfiled flow on the page; in a project, Save then adds it to the folder.
-$('newDoc').addEventListener('click', async () => { if (await replaceable('start a new flow')) { setFile(null); load({ name: 'Untitled flow' }); canvas.fit(); } });
+// Import (pasted or a file) and a preset's flow put an unfiled flow on the page; in a project, Save then adds it to the folder.
 /** In a project, Save writes the file in place; otherwise it downloads the flow. */
 function save() {
   if (project.project.info) return project.save();
@@ -94,7 +94,7 @@ function download() {
   toast(`Downloaded ${name}`);
 }
 $('saveDoc').addEventListener('click', save);
-$('openDoc').addEventListener('click', () => $('fileInput').click());
+$('openDoc').addEventListener('click', () => { closeMenus(); $('fileInput').click(); });
 $('fileInput').addEventListener('change', async (ev) => { const f = ev.target.files[0]; if (f) await openFile(f); ev.target.value = ''; });
 async function openFile(file) {
   if (!await replaceable('open the file')) return;
@@ -116,7 +116,6 @@ $('sideToggle').addEventListener('click', (ev) => {
 });
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
-$('coverage').addEventListener('click', () => { store.showCoverage = !store.showCoverage; emit(); });
 $('addScenario').addEventListener('click', table.addScenario);
 $('generateScenarios').addEventListener('click', generate.show);
 $('help').addEventListener('click', () => $('helpDialog').showModal());

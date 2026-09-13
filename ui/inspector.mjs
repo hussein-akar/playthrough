@@ -96,20 +96,29 @@ const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n}
 const CHEATSHEET = `<div class="muted">Guards read like <code>channel in [Web, App]</code>, <code>hasCoupon</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
     <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
 
-/** The flow in the panel: itself, its inputs and its state, a card each. The name and description are edited in place; a row or a pencil opens the drawer on an input or a state field. */
+// Every view is a head and a column of sections, as in Antipode's panel. The head says what is
+// selected, in small caps beside a dot in its colour, and carries its name as a title that is
+// typed over in place; each section is a card whose band says what it holds.
+
+/** The head of the panel: the kind of thing in small caps, a dot in its colour, then `body` (its title, and a line under it). */
+const phead = (kind, tint, body) => `<div class="phead"><div class="eyebrow"><i class="dot" style="--tint: ${tint}"></i>${esc(kind)}</div>${body}</div>`;
+/** A section: a card with a band that names it (a note, a count, tools such as a pencil) over its body. */
+const sect = (title, body, { n, note = '', tools = '', cls = '' } = {}) => `<section class="sect${cls ? ` ${cls}` : ''}"><div class="head"><span class="grow">${title}${note ? ` <span class="note">· ${note}</span>` : ''}</span>${n == null ? '' : `<span class="count">${n}</span>`}${tools}</div><div class="body">${body}</div></section>`;
+/** The last section of a view: the button that removes what is selected, set apart in red. */
+const danger = (label, act) => sect('Danger zone', `<div class="actions end"><button class="small danger" data-act="${act}">${label}</button></div>`, { cls: 'danger' });
+/** The name as the panel's title and, when there is one, the description as the line under it: text until hovered, a field once clicked. */
+const titled = (attr, name, placeholder, desc) => `<input type="text" class="inline name" ${attr}="name" value="${esc(name)}" placeholder="${esc(placeholder)}" title="The name">${desc == null ? '' : `<textarea class="inline" ${attr}="description" rows="1" placeholder="${esc(desc.placeholder)}" title="The description">${esc(desc.value)}</textarea>`}`;
+
+/** The flow in the panel: its name and description in the head, its inputs and its state a section each; a row or a pencil opens the drawer on an input or a state field. */
 function flowView(doc) {
   const detail = (i) => i.type === 'enum' ? `enum · ${(i.values ?? []).map(esc).join(', ')}` : i.type === 'list' ? `list · ${(i.fields ?? []).map((f) => esc(f.name)).join(', ') || 'no fields yet'}` : esc(i.type);
-  const pencil = (focus) => `<button class="icon pencil" data-act="open-settings" data-focus="${focus}" title="Edit in flow config"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2z"/></svg></button>`;
-  const card = (title, n, tools, body, foot) => `<section class="card"><div class="head"><h3>${title}</h3>${n == null ? '' : `<span class="count">${n}</span>`}${tools}</div>${body}${foot ? `<div class="foot">${foot}</div>` : ''}</section>`;
+  const pencil = (focus) => `<button class="small icon pencil" data-act="open-settings" data-focus="${focus}" title="Edit in flow config"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2z"/></svg></button>`;
   const inputs = doc.inputs.map((i, k) => `<button class="item" data-act="open-settings" data-focus="input:${k}"><span class="name">${esc(i.name) || '<i>unnamed</i>'}</span><span class="detail">${detail(i)}</span><span class="chev">›</span></button>`);
   const state = doc.state.map((f, k) => `<button class="item" data-act="open-settings" data-focus="state:${k}"><span class="name">${esc(f.name) || '<i>unnamed</i>'}</span><span class="detail">${f.initial == null || String(f.initial).trim() === '' ? 'null at first' : `${esc(f.initial)} at first`}</span><span class="chev">›</span></button>`);
-  return `
-    <section class="card about">
-      <input type="text" class="inline name" data-doc="name" value="${esc(doc.name)}" placeholder="Untitled flow" title="The flow's name">
-      <textarea class="inline" data-doc="description" rows="1" placeholder="What this flow is about" title="What this flow is about">${esc(doc.description)}</textarea>
-    </section>
-    ${card('Inputs', doc.inputs.length, pencil('input:0'), inputs.join('') || '<div class="muted empty">No inputs yet. A guard can only mention what is declared here.</div>', '<button class="small" data-act="add-input-open">+ Input</button>')}
-    ${card('State', doc.state.length, pencil('state:0'), state.join('') || '<div class="muted empty">No state fields. Add one when an action needs to leave something behind.</div>', '<button class="small" data-act="add-state-open">+ State field</button>')}`;
+  return phead('Flow', 'var(--accent)', titled('data-doc', doc.name, 'Untitled flow', { value: doc.description, placeholder: 'What this flow is about' })) + `<div class="pbody">
+    ${sect('Inputs', `${inputs.join('') || '<div class="muted empty">No inputs yet. A guard can only mention what is declared here.</div>'}<div class="actions end"><button class="small" data-act="add-input-open">+ Input</button></div>`, { n: doc.inputs.length, tools: pencil('input:0') })}
+    ${sect('State', `${state.join('') || '<div class="muted empty">No state fields. Add one when an action needs to leave something behind.</div>'}<div class="actions end"><button class="small" data-act="add-state-open">+ State field</button></div>`, { n: doc.state.length, tools: pencil('state:0') })}
+  </div>`;
 }
 
 /** The flow config drawer on `kind`, 'input' or 'state': that half of the schema a scenario is written against, with room to edit it. The name and description are the panel's. */
@@ -158,54 +167,47 @@ function nodeView(doc, n) {
       <input type="text" class="expr" data-f="src" data-check value="${esc(src)}" placeholder="expression">
       <button class="icon danger" data-act="rm-set" title="Remove">×</button>
     </div><div class="errs"></div>`).join('');
-  return `
-    <h2>${esc(n.kind)} node</h2>
-    <div class="field"><label>Kind</label><select data-node="kind">${['start', 'action', 'decision', 'end'].map((k) => opt(k, n.kind, k[0].toUpperCase() + k.slice(1))).join('')}</select></div>
-    <div class="field"><label>Label</label><input type="text" data-node="label" value="${esc(n.label)}"></div>
-    ${n.kind === 'action' ? `
-    <h2>Sets <span class="muted">· state this action leaves behind</span></h2>
-    ${sets}
-    <div class="actions"><button class="small" data-act="add-set" ${setBlock ? 'disabled' : ''}>+ Set a field</button>${setBlock ? `<span class="muted">${setBlock}</span>` : ''}</div>` : ''}
-    <div class="field" style="margin-top: 12px"><label>Note</label><textarea data-node="note" style="font-family: inherit" placeholder="Anything the team should know">${esc(n.note ?? '')}</textarea></div>
-    <div class="actions"><button class="small danger" data-act="rm-node">Delete node</button></div>`;
+  return phead(`${n.kind} node`, `var(--${n.kind})`, `<input type="text" class="inline name" data-node="label" value="${esc(n.label)}" placeholder="Label" title="The label on the canvas">`) + `<div class="pbody">
+    ${sect('Node', `<div class="field"><label>Kind</label><select data-node="kind">${['start', 'action', 'decision', 'end'].map((k) => opt(k, n.kind, k[0].toUpperCase() + k.slice(1))).join('')}</select></div>
+      <div class="field"><label>Note</label><textarea data-node="note" style="font-family: inherit" placeholder="Anything the team should know">${esc(n.note ?? '')}</textarea></div>`)}
+    ${n.kind === 'action' ? sect('Sets', `${sets}<div class="actions"><button class="small" data-act="add-set" ${setBlock ? 'disabled' : ''}>+ Set a field</button>${setBlock ? `<span class="muted">${setBlock}</span>` : ''}</div>`, { note: 'state this action leaves behind', n: Object.keys(n.set ?? {}).length }) : ''}
+    ${danger('Delete node', 'rm-node')}
+  </div>`;
 }
 
 /** Several nodes at once: what they are, and the few things that make sense to do to all of them. */
 function groupView(doc, ids) {
   const nodes = ids.map((id) => doc.nodes.find((n) => n.id === id)).filter(Boolean);
-  return `
-    <h2>${nodes.length} nodes selected</h2>
-    <div class="group">${nodes.map((n) => `<button class="small" data-one="${esc(n.id)}" title="Select only this node"><i class="dot" style="background: var(--${n.kind})"></i>${esc(n.label || '(untitled)')}<span class="x" data-drop="${esc(n.id)}" title="Take out of the selection">×</span></button>`).join('')}</div>
-    <p class="muted">Drag any of them to move them together. Arrow keys nudge the group. Shift-click a node to add or remove it; Shift-drag on the canvas to catch more.</p>
-    <div class="actions">
+  return phead('Selection', 'var(--accent)', `<div class="title-static">${nodes.length} nodes</div>`) + `<div class="pbody">
+    ${sect('Nodes', `<div class="group">${nodes.map((n) => `<button class="small" data-one="${esc(n.id)}" title="Select only this node"><i class="dot" style="background: var(--${n.kind})"></i>${esc(n.label || '(untitled)')}<span class="x" data-drop="${esc(n.id)}" title="Take out of the selection">×</span></button>`).join('')}</div>
+      <p class="muted">Drag any of them to move them together. Arrow keys nudge the group. Shift-click a node to add or remove it; Shift-drag on the canvas to catch more.</p>`, { n: nodes.length })}
+    ${sect('Arrange', `<div class="actions">
       <button class="small" data-act="align-left" title="Line them up on the leftmost one">Align left</button>
       <button class="small" data-act="align-top" title="Line them up on the topmost one">Align top</button>
-      <button class="small danger" data-act="rm-group">Delete ${nodes.length} nodes</button>
-    </div>`;
+    </div>`)}
+    ${danger(`Delete ${nodes.length} nodes`, 'rm-group')}
+  </div>`;
 }
 
 function edgeView(doc, e) {
   if (!e) return '';
   const from = doc.nodes.find((n) => n.id === e.from), to = doc.nodes.find((n) => n.id === e.to);
-  return `
-    <h2>Edge</h2>
-    <div class="muted" style="margin-bottom: 10px"><b>${esc(from?.label)}</b> → <b>${esc(to?.label)}</b></div>
-    <div class="field"><label>Condition <span class="muted">· blank means always</span></label>
-      <div class="row">
+  return phead('Edge', 'var(--faint)', `<div class="title-static">${esc(from?.label)} <span class="muted">→</span> ${esc(to?.label)}</div>`) + `<div class="pbody">
+    ${sect('Condition', `<div class="row">
         <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. channel in [Web, App]" ${e.else ? 'disabled' : ''}>
         ${insertMenu(doc, e.else)}
       </div>
       <div class="errs"></div>
-    </div>
-    <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>
-    <div class="field"><label>Label <span class="muted">· shown on the canvas instead of the condition</span></label><input type="text" data-edge="label" value="${esc(e.label ?? '')}" placeholder="e.g. approved"></div>
-    <div class="field"><label>Line</label>
-      <div class="swatches">${[['smooth', 'Smooth'], ['square', 'Square']].map(([v, l]) => `<button class="swatch none${(e.shape === 'square' ? 'square' : 'smooth') === v ? ' on' : ''}" data-act="edge-shape" data-shape="${v}">${l}</button>`).join('')}</div>
-    </div>
-    <div class="field"><label>Colour <span class="muted">· a status for the branch</span></label>
-      <div class="swatches">${[['', 'None'], ['success', 'Success'], ['failed', 'Failed'], ['warning', 'Warning'], ['info', 'Info']].map(([c, l]) => `<button class="swatch ${c ? `c-${c}` : 'none'}${(e.color ?? '') === c ? ' on' : ''}" data-act="edge-color" data-color="${c}" title="${l}"><i></i></button>`).join('')}</div>
-    </div>
-    <div class="actions"><button class="small danger" data-act="rm-edge">Delete edge</button></div>`;
+      <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>`, { note: 'blank means always' })}
+    ${sect('Label', `<input type="text" data-edge="label" value="${esc(e.label ?? '')}" placeholder="e.g. approved">`, { note: 'shown on the canvas instead of the condition' })}
+    ${sect('Look', `<div class="field"><label>Line</label>
+        <div class="swatches">${[['smooth', 'Smooth'], ['square', 'Square']].map(([v, l]) => `<button class="swatch none${(e.shape === 'square' ? 'square' : 'smooth') === v ? ' on' : ''}" data-act="edge-shape" data-shape="${v}">${l}</button>`).join('')}</div>
+      </div>
+      <div class="field"><label>Colour · a status for the branch</label>
+        <div class="swatches">${[['', 'None'], ['success', 'Success'], ['failed', 'Failed'], ['warning', 'Warning'], ['info', 'Info']].map(([c, l]) => `<button class="swatch ${c ? `c-${c}` : 'none'}${(e.color ?? '') === c ? ' on' : ''}" data-act="edge-color" data-color="${c}" title="${l}"><i></i></button>`).join('')}</div>
+      </div>`)}
+    ${danger('Delete edge', 'rm-edge')}
+  </div>`;
 }
 
 // The menu beside a condition: every declared name, each enum's values and the operators, so a
@@ -240,22 +242,16 @@ function scenarioView(doc, s) {
   const actions = [...new Set(flowOrder(doc).filter((n) => n.kind === 'action').map((n) => n.label))];
   const ends = doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label);
   const want = new Set(s.expect.actions ?? []);
-  return `
-    <h2>Scenario</h2>
-    <div class="field"><label>Name</label><input type="text" data-scn="name" value="${esc(s.name)}"></div>
-    <div class="field"><label>Description</label><textarea data-scn="description" rows="3" style="font-family: inherit" placeholder="Why this scenario exists, for whoever reads it next">${esc(s.description ?? '')}</textarea></div>
-    <div class="field"><label>Tags <span class="muted">· comma-separated; the table can be narrowed to one</span></label><input type="text" data-scn="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12"></div>
-    <h2>Inputs</h2>
-    ${doc.inputs.map((i) => `<div class="field"><label>${esc(i.name)}${i.type === 'list' ? recordsToggle(i, s.inputs[i.name]) : ''}</label>${i.type === 'list' && !recordsAsText.has(i.name) && readable(i, s.inputs[i.name]) ? recordsForm(i, s.inputs[i.name]) : inputControl(i, s.inputs[i.name], `data-scn-input="${esc(i.name)}"`)}</div>`).join('') || '<div class="muted">The flow declares no inputs yet.</div>'}
-    <h2>Expected actions <span class="muted">· in flow order; ✓ happened in the last run</span></h2>
-    <div class="checks">${actions.map((a) => `<label><input type="checkbox" data-scn-action="${esc(a)}" ${want.has(a) ? 'checked' : ''}> <span>${esc(a)}</span><span class="did"></span></label>`).join('') || '<div class="muted">No action nodes in the flow yet.</div>'}</div>
-    <h2>Expected landing</h2>
-    <div class="field"><select data-scn="end"><option value="">(any end)</option>${ends.map((e) => opt(e, s.expect.end ?? '')).join('')}</select></div>
-    ${doc.state.length ? `<h2>Expected state</h2>
-    ${doc.state.map((f) => `<div class="field"><label>${esc(f.name)} <span class="muted">· <code>*</code> any value, <code>null</code>, the value, or a check: <code>== 1</code>, <code>size &gt; 0</code>, <code>count(notices where linked) == 1</code></span></label><input type="text" class="expr" data-scn-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}"></div>`).join('')}` : ''}
-    <h2>Result</h2>
-    <div id="verdict">${verdictHtml()}</div>
-    <div class="actions"><button class="small primary" data-act="play">▶ Play</button><button class="small" data-act="dup-scn">Duplicate</button><button class="small danger" data-act="rm-scn">Delete</button></div>`;
+  return phead('Scenario', 'var(--accent)', titled('data-scn', s.name, 'What is being tried', { value: s.description ?? '', placeholder: 'Why this scenario exists, for whoever reads it next' })) + `<div class="pbody">
+    ${sect('Result', `<div id="verdict">${verdictHtml()}</div><div class="actions"><button class="small primary" data-act="play">▶ Play</button><button class="small" data-act="dup-scn">Duplicate</button></div>`)}
+    ${sect('Tags', `<input type="text" data-scn="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12">`, { note: 'comma-separated; the table can be narrowed to one' })}
+    ${sect('Inputs', doc.inputs.map((i) => `<div class="field"><label>${esc(i.name)}${i.type === 'list' ? recordsToggle(i, s.inputs[i.name]) : ''}</label>${i.type === 'list' && !recordsAsText.has(i.name) && readable(i, s.inputs[i.name]) ? recordsForm(i, s.inputs[i.name]) : inputControl(i, s.inputs[i.name], `data-scn-input="${esc(i.name)}"`)}</div>`).join('') || '<div class="muted">The flow declares no inputs yet.</div>', { n: doc.inputs.length })}
+    ${sect('Expected actions', `<div class="checks">${actions.map((a) => `<label><input type="checkbox" data-scn-action="${esc(a)}" ${want.has(a) ? 'checked' : ''}> <span>${esc(a)}</span><span class="did"></span></label>`).join('') || '<div class="muted">No action nodes in the flow yet.</div>'}</div>`, { note: 'in flow order; ✓ happened in the last run' })}
+    ${sect('Expected landing', `<select data-scn="end"><option value="">(any end)</option>${ends.map((e) => opt(e, s.expect.end ?? '')).join('')}</select>`)}
+    ${doc.state.length ? sect('Expected state', `<p class="muted hint"><code>*</code> any value, <code>null</code>, the value, or a check: <code>== 1</code>, <code>size &gt; 0</code>, <code>count(notices where linked) == 1</code></p>
+      ${doc.state.map((f) => `<div class="field"><label>${esc(f.name)}</label><input type="text" class="expr" data-scn-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}"></div>`).join('')}`, { n: doc.state.length }) : ''}
+    ${danger('Delete scenario', 'rm-scn')}
+  </div>`;
 }
 
 /**

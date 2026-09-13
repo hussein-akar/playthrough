@@ -246,8 +246,9 @@ export function render() {
     const status = f.broken ? `<span class="bad" title="${esc(f.broken)}">cannot be read</span>`
       : !n ? `<span class="muted">${problems ? `${problems} problem${problems === 1 ? '' : 's'}` : 'no scenarios'}</span>`
       : `<span class="${p === n ? 'ok' : 'bad'}">${p}/${n}</span>${problems ? ` <span class="bad" title="drawing problems">⚠</span>` : ''}`;
+    const verdict = f.broken ? 'bad' : !n ? '' : p === n ? 'ok' : 'bad';
     return `<li class="flow ${active ? 'active' : ''}${f.broken ? ' broken' : ''}" style="--depth: ${depth}" data-file="${esc(f.file)}" title="${esc(f.file)}" draggable="true">
-      <span class="name">${esc(name)}${active && store.dirty ? '<i class="dot" title="Changed since the last save"></i>' : ''}</span>
+      <i class="dot ${verdict}"></i><span class="name">${esc(name)}${active && store.dirty ? '<i class="dot" title="Changed since the last save"></i>' : ''}</span>
       <span class="status">${status}</span>
       <span class="tools"><button class="link rn" data-rn="${esc(f.file)}" title="Rename or move ${esc(f.file)}" aria-label="Rename">✎</button><button class="link rm" data-rm="${esc(f.file)}" title="Delete ${esc(f.file)}" aria-label="Delete">×</button></span>
     </li>`;

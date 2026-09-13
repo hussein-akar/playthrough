@@ -84,9 +84,9 @@ selected and goes away when nothing is. The scenario table runs the full width o
 its top edge is a grip.
 
 The palette on the left holds the four shapes: click one to add it in the middle of the view, or
-drag it onto the canvas to put it exactly where it lands. The canvas has a zoom corner (−, +,
-fit, 1:1, with the current percentage) and a **Tidy** button that lays the flow out left to right
-from the start node, in one undoable step. Nodes snap to a 20px grid while dragging (hold Alt for
+drag it onto the canvas to put it exactly where it lands. The bar over the canvas has **Tidy**,
+which lays the flow out left to right from the start node in one undoable step, **Fit**, and −,
+the percentage (a click goes back to 100%) and +. Nodes snap to a 20px grid while dragging (hold Alt for
 free placement); arrow keys nudge the selected nodes by one grid step, Shift by five.
 Double-click a node to edit its label straight away.
 
@@ -166,9 +166,6 @@ the drawing branch by branch and you edit the rows the drawing gets wrong; or le
 expectations blank and fill them in by hand. A combination no branch handles comes out *stuck*, in
 red: the case nobody drew.
 
-**Coverage** dims every node and edge that no scenario touches. In a review, "nobody wrote a
-scenario for the else branch" is the sentence you want before the code exists.
-
 ## Keys
 
 | Key | Does |
@@ -217,11 +214,11 @@ has problems, and *no scenarios* when nobody has written any yet. Click one to o
 starts a new file, and a `/` in its name puts it in a group, made if it is not there yet
 (`Billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty
 group, named as you type it; **Save** (or ⌘S) writes the open flow back to its file, and a flow that came in through
-**New**, **Open…**, **Import**, a preset or a link is added to the folder the first time it is saved. On a
+**Import** (pasted or a file), a preset or a link is added to the folder the first time it is saved. On a
 row, ✎ renames the file, as typed with `.json` at the end (a `/` moves it; the flow keeps its own name) and × deletes it; a group's
 ✎ renames the folder, with everything in it coming along (a `/` moves it under other groups), and
 its × deletes it with everything in it, after saying how much that is. The project's name sits in the header, in place of the flow's: type there
-to name it once, and it is kept in `project.json`; until then the folder's name is used. The « at the top left of the drawing, beside the sidebar,
+to name it once, and it is kept in `project.json`; until then the folder's name is used. The « at the left of the bar over the drawing
 hides it; the same button, now », brings it back.
 
 Put the folder in git. That is the whole collaboration story, on purpose: the pull request is
@@ -233,12 +230,14 @@ at the same moment will find out when the second one saves.
 
 ## The file
 
-Without a project folder, **Save** downloads the flow as JSON; **Open…** reads one back, and so
-does dropping the file anywhere on the page. In a project, Save writes the file in place and
-*Download as JSON* under **Template ▾ › Export** does what Save used to. The browser also keeps the current
-flow between reloads, but that is not a file: a dot next to **Save** (and in the tab title) means
-the flow has changed since it was last saved or opened, and the page will say so before you close
-it or replace it with **New**, an **Import** or a preset.
+Without a project folder, **Save** downloads the flow as JSON; *Import › Open a file…* reads one
+back, and so does dropping the file anywhere on the page. In a project, Save writes the file in
+place and *Download as JSON* under **Template ▾ › Export** does what Save used to. The browser also
+keeps the current flow between reloads, but that is not a file: an *unsaved changes* pill in the
+header (and a dot in the tab title) means the flow has changed since it was last saved or opened,
+and the page will say so before you close it or replace it with an **Import** or a preset. Beside
+it, a pill says whether the scenarios pass, and another how many drawing problems there are; a
+click on that one goes to the first.
 
 **Template ▾ › Export** has two more ways out that need no file. *Copy as Markdown* puts
 the flow on the clipboard as a spec: inputs, state, every decision with its branches, and the
@@ -273,8 +272,9 @@ with list inputs, state set along the way and edges with labels and colours.
 
 ## Templates
 
-**Template ▾** in the header has *Presets*, *Import* and *Export*, a submenu of the ways out: *Copy
-as JSON* here, and *Copy as Markdown*, *Copy link* and *Download as JSON*, described in "The file".
+**Template ▾** in the header has *Presets*, then two submenus: *Import*, with *Paste JSON* and
+*Open a file…*, and *Export*, with *Copy as JSON* here and *Copy as Markdown*, *Copy link* and
+*Download as JSON*, described in "The file".
 
 *Presets* opens a list of starting points, each a small project of flows kept under `examples/`:
 
@@ -293,9 +293,9 @@ is in it, and the preset's flows are written in, groups and all. **Add to this o
 folder) writes the preset's flows in beside what is there, leaving alone any file that already
 exists.
 
-*Import* takes a flow's JSON pasted into a box and puts it on the page. *Export › Copy as JSON*
-puts the flow's JSON on the clipboard, to paste into another page's Import or into a file in a
-project folder.
+*Import › Paste JSON* takes a flow's JSON pasted into a box and puts it on the page. *Export ›
+Copy as JSON* puts the flow's JSON on the clipboard, to paste into another page's Import or into a
+file in a project folder.
 
 ## Layout of the code
 

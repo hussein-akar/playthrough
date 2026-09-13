@@ -16,7 +16,6 @@ export const store = {
   doc: emptyDoc(),
   selection: null,          // { type: 'node'|'edge'|'scenario', id } — a node selection may carry `ids` for a group; `id` is its first member; a scenario's `open` shows it in the panel
   view: { x: 40, y: 40, k: 1 },
-  showCoverage: false,
   tagFilter: null,          // a tag the scenario table is narrowed to, or null for every row
   playhead: null,           // when animating: number of steps revealed
   results: null,            // from runAll
