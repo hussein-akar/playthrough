@@ -108,6 +108,13 @@
   header .menu .items.wide button { flex-direction: column; align-items: flex-start; gap: 1px; height: auto; padding: 6px 10px; }
   header .menu .items.wide button b { font-weight: 600; }
   header .menu .items.wide button span { font-size: var(--fs-sm); color: var(--muted); }
+  /* A submenu: its item carries a ›, and its items fly out to the right on hover, focus or a click. */
+  header .menu .sub { position: relative; display: flex; flex-direction: column; }
+  header .menu .sub > button { position: relative; padding-right: 28px; }
+  header .menu .sub > button::after { content: '›'; position: absolute; top: 50%; right: 10px; transform: translateY(-50%); font-size: 16px; color: var(--muted); }
+  header .menu .sub > .items { display: none; top: -5px; left: calc(100% - 2px); }
+  header .menu .sub:hover > .items, header .menu .sub:focus-within > .items, header .menu .sub.open > .items { display: flex; }
+  header .menu .sub:hover > button, header .menu .sub.open > button { background: var(--line-2); }
 
   /* ==== project sidebar ======================================================================= */
   #project { display: none; grid-row: 2; grid-column: 1; min-width: 0; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); overflow: auto; }
@@ -552,11 +559,19 @@
       <button id="openDoc">Open…</button>
       <button id="saveDoc">Save</button>
       <details id="template" class="menu">
-        <summary title="Start from a preset, or move a flow in or out as JSON">Template</summary>
+        <summary title="Start from a preset, bring a flow in, or take it out as JSON, Markdown or a link">Template</summary>
         <div class="items wide">
           <button id="openPresets"><b>Presets</b><span>start from a shop someone already drew</span></button>
           <button id="importDoc"><b>Import</b><span>paste a flow's JSON into this page</span></button>
-          <button id="exportDoc"><b>Export</b><span>take this one out as JSON</span></button>
+          <div class="sub">
+            <button class="subhead" aria-haspopup="true"><b>Export</b><span>take this one out</span></button>
+            <div class="items wide">
+              <button id="exportDoc"><b>Copy as JSON</b><span>the flow as it is saved, for another page's Import</span></button>
+              <button id="copyMarkdown"><b>Copy as Markdown</b><span>the flow as a spec, for a ticket or a pull request</span></button>
+              <button id="copyLink"><b>Copy link</b><span>the whole flow in a URL; nothing leaves the browser</span></button>
+              <button id="downloadDoc"><b>Download as JSON</b><span>this one as a file</span></button>
+            </div>
+          </div>
         </div>
       </details>
     </div>
@@ -569,15 +584,6 @@
     <div class="group" aria-label="View">
       <button id="coverage" class="toggle" title="Dim what no scenario touches">Coverage</button>
     </div>
-    <div class="sep"></div>
-    <details id="share" class="menu">
-      <summary title="Copy the flow as text or as a link">Share</summary>
-      <div class="items">
-        <button id="copyMarkdown">Copy as Markdown</button>
-        <button id="copyLink">Copy link</button>
-        <button id="downloadDoc">Download as JSON</button>
-      </div>
-    </details>
     <div class="spacer"></div>
     <div class="summary" id="summary"></div>
     <button id="help" class="icon" title="Keys (?)" aria-label="Keys">?</button>

@@ -235,14 +235,14 @@ at the same moment will find out when the second one saves.
 
 Without a project folder, **Save** downloads the flow as JSON; **Open…** reads one back, and so
 does dropping the file anywhere on the page. In a project, Save writes the file in place and
-*Download as JSON* under **Share ▾** does what Save used to. The browser also keeps the current flow between reloads, but that is not a
-file: a dot next to **Save** (and in the tab title) means the flow has changed since it was last
-saved or opened, and the page will say so before you close it or replace it with **New**, an
-**Import** or a preset.
+*Download as JSON* under **Template ▾ › Export** does what Save used to. The browser also keeps the current
+flow between reloads, but that is not a file: a dot next to **Save** (and in the tab title) means
+the flow has changed since it was last saved or opened, and the page will say so before you close
+it or replace it with **New**, an **Import** or a preset.
 
-**Share ▾** has two ways out that need no file. *Copy as Markdown* puts the flow on the clipboard
-as a spec: inputs, state, every decision with its branches, and the scenario table with each row's
-current pass or fail, ready for a ticket or a pull request. *Copy link* puts the whole flow in the
+**Template ▾ › Export** has two more ways out that need no file. *Copy as Markdown* puts
+the flow on the clipboard as a spec: inputs, state, every decision with its branches, and the
+scenario table with each row's current pass or fail, ready for a ticket or a pull request. *Copy link* puts the whole flow in the
 URL (compressed, nothing leaves the browser); whoever opens the link gets the flow, and the page
 drops the hash once it has read it. Flows too big for a link are told so; use **Save**.
 
@@ -273,7 +273,8 @@ with list inputs, state set along the way and edges with labels and colours.
 
 ## Templates
 
-**Template ▾** in the header has three items.
+**Template ▾** in the header has *Presets*, *Import* and *Export*, a submenu of the ways out: *Copy
+as JSON* here, and *Copy as Markdown*, *Copy link* and *Download as JSON*, described in "The file".
 
 *Presets* opens a list of starting points, each a small project of flows kept under `examples/`:
 
@@ -292,16 +293,16 @@ is in it, and the preset's flows are written in, groups and all. **Add to this o
 folder) writes the preset's flows in beside what is there, leaving alone any file that already
 exists.
 
-*Import* takes a flow's JSON pasted into a box and puts it on the page. *Export* shows the flow
-on the page as JSON, and puts it on the clipboard, to paste into another page's Import or into a
-file in a project folder.
+*Import* takes a flow's JSON pasted into a box and puts it on the page. *Export › Copy as JSON*
+puts the flow's JSON on the clipboard, to paste into another page's Import or into a file in a
+project folder.
 
 ## Layout of the code
 
 ```
 lib/expr.mjs     the condition language: tokenizer, parser, evaluator, name check
 lib/run.mjs      the interpreter: run, verdict, runAll (with coverage), lint
-lib/markdown.mjs the flow as a Markdown spec, for Share ▾
+lib/markdown.mjs the flow as a Markdown spec, for Copy as Markdown
 lib/generate.mjs scenarios from the inputs: one per way through the drawing, or every combination
 lib/project.mjs  a folder of flows: list with pass counts, read, write without clobbering
 ui/store.mjs     the document, selection, undo, autosave, which project file is open

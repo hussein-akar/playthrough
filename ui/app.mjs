@@ -122,16 +122,18 @@ $('generateScenarios').addEventListener('click', generate.show);
 $('help').addEventListener('click', () => $('helpDialog').showModal());
 window.addEventListener('beforeunload', (ev) => { if (store.dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 
-// ---- template: presets, import, export ---------------------------------------------------------
+// ---- template: presets, import, export, and the ways out under it ---------------------------------
 
 /** The header's drop-down menus close when something outside them is clicked, or when an item is picked. */
-const closeMenus = () => { for (const m of document.querySelectorAll('header details.menu')) m.open = false; };
+const closeMenus = () => { for (const m of document.querySelectorAll('header details.menu')) { m.open = false; m.querySelectorAll('.sub.open').forEach((s) => s.classList.remove('open')); } };
+// A submenu opens on hover; a click (or a tap, where there is no hover) holds it open.
+for (const b of document.querySelectorAll('header .menu .subhead')) b.addEventListener('click', () => b.parentElement.classList.toggle('open'));
 document.addEventListener('click', (ev) => { if (!ev.target.closest('header details.menu')) closeMenus(); });
 $('openPresets').addEventListener('click', () => { closeMenus(); presets.show(); });
 $('importDoc').addEventListener('click', async () => {
   closeMenus();
   if (!await replaceable('import a flow')) return;
-  const text = await promptText({ title: 'Import a flow', body: 'Paste the JSON of a flow, as Export or Download as JSON gives it. It replaces what is on the page; in a project, Save then adds it to the folder.', placeholder: '{ "name": "…", "nodes": [ … ], "edges": [ … ] }', ok: 'Import' });
+  const text = await promptText({ title: 'Import a flow', body: 'Paste the JSON of a flow, as Copy as JSON or Download as JSON gives it. It replaces what is on the page; in a project, Save then adds it to the folder.', placeholder: '{ "name": "…", "nodes": [ … ], "edges": [ … ] }', ok: 'Import' });
   if (text == null) return;
   try {
     const doc = JSON.parse(text);
@@ -139,15 +141,7 @@ $('importDoc').addEventListener('click', async () => {
     setFile(null); load(doc); canvas.fit(); toast(`Imported "${store.doc.name || 'Untitled flow'}"`);
   } catch (e) { notice('Could not read that as a flow', e.message); }
 });
-$('exportDoc').addEventListener('click', async () => {
-  closeMenus();
-  const text = JSON.stringify(store.doc, null, 2);
-  let where = 'Copy it from here';
-  try { await navigator.clipboard.writeText(text); where = 'It is on the clipboard, and here'; } catch {}
-  notice(`Export "${store.doc.name || 'Untitled flow'}"`, `The flow as JSON. ${where}; paste it into Import on another page, or into a file in a project folder.`, text);
-});
-
-// ---- share ------------------------------------------------------------------------------------
+$('exportDoc').addEventListener('click', () => { closeMenus(); copy(JSON.stringify(store.doc, null, 2), 'JSON'); });
 
 $('copyMarkdown').addEventListener('click', () => { closeMenus(); copy(toMarkdown(store.doc, store.results), 'Markdown'); });
 $('downloadDoc').addEventListener('click', () => { closeMenus(); download(); });
