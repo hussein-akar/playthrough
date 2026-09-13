@@ -6,6 +6,7 @@ import * as inspector from './inspector.mjs';
 import * as table from './table.mjs';
 import * as project from './project.mjs';
 import * as presets from './presets.mjs';
+import * as generate from './generate.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -110,6 +111,7 @@ $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('coverage').addEventListener('click', () => { store.showCoverage = !store.showCoverage; emit(); });
 $('addScenario').addEventListener('click', table.addScenario);
+$('generateScenarios').addEventListener('click', generate.show);
 $('help').addEventListener('click', () => $('helpDialog').showModal());
 window.addEventListener('beforeunload', (ev) => { if (store.dirty) { ev.preventDefault(); ev.returnValue = ''; } });
 

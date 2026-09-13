@@ -39,3 +39,8 @@ it('the Markdown carries a Tags column and a By tag tally only when someone tagg
   assert.doesNotMatch(plain, /Tags/);
   assert.doesNotMatch(plain, /By tag/);
 });
+
+it("a scenario's note, from an older file, is read as its description", () => {
+  const d = normalize({ scenarios: [{ note: 'why' }, { note: 'old', description: 'new' }, {}] });
+  assert.deepEqual(d.scenarios.map((s) => [s.description, 'note' in s]), [['why', false], ['new', false], [undefined, false]]);
+});

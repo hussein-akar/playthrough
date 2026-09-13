@@ -19,7 +19,7 @@ No build step, no dependencies. Node 22 or newer and this checkout.
 npm start                  # http://localhost:8095/, one flow at a time
 npm start -- ./specs       # the same page over a project folder (see "A team and a folder")
 npm run start:example      # the page over the Advanced preset: six flows in three groups
-npm test                   # the interpreter, the condition language, the project folder, the presets
+npm test                   # the interpreter, the condition language, the generator, the project folder, the presets
 ```
 
 The page opens on a shop's checkout, a flow with four scenarios. One of them fails on purpose:
@@ -130,6 +130,28 @@ with its pass count, and clicking one narrows the table to it (a row added while
 the tag). The Markdown export carries the tags
 and ends the scenario table with a tally per tag.
 
+A scenario can also carry a **description**, a few lines saying why it exists. It is shown in the
+scenario's panel only, never in the table. (An older file's scenario *note* is read as its description.)
+
+**Generate…** beside *+ Scenario* writes a scenario for every combination of the inputs. The
+values come from the drawing: an enum's values, yes and no for a boolean, and for a number or a
+text the constants the guards hold it against, one on each side of the line (`amount > 100`
+gives 100 and 101; `attempts >= 3`, with `attempts` starting as the input `attempt`, gives
+`attempt` 2 and 3). A list gets no records, one record of each kind its fields allow (`picked <
+qty` inside a `where` gives `picked` 0 and 1) and one of each together. The dialog lists every
+input with its values as chips. Click a value to leave it out, or bring it back; ⌥-click keeps
+only that one (again, and they all come back); an input's checkbox takes all its values or none.
+An input with nothing picked holds its usual value. To start with, every value of every input
+some guard reads is picked, since only those change the path, and the count of rows follows the
+picks. Picking `Web` and `Phone` out of five channels gives rows for just those two. Combinations a scenario already holds are left
+out, so pressing it again after a value was added to an enum adds only the new rows. Each row is
+named from its values, `channel=Web, hasCoupon=no`, tagged `generated` (or whatever you type in
+the dialog's Tags box, comma-separated; empty for none), and described in its
+panel with the branches it took. What the drawing did with it becomes its expectation, so the
+table documents the drawing branch by branch and you edit the rows the drawing gets wrong; or
+leave the expectations blank and fill them in by hand. A combination no branch handles comes out
+*stuck*, in red: the case nobody drew.
+
 **Coverage** dims every node and edge that no scenario touches. In a review, "nobody wrote a
 scenario for the else branch" is the sentence you want before the code exists.
 
@@ -221,6 +243,7 @@ The shape is small enough to write by hand or generate:
   "edges":  [{ "id": "e3", "from": "coupon", "to": "apply", "when": "hasCoupon" },
              { "id": "e4", "from": "coupon", "to": "full", "else": true }],
   "scenarios": [{ "name": "Web order with a coupon",
+                  "description": "The common case; the coupon takes ten off",
                   "tags": ["happy path"],
                   "inputs": { "channel": "Web", "hasCoupon": true },
                   "expect": { "actions": ["Reserve stock", "Apply coupon"],
@@ -262,6 +285,7 @@ file in a project folder.
 lib/expr.mjs     the condition language: tokenizer, parser, evaluator, name check
 lib/run.mjs      the interpreter: run, verdict, runAll (with coverage), lint
 lib/markdown.mjs the flow as a Markdown spec, for Share ▾
+lib/generate.mjs every combination of the inputs as scenarios, with the values the guards suggest
 lib/project.mjs  a folder of flows: list with pass counts, read, write without clobbering
 ui/store.mjs     the document, selection, undo, autosave, which project file is open
 ui/canvas.mjs    the SVG drawing and its pointer interactions
@@ -269,6 +293,7 @@ ui/inspector.mjs the side panel for whatever is selected
 ui/table.mjs     the scenario spreadsheet
 ui/project.mjs   the project sidebar and the calls to the folder API
 ui/presets.mjs   the Presets dialog under Template ▾
+ui/generate.mjs  the Generate… dialog beside + Scenario
 ui/dialog.mjs    ask, notice, prompt, toast: the page's own dialogs
 ui/app.mjs       header, keyboard, play, boot
 serve.mjs        a static file server, plus GET/PUT/POST/DELETE /api/flows over the folder

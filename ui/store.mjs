@@ -126,7 +126,7 @@ export function normalize(doc) {
   for (const k of ['inputs', 'state', 'nodes', 'edges', 'scenarios']) if (!Array.isArray(d[k])) d[k] = [];
   for (const n of d.nodes) { n.id ??= uid('n'); n.kind ??= 'action'; n.label ??= ''; n.x ??= 0; n.y ??= 0; }
   for (const e of d.edges) { e.id ??= uid('e'); e.when ??= ''; }
-  for (const s of d.scenarios) { s.id ??= uid('s'); s.name ??= ''; s.inputs ??= {}; s.expect ??= {}; s.expect.actions ??= []; s.expect.state ??= {}; s.tags = parseTags(Array.isArray(s.tags) ? s.tags.join(',') : s.tags); }
+  for (const s of d.scenarios) { s.id ??= uid('s'); s.name ??= ''; s.inputs ??= {}; s.expect ??= {}; s.expect.actions ??= []; s.expect.state ??= {}; s.tags = parseTags(Array.isArray(s.tags) ? s.tags.join(',') : s.tags); if (s.note != null) { s.description ??= s.note; delete s.note; } }
   return d;
 }
 

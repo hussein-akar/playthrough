@@ -4,7 +4,7 @@
 import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check, compile, names } from '../lib/expr.mjs';
-import { knownNames, listsOf, parseRecords, initialIsExpression } from '../lib/run.mjs';
+import { knownNames, listsOf, parseRecords, initialIsExpression, expectationOf } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
 const sheet = document.getElementById('settings');   // the flow settings sheet: inputs, state, the cheat sheet
@@ -239,7 +239,7 @@ function scenarioView(doc, s) {
     <div class="field"><select data-scn="end"><option value="">(any end)</option>${ends.map((e) => opt(e, s.expect.end ?? '')).join('')}</select></div>
     ${doc.state.length ? `<h2>Expected state</h2>
     ${doc.state.map((f) => `<div class="field"><label>${esc(f.name)} <span class="muted">· <code>*</code> any value, <code>null</code>, the value, or a check: <code>== 1</code>, <code>size &gt; 0</code>, <code>count(notices where linked) == 1</code></span></label><input type="text" class="expr" data-scn-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}"></div>`).join('')}` : ''}
-    <div class="field" style="margin-top: 12px"><label>Note</label><textarea data-scn="note" style="font-family: inherit" placeholder="Why this scenario exists">${esc(s.note ?? '')}</textarea></div>
+    <div class="field" style="margin-top: 12px"><label>Description <span class="muted">· shown only here, not in the table</span></label><textarea data-scn="description" rows="6" style="font-family: inherit; min-height: 110px" placeholder="Why this scenario exists, for whoever reads it next">${esc(s.description ?? '')}</textarea></div>
     <h2>Result</h2>
     <div id="verdict">${verdictHtml()}</div>
     <div class="actions"><button class="small primary" data-act="play">▶ Play</button><button class="small" data-act="dup-scn">Duplicate</button><button class="small danger" data-act="rm-scn">Delete</button></div>`;
@@ -422,13 +422,7 @@ function problemsOf(c, known, lists) {
 export function acceptRun(id) {
   const r = store.results?.results.find((x) => x.scenario.id === id);
   if (!r || r.result.error) return;
-  const cell = (v) => v == null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : String(v);
-  commit((doc) => {
-    const s = doc.scenarios.find((s) => s.id === id);
-    s.expect.actions = [...new Set(r.result.actions)];
-    s.expect.end = r.result.end ?? '';
-    s.expect.state = Object.fromEntries(doc.state.map((f) => [f.name, cell(r.result.state[f.name])]));
-  });
+  commit((doc) => { doc.scenarios.find((s) => s.id === id).expect = expectationOf(doc, r.result); });
 }
 
 /**
