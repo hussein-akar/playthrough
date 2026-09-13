@@ -331,15 +331,15 @@
   #inspector input.inline.name { height: 34px; margin-top: 4px; font-size: 18px; font-weight: 650; letter-spacing: -.015em; color: var(--ink); text-overflow: ellipsis; }
   #inspector textarea.inline { min-height: 0; margin-top: 1px; padding: 3px 9px; overflow: hidden; resize: none; font-family: inherit; font-size: var(--fs-sm); line-height: 1.5; color: var(--muted); }
   #inspector textarea.inline:focus { color: var(--ink); }
-  #inspector .pbody { display: grid; gap: 11px; align-content: start; padding: 14px 16px 0; }
-  #inspector .sect { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow-1); }
-  #inspector .sect > .head { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 11px; border-bottom: 1px solid var(--line-2); font-size: var(--fs-sm); font-weight: 650; user-select: none; }
+  #inspector .pbody { display: grid; gap: 11px; align-content: start; padding: 14px 0 0; }   /* the sections run the head's width: a band of the panel, not a card inset in it */
+  #inspector .sect { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-1); }
+  #inspector .sect > .head { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 6px 16px; border-bottom: 1px solid var(--line-2); font-size: var(--fs-sm); font-weight: 650; user-select: none; }
   #inspector .sect > .head .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #inspector .sect > .head .note { font-size: 11.5px; font-weight: 400; color: var(--muted); }
   #inspector .sect > .head .count { flex: none; padding: 1px 7px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); font: 500 10.5px var(--mono); color: var(--muted); }
   #inspector .sect > .head .pencil { color: var(--ink-2); }
   #inspector .sect > .head .pencil svg { width: 13px; height: 13px; }
-  #inspector .sect > .body { padding: 11px; }
+  #inspector .sect > .body { padding: 12px 16px 14px; }
   #inspector .sect > .body > :last-child { margin-bottom: 0; }
   #inspector .sect.danger { border-color: color-mix(in srgb, var(--bad) 26%, var(--line)); }
   #inspector .sect.danger > .head { color: var(--bad); border-bottom-color: color-mix(in srgb, var(--bad) 18%, var(--line-2)); }
@@ -596,16 +596,16 @@
         <div class="sub">
           <button class="subhead" aria-haspopup="true">Import<span>bring a flow onto this page</span></button>
           <div class="items">
-            <button id="importDoc">Paste JSON<span>a flow's JSON, as Copy as JSON gives it</span></button>
             <button id="openDoc">Open a file…<span>a flow's .json from this computer</span></button>
+            <button id="importDoc">From JSON<span>paste a flow's JSON, as Copy as JSON gives it</span></button>
           </div>
         </div>
         <div class="sub">
           <button class="subhead" aria-haspopup="true">Export<span>take this one out</span></button>
           <div class="items">
+            <button id="copyLink">Copy link<span>the whole flow in a URL; nothing leaves the browser</span></button>
             <button id="exportDoc">Copy as JSON<span>the flow as it is saved, for another page's Import</span></button>
             <button id="copyMarkdown">Copy as Markdown<span>the flow as a spec, for a ticket or a pull request</span></button>
-            <button id="copyLink">Copy link<span>the whole flow in a URL; nothing leaves the browser</span></button>
             <button id="downloadDoc">Download as JSON<span>this one as a file</span></button>
           </div>
         </div>

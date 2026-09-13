@@ -272,8 +272,8 @@ with list inputs, state set along the way and edges with labels and colours.
 
 ## Templates
 
-**Template ▾** in the header has *Presets*, then two submenus: *Import*, with *Paste JSON* and
-*Open a file…*, and *Export*, with *Copy as JSON* here and *Copy as Markdown*, *Copy link* and
+**Template ▾** in the header has *Presets*, then two submenus: *Import*, with *Open a file…* and
+*From JSON*, and *Export*, with *Copy link*, *Copy as JSON* (here), *Copy as Markdown* and
 *Download as JSON*, described in "The file".
 
 *Presets* opens a list of starting points, each a small project of flows kept under `examples/`:
@@ -293,7 +293,7 @@ is in it, and the preset's flows are written in, groups and all. **Add to this o
 folder) writes the preset's flows in beside what is there, leaving alone any file that already
 exists.
 
-*Import › Paste JSON* takes a flow's JSON pasted into a box and puts it on the page. *Export ›
+*Import › From JSON* takes a flow's JSON pasted into a box and puts it on the page. *Export ›
 Copy as JSON* puts the flow's JSON on the clipboard, to paste into another page's Import or into a
 file in a project folder.
 
