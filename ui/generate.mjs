@@ -6,7 +6,7 @@
 // every value is picked for the inputs some guard reads, since only those change the path. The
 // count of rows follows the picks, and what a scenario already has (its way, or its combination)
 // is left out, so it is safe to press twice.
-import { store, commit, select, uid, parseTags } from './store.mjs';
+import { store, commit, selectScenario, uid, parseTags } from './store.mjs';
 import { toast } from './dialog.mjs';
 import { candidates, plan, ways, generate, count, MAX_SCENARIOS, MAX_COMBINATIONS } from '../lib/generate.mjs';
 
@@ -29,7 +29,7 @@ export function show() {
         <label class="pick"><input type="checkbox" data-all title="All of its values, or none"><span class="name">${esc(c.name)}<span class="muted" data-note></span></span></label>
         <span class="vals">${c.values.map((v) => `<button type="button" class="chip" data-val="${esc(v.label)}" title="${esc(v.value === '' ? 'blank' : String(v.value))} · click to leave it out or bring it back · ⌥-click for only this one">${esc(v.label)}</button>`).join('')}</span>
       </div>`).join('')
-    : '<div class="muted">The flow declares no inputs yet. Declare them in Flow settings, the gear at the foot of the palette: the combinations are made from them.</div>';
+    : '<div class="muted">The flow declares no inputs yet. Declare them in Flow config, the gear at the foot of the palette: the combinations are made from them.</div>';
   update();
   const dlg = $('generateDialog');
   dlg.returnValue = '';
@@ -116,7 +116,7 @@ $('generateOk').addEventListener('click', (ev) => {
   if (!scenarios.length) return;
   if (store.tagFilter && !o.tags.includes(store.tagFilter)) store.tagFilter = null;   // else the new rows would be hidden
   commit((doc) => { doc.scenarios.push(...scenarios); });
-  select({ type: 'scenario', id: scenarios[0].id });
+  selectScenario(scenarios[0].id);
   const stuck = store.results.results.filter((r) => scenarios.some((s) => s.id === r.scenario.id) && r.result.error).length;
   toast(`Generated ${plural(scenarios.length, 'scenario')}${o.mode === 'all' ? '' : ', one for each way'}${skipped ? `, ${skipped} already there` : ''}${stuck ? ` · ${stuck} stuck: no branch handles ${stuck === 1 ? 'that one' : 'those'}` : ''}`, stuck ? 4000 : 2600);
 });

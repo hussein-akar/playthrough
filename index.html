@@ -319,8 +319,6 @@
   #inspector .records .rec.head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #inspector .records .rec.head > .x { flex: 0 0 var(--ctl); }
   #inspector .records .actions { margin-top: 2px; }
-  #table td.list { max-width: 260px; white-space: normal; }
-  #table .chips.recs .chip { font-family: var(--mono); background: var(--panel-2); border: 1px solid var(--line-2); }
   /* The flow in the panel: a card per section, its items as rows. */
   #inspector .card { margin: 0 0 12px; padding: 10px 12px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
   #inspector .card .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -338,6 +336,14 @@
   #inspector .card .empty { padding: 2px 0 6px; }
   #inspector .card .foot { display: flex; justify-content: flex-end; margin-top: 6px; }
   #inspector .card > .muted { line-height: 1.5; white-space: pre-wrap; }
+  /* the flow's name and description: text until hovered, a field once clicked; the padding lines their text up with the other cards' */
+  #inspector .card.about { padding: 5px 3px 6px; }
+  #inspector .inline { display: block; border-color: transparent; background: transparent; }
+  #inspector .inline:hover { border-color: var(--line); background: var(--panel-2); }
+  #inspector .inline:focus { border-color: var(--accent); background: #fff; }
+  #inspector input.inline.name { height: 30px; font-size: 15px; font-weight: 600; text-overflow: ellipsis; }
+  #inspector textarea.inline { min-height: 0; margin-top: 1px; padding: 3px 8px; overflow: hidden; resize: none; font-family: inherit; font-size: var(--fs-sm); line-height: 1.5; color: var(--muted); }
+  #inspector textarea.inline:focus { color: var(--ink); }
   #inspector .row > select.insert { flex: 0 0 auto; width: 92px; color: var(--muted); font-size: var(--fs-sm); }
   #inspector .checks label { display: flex; gap: 8px; align-items: center; margin: 0; padding: 4px 0; font-size: var(--fs); color: var(--ink); }
   #inspector .checks label > span:first-of-type { flex: 1; }
@@ -391,7 +397,7 @@
   #table .muted { color: var(--muted); }
   #table td input[type=text], #table td input[type=number], #table td select { height: var(--ctl-sm); width: auto; min-width: 72px; padding: 0 6px; }
   #table td select { padding-right: 22px; }
-  #table td input.name { width: 180px; min-width: 160px; }
+  #table td input.name { width: 240px; min-width: 200px; }
   #table td input.st { width: 96px; min-width: 0; }
   #table td input.tags { width: 150px; min-width: 110px; }
   #table td.actions { width: 55%; min-width: 240px; white-space: normal; }
@@ -399,7 +405,8 @@
   #table .chip { display: inline-block; max-width: 180px; height: 18px; padding: 0 8px; border-radius: 9px; background: var(--line-2); font-size: var(--fs-xs); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #table .chip.missing { background: var(--bad-soft); color: var(--bad-ink); text-decoration: line-through; }
   #table .chip.extra { background: var(--warn-soft); color: var(--warn-ink); }
-  #table td.result { width: 20%; min-width: 200px; white-space: normal; line-height: 1.35; }
+  #table td.result { width: 1%; white-space: normal; line-height: 1.35; }
+  #table td.result .why.first { display: block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }   /* the cut sets the column's width; a failing row stays two lines */
   #table .status { display: inline-block; margin-right: 6px; font-weight: 600; white-space: nowrap; }
   #table .status.ok { color: var(--ok); }
   #table .status.bad { color: var(--bad); }
@@ -407,7 +414,7 @@
   #table .why { color: var(--muted); }
   #table .more { margin-left: 6px; cursor: pointer; white-space: nowrap; text-decoration: underline dotted; text-underline-offset: 2px; }
   #table .more:hover { color: var(--accent); }
-  #table ul.issues { margin: 3px 0 2px; padding-left: 16px; color: var(--muted); }
+  #table ul.issues { max-width: 170px; margin: 3px 0 2px; padding-left: 16px; color: var(--muted); }
   #table button.accept { margin-left: 6px; vertical-align: middle; font-size: var(--fs-xs); }
   #table td.tools { width: 1%; padding-right: var(--s3); text-align: right; }
   #table td.tools button { opacity: 0; transition: opacity .1s; }
@@ -422,7 +429,7 @@
   dialog #modalBody textarea { width: 100%; min-height: 160px; margin-top: var(--s2); color: var(--ink); }
   dialog #modalBody input { margin-top: var(--s3); color: var(--ink); }
   dialog .buttons { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: var(--s2); margin-top: var(--s4); }   /* OK is first in the DOM (the default button for Enter) but sits on the right */
-  /* The flow settings drawer: rises from the bottom over the page, a card per section, its body scrolling between a fixed head and foot. */
+  /* The flow config drawer: rises from the bottom over the page, on the inputs or the state, a card per section, its body scrolling between a fixed head and foot. */
   dialog.drawer { position: fixed; inset: auto 0 0 0; width: 100vw; max-width: none; height: min(76vh, 900px); max-height: none; margin: 0; padding: 0; overflow: hidden; border: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 40px rgba(16, 24, 40, .18); }
   dialog.drawer[open] { display: flex; flex-direction: column; animation: drawer-up .18s ease-out; }
   @keyframes drawer-up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
@@ -434,8 +441,6 @@
   dialog.drawer .foot .muted { font-size: var(--fs-sm); }
   dialog.drawer .card { margin-bottom: 14px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
   dialog.drawer .card h3 { margin: 0 0 10px; font-size: var(--fs); }
-  dialog.drawer .card h3 .muted { font-weight: 400; font-size: var(--fs-sm); }
-  dialog.drawer .two { display: grid; grid-template-columns: 1fr 2fr; gap: 14px; }
   dialog.drawer .field { margin-bottom: 0; }
   dialog.drawer label { display: block; margin-bottom: 4px; font-size: var(--fs-sm); color: var(--muted); }
   dialog.drawer .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
@@ -524,9 +529,8 @@
     #table th, #table td { padding-left: 6px; padding-right: 6px; }
     #table td:first-child { padding-left: var(--s2); }
     #table td select { padding-right: 20px; }
-    #table td input.name { width: 120px; min-width: 110px; }
+    #table td input.name { width: 150px; min-width: 130px; }
     #table td.actions { min-width: 272px; }
-    #table td.result { min-width: 116px; }
     #table td.tools { padding-right: var(--s2); }
     #table td.tools button + button { margin-left: -4px; }
     #table .chip { max-width: 128px; padding: 0 6px; }
@@ -595,8 +599,8 @@
         </button>
       </div>
       <hr>
-      <button id="paletteSettings" class="gear" title="Flow settings: inputs and state">
-        <svg class="shape" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span>
+      <button id="paletteSettings" class="gear" title="Flow config: inputs and state">
+        <svg class="shape" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Config</span>
       </button>
     </div>
     <div id="ghost" hidden></div>
@@ -634,7 +638,7 @@
       <h2>Scenarios</h2>
       <button id="addScenario" class="small primary">+ Scenario</button>
       <button id="generateScenarios" class="small" title="One scenario for every combination of the inputs, with the values the drawing gives them">Generate…</button>
-      <span class="muted">Each row is played through the flow as you type. Click a row to see its path.</span>
+      <span class="muted">Each row is played through the flow as you type. Click a row to see its path; double-click it for the rest.</span>
       <div id="tagBar" title="Tags · click one to narrow the table"></div>
     </div>
     <div class="scroll"><table id="table"></table></div>
@@ -648,7 +652,7 @@
     </form>
   </dialog>
   <dialog id="settings" class="drawer">
-    <div class="head"><h3>Flow settings</h3><span class="muted">inputs and state: what a scenario is written against</span><button class="small" data-act="close-settings">Close</button></div>
+    <div class="head"><h3>Inputs</h3><span class="muted"></span><button class="small" data-act="close-settings">Close</button></div>
     <div class="body"></div>
     <div class="foot"><span class="muted">changes apply as you type · ⌘Z undoes</span><button class="primary" data-act="close-settings">Done</button></div>
   </dialog>
@@ -695,12 +699,14 @@
         <tr><td><kbd>Shift</kbd>+<kbd>click</kbd> a node</td><td>add it to the selection, or take it out</td></tr>
         <tr><td><kbd>⌘A</kbd></td><td>select every node</td></tr>
         <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>
-        <tr><td><kbd>right-click</kbd></td><td>a menu: add a shape, paste or open the flow settings on empty canvas; copy, cut, duplicate or delete a node</td></tr>
+        <tr><td><kbd>right-click</kbd></td><td>a menu: add a shape, paste or open the flow config on empty canvas; copy, cut, duplicate or delete a node</td></tr>
         <tr><td><kbd>click</kbd> empty canvas</td><td>clear the selection · the side panel goes away until something is selected</td></tr>
-        <tr><td>the <kbd>⚙</kbd> at the foot of the palette</td><td>the flow in the panel: scenarios with their verdicts, inputs and state · a pencil opens the settings drawer</td></tr>
+        <tr><td>the <kbd>⚙</kbd> at the foot of the palette</td><td>the flow in the panel: scenarios with their verdicts, inputs and state · a pencil opens the config drawer on that card's inputs or state</td></tr>
         <tr><td><kbd>drag</kbd> a selected node</td><td>move the whole selection together</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected nodes, edge or scenario</td></tr>
         <tr><td><kbd>⌘Z</kbd> · <kbd>⇧⌘Z</kbd></td><td>undo · redo</td></tr>
+        <tr><td><kbd>click</kbd> · <kbd>double-click</kbd> a scenario row</td><td>select it, its path on the canvas · open it in the side panel</td></tr>
+        <tr><td><kbd>↑</kbd> · <kbd>↓</kbd>, with a scenario selected</td><td>the scenario above · below · in a text cell, the same cell a row up · down</td></tr>
         <tr><td><kbd>Space</kbd>, with a scenario selected</td><td>play it step by step</td></tr>
         <tr><td><kbd>F</kbd></td><td>fit the drawing to the window</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>clear the selection</td></tr>

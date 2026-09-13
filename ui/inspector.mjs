@@ -1,13 +1,13 @@
 // The side panel: whatever is selected, editable. Nothing selected shows the flow itself, which
 // is where inputs and state fields are declared, because the guards can only mention what is
 // declared here.
-import { store, commit, select, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
+import { store, commit, select, selectScenario, panelOpen, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check, compile, names } from '../lib/expr.mjs';
 import { knownNames, listsOf, parseRecords, initialIsExpression, expectationOf } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
-const sheet = document.getElementById('settings');   // the flow settings sheet: inputs, state, the cheat sheet
+const sheet = document.getElementById('settings');   // the flow config sheet: the inputs or the state, and the cheat sheet
 const roots = [el, sheet];
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 /** True while the user is typing in a control inside `node`; a focused button does not count. */
@@ -23,28 +23,49 @@ export function render() {
   // Never rebuild under the user's cursor: a keystroke commits, and the commit re-renders. What
   // must follow the keystroke anyway (the verdict, the messages under the expressions) is patched
   // into the existing markup instead.
-  if (sheet.open && !editing(sheet)) sheet.querySelector('.body').innerHTML = settingsView(store.doc);
+  if (sheet.open && !editing(sheet)) sheet.querySelector('.body').innerHTML = settingsView(store.doc, sheetKind);
   if (editing(el)) { patchLive(); return; }
   const { doc, selection } = store;
-  if (!selection) el.innerHTML = '';
+  if (!panelOpen()) el.innerHTML = '';
   else if (selection.type === 'flow') el.innerHTML = flowView(doc);
   else if (selection.type === 'node' && selection.ids) el.innerHTML = groupView(doc, selection.ids);
   else if (selection.type === 'node') el.innerHTML = nodeView(doc, doc.nodes.find((n) => n.id === selection.id));
   else if (selection.type === 'edge') el.innerHTML = edgeView(doc, doc.edges.find((e) => e.id === selection.id));
   else if (selection.type === 'scenario') el.innerHTML = scenarioView(doc, doc.scenarios.find((s) => s.id === selection.id));
+  fitAll();
   patchLive();
 }
 
 for (const r of roots) r.addEventListener('focusout', () => setTimeout(() => { if (!r.contains(document.activeElement)) render(); }, 0));
 
-/** Open the flow settings sheet, rendered fresh, on an item (`input:2`, `state:last`); it closes on its button or Escape. */
-export function openSettings(focus = '') {
+// The flow's name and description are edited where they are read, in controls that look like the
+// text until hovered. The description grows with what is in it rather than scrolling; Enter on the
+// name, or Escape on either, puts the text down without closing the panel.
+const fit = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`; };
+const fitAll = () => el.querySelectorAll('textarea.inline').forEach(fit);
+new ResizeObserver(fitAll).observe(el);
+el.addEventListener('keydown', (ev) => {
+  const t = ev.target;
+  if (!t.classList.contains('inline') || !(ev.key === 'Escape' || (ev.key === 'Enter' && t.tagName === 'INPUT'))) return;
+  ev.preventDefault(); ev.stopPropagation();
+  t.blur();
+});
+
+// The sheet holds one half of the schema at a time, the half whose card opened it, so editing an
+// input never scrolls past the state fields and the other way round.
+const SHEETS = { input: ['Inputs', 'what a scenario provides, one column each in the table'], state: ['State', 'what actions may set, and a scenario may check at the end'] };
+let sheetKind = 'input';
+
+/** Open the flow config sheet, rendered fresh, on the inputs or the state and an item in them (`input:2`, `state:last`); it closes on its button or Escape. */
+export function openSettings(focus = 'input') {
   document.activeElement?.blur?.();
-  sheet.querySelector('.body').innerHTML = settingsView(store.doc);
+  const [kind, which] = String(focus).split(':');
+  sheetKind = kind === 'state' ? 'state' : 'input';
+  [sheet.querySelector('.head h3').textContent, sheet.querySelector('.head .muted').textContent] = SHEETS[sheetKind];
+  sheet.querySelector('.body').innerHTML = settingsView(store.doc, sheetKind);
   sheet.showModal();
   patchLive();
-  const [kind, which] = String(focus).split(':');
-  if (!kind || !which) return;
+  if (!which) return;
   const n = kind === 'input' ? store.doc.inputs.length : store.doc.state.length;
   const k = which === 'last' ? n - 1 : Number(which);
   const target = sheet.querySelector(`.row[data-${kind}="${k}"] [data-f="name"]`);
@@ -75,22 +96,25 @@ const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n}
 const CHEATSHEET = `<div class="muted">Guards read like <code>channel in [Web, App]</code>, <code>hasCoupon</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
     <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
 
-/** The flow in the panel: itself, its inputs and its state, a card each; a row or a pencil opens the drawer on that item. */
+/** The flow in the panel: itself, its inputs and its state, a card each. The name and description are edited in place; a row or a pencil opens the drawer on an input or a state field. */
 function flowView(doc) {
   const detail = (i) => i.type === 'enum' ? `enum · ${(i.values ?? []).map(esc).join(', ')}` : i.type === 'list' ? `list · ${(i.fields ?? []).map((f) => esc(f.name)).join(', ') || 'no fields yet'}` : esc(i.type);
-  const pencil = (focus) => `<button class="icon pencil" data-act="open-settings" data-focus="${focus}" title="Edit in flow settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2z"/></svg></button>`;
+  const pencil = (focus) => `<button class="icon pencil" data-act="open-settings" data-focus="${focus}" title="Edit in flow config"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2z"/></svg></button>`;
   const card = (title, n, tools, body, foot) => `<section class="card"><div class="head"><h3>${title}</h3>${n == null ? '' : `<span class="count">${n}</span>`}${tools}</div>${body}${foot ? `<div class="foot">${foot}</div>` : ''}</section>`;
   const inputs = doc.inputs.map((i, k) => `<button class="item" data-act="open-settings" data-focus="input:${k}"><span class="name">${esc(i.name) || '<i>unnamed</i>'}</span><span class="detail">${detail(i)}</span><span class="chev">›</span></button>`);
   const state = doc.state.map((f, k) => `<button class="item" data-act="open-settings" data-focus="state:${k}"><span class="name">${esc(f.name) || '<i>unnamed</i>'}</span><span class="detail">${f.initial == null || String(f.initial).trim() === '' ? 'null at first' : `${esc(f.initial)} at first`}</span><span class="chev">›</span></button>`);
   return `
-    <section class="card about"><div class="head"><h3>${esc(doc.name) || 'Untitled flow'}</h3>${pencil('')}</div>${doc.description?.trim() ? `<div class="muted">${esc(doc.description)}</div>` : '<div class="muted empty">No description yet.</div>'}</section>
+    <section class="card about">
+      <input type="text" class="inline name" data-doc="name" value="${esc(doc.name)}" placeholder="Untitled flow" title="The flow's name">
+      <textarea class="inline" data-doc="description" rows="1" placeholder="What this flow is about" title="What this flow is about">${esc(doc.description)}</textarea>
+    </section>
     ${card('Inputs', doc.inputs.length, pencil('input:0'), inputs.join('') || '<div class="muted empty">No inputs yet. A guard can only mention what is declared here.</div>', '<button class="small" data-act="add-input-open">+ Input</button>')}
     ${card('State', doc.state.length, pencil('state:0'), state.join('') || '<div class="muted empty">No state fields. Add one when an action needs to leave something behind.</div>', '<button class="small" data-act="add-state-open">+ State field</button>')}`;
 }
 
-/** The flow settings drawer: the schema a scenario is written against, with room to edit it. */
-function settingsView(doc) {
-  const inputs = doc.inputs.map((i, k) => `
+/** The flow config drawer on `kind`, 'input' or 'state': that half of the schema a scenario is written against, with room to edit it. The name and description are the panel's. */
+function settingsView(doc, kind) {
+  const inputs = () => doc.inputs.map((i, k) => `
     <div class="row" data-input="${k}">
       <input type="text" data-f="name" data-check value="${esc(i.name)}" placeholder="name">
       <select data-f="type">${['enum', 'boolean', 'number', 'text', 'list'].map((t) => opt(t, i.type)).join('')}</select>
@@ -106,7 +130,7 @@ function settingsView(doc) {
       </div><div class="errs"></div>`).join('')}
       <div class="actions"><button class="small" data-act="add-field">+ Field</button><span class="muted">the fields of one record; a scenario fills them in per record, or writes <code>status=OPEN, linked=yes</code> one per line</span></div>
     </div>` : ''}`).join('');
-  const state = doc.state.map((f, k) => `
+  const state = () => doc.state.map((f, k) => `
     <div class="row" data-state="${k}">
       <input type="text" data-f="name" data-check value="${esc(f.name)}" placeholder="field">
       <input type="text" class="expr" data-f="initial" data-check value="${esc(f.initial ?? '')}" placeholder="initial value, or an input's name" title="The value before any action sets it: a value as written, or an expression over the inputs, such as an input's name to start as a copy of it. Blank means null.">
@@ -114,22 +138,11 @@ function settingsView(doc) {
       ${mover('mv-state', k, doc.state.length)}<button class="icon danger" data-act="rm-state" title="Remove">×</button>
     </div><div class="errs"></div>`).join('');
   return `
-    <section class="card">
-      <h3>About</h3>
-      <div class="two">
-        <div class="field"><label>Name</label><input type="text" data-doc="name" value="${esc(doc.name)}"></div>
-        <div class="field"><label>What this flow is about</label><textarea data-doc="description" style="font-family: inherit">${esc(doc.description)}</textarea></div>
-      </div>
-    </section>
-    <section class="card">
-      <h3>Inputs <span class="muted">· what a scenario provides, one column each in the table</span></h3>
-      ${inputs || '<div class="muted">No inputs yet. A guard can only mention what is declared here.</div>'}
-      <div class="actions"><button class="small" data-act="add-input">+ Input</button></div>
-    </section>
-    <section class="card">
-      <h3>State <span class="muted">· what actions may set, and a scenario may check at the end</span></h3>
-      ${state || '<div class="muted">No state fields. Add one when an action needs to leave something behind that a scenario can check.</div>'}
-      <div class="actions"><button class="small" data-act="add-state">+ State field</button></div>
+    <section class="card">${kind === 'state' ? `
+      ${state() || '<div class="muted">No state fields. Add one when an action needs to leave something behind that a scenario can check.</div>'}
+      <div class="actions"><button class="small" data-act="add-state">+ State field</button></div>` : `
+      ${inputs() || '<div class="muted">No inputs yet. A guard can only mention what is declared here.</div>'}
+      <div class="actions"><button class="small" data-act="add-input">+ Input</button></div>`}
     </section>
     <section class="card">
       <h3>Conditions</h3>
@@ -230,6 +243,7 @@ function scenarioView(doc, s) {
   return `
     <h2>Scenario</h2>
     <div class="field"><label>Name</label><input type="text" data-scn="name" value="${esc(s.name)}"></div>
+    <div class="field"><label>Description</label><textarea data-scn="description" rows="3" style="font-family: inherit" placeholder="Why this scenario exists, for whoever reads it next">${esc(s.description ?? '')}</textarea></div>
     <div class="field"><label>Tags <span class="muted">· comma-separated; the table can be narrowed to one</span></label><input type="text" data-scn="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12"></div>
     <h2>Inputs</h2>
     ${doc.inputs.map((i) => `<div class="field"><label>${esc(i.name)}${i.type === 'list' ? recordsToggle(i, s.inputs[i.name]) : ''}</label>${i.type === 'list' && !recordsAsText.has(i.name) && readable(i, s.inputs[i.name]) ? recordsForm(i, s.inputs[i.name]) : inputControl(i, s.inputs[i.name], `data-scn-input="${esc(i.name)}"`)}</div>`).join('') || '<div class="muted">The flow declares no inputs yet.</div>'}
@@ -239,7 +253,6 @@ function scenarioView(doc, s) {
     <div class="field"><select data-scn="end"><option value="">(any end)</option>${ends.map((e) => opt(e, s.expect.end ?? '')).join('')}</select></div>
     ${doc.state.length ? `<h2>Expected state</h2>
     ${doc.state.map((f) => `<div class="field"><label>${esc(f.name)} <span class="muted">· <code>*</code> any value, <code>null</code>, the value, or a check: <code>== 1</code>, <code>size &gt; 0</code>, <code>count(notices where linked) == 1</code></span></label><input type="text" class="expr" data-scn-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}"></div>`).join('')}` : ''}
-    <div class="field" style="margin-top: 12px"><label>Description <span class="muted">· shown only here, not in the table</span></label><textarea data-scn="description" rows="6" style="font-family: inherit; min-height: 110px" placeholder="Why this scenario exists, for whoever reads it next">${esc(s.description ?? '')}</textarea></div>
     <h2>Result</h2>
     <div id="verdict">${verdictHtml()}</div>
     <div class="actions"><button class="small primary" data-act="play">▶ Play</button><button class="small" data-act="dup-scn">Duplicate</button><button class="small danger" data-act="rm-scn">Delete</button></div>`;
@@ -436,6 +449,7 @@ const follow = (doc, from, to, self) => { if (!taken(doc, from, self) && !taken(
 for (const r of roots) r.addEventListener('input', (ev) => {
   const t = ev.target;
   const d = t.dataset;
+  if (t.matches('textarea.inline')) fit(t);
   if (d.doc) return commit((doc) => { doc[d.doc] = t.value; });
   if (d.node) return commit((doc) => { const n = doc.nodes.find((n) => n.id === store.selection.id); n[d.node] = t.value; });
   if (d.edge === 'when' || d.edge === 'label') return commit((doc) => { const e = doc.edges.find((e) => e.id === store.selection.id); e[d.edge] = t.value; });
@@ -535,7 +549,7 @@ for (const r of roots) r.addEventListener('click', (ev) => {
   if (act === 'edge-color') commit((doc) => { const e = doc.edges.find((e) => e.id === sel.id); if (b.dataset.color) e.color = b.dataset.color; else delete e.color; });
   if (act === 'rm-edge') { commit((doc) => { doc.edges = doc.edges.filter((e) => e.id !== sel.id); }); select(null); }
   if (act === 'rm-scn') { commit((doc) => { doc.scenarios = doc.scenarios.filter((s) => s.id !== sel.id); }); select(null); }
-  if (act === 'dup-scn') { const id = uid('s'); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const i = doc.scenarios.indexOf(s); doc.scenarios.splice(i + 1, 0, { ...structuredClone(s), id, name: s.name + ' (copy)' }); }); select({ type: 'scenario', id }); }
+  if (act === 'dup-scn') { const id = uid('s'); commit((doc) => { const s = doc.scenarios.find((s) => s.id === sel.id); const i = doc.scenarios.indexOf(s); doc.scenarios.splice(i + 1, 0, { ...structuredClone(s), id, name: s.name + ' (copy)' }); }); selectScenario(id); }
   if (act === 'accept') acceptRun(sel.id);
   if (act === 'play') el.dispatchEvent(new CustomEvent('play', { bubbles: true }));
   b.blur();

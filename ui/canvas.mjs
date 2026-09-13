@@ -1029,7 +1029,7 @@ svg.addEventListener('contextmenu', (ev) => {
       { act: 'paste', label: 'Paste', key: '⌘V', off: !clipboard },
       { act: 'select-all', label: 'Select all', key: '⌘A', off: !store.doc.nodes.length },
       '-',
-      { act: 'settings', label: 'Flow settings…', icon: `<svg class="cog" viewBox="0 0 24 24">${document.querySelector('#paletteSettings path')?.outerHTML ?? ''}<circle cx="12" cy="12" r="3"/></svg>` },
+      { act: 'settings', label: 'Flow config…', icon: `<svg class="cog" viewBox="0 0 24 24">${document.querySelector('#paletteSettings path')?.outerHTML ?? ''}<circle cx="12" cy="12" r="3"/></svg>` },
     ]);
   }
 });

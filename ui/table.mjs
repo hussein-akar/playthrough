@@ -1,6 +1,6 @@
 // The spreadsheet, kept: one row per scenario, a column per input, then what should happen. The
 // verdict sits at the end of the row and updates as you type, because the run is free.
-import { store, commit, select, emit, uid, parseTags, tagSummary } from './store.mjs';
+import { store, commit, select, selectScenario, emit, uid, parseTags, tagSummary } from './store.mjs';
 import { inputControl, editing, acceptRun } from './inspector.mjs';
 import { parseRecords } from '../lib/run.mjs';
 
@@ -80,19 +80,19 @@ tagBar.addEventListener('click', (ev) => {
 function resultFor(s, results) { return results?.results.find((r) => r.scenario.id === s.id); }
 
 /**
- * A list input's records, one chip each, read only: text with newlines in it does not fit a
- * table cell, so the records are edited in the panel, where each is a row of controls. Clicking
- * the cell selects the row, which shows them.
+ * A list input's records, counted: their values side by side do not read in a table cell, so the
+ * cell says how many there are, the tooltip lists them, and they are edited in the panel, where
+ * each is a row of controls. Double-clicking the row opens the panel on them.
  */
 function listCell(i, s) {
   const value = s.inputs[i.name];
   let records;
   try { records = parseRecords(value, i.fields ?? []); }
   catch (e) { return `<span class="bad" title="${esc(e.message)}">could not be read · fix in the panel</span>`; }
-  if (!records.length) return `<span class="muted" title="Click the row and add records in the panel">no records</span>`;
+  if (!records.length) return `<span class="muted" title="Double-click the row and add records in the panel">no records</span>`;
   const word = (v) => (v == null || v === '' ? '∅' : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v));
   const fields = (i.fields ?? []).map((f) => f.name);
-  return `<div class="chips recs" title="${esc(fields.join(' · '))} · edit in the panel">${records.map((r) => `<span class="chip" title="${esc(fields.map((f) => `${f}=${word(r[f])}`).join(', '))}">${esc(fields.map((f) => word(r[f])).join(' · '))}</span>`).join('')}</div>`;
+  return `<span class="recs" title="${esc(records.map((r) => fields.map((f) => `${f}=${word(r[f])}`).join(', ')).join('\n'))}">${records.length} record${records.length === 1 ? '' : 's'}</span>`;
 }
 
 function chips(s, results) {
@@ -100,7 +100,7 @@ function chips(s, results) {
   const missing = new Set(r?.verdict.issues.filter((i) => i.kind === 'missing-action').map((i) => i.action));
   const extra = r?.verdict.issues.filter((i) => i.kind === 'extra-action').map((i) => i.action) ?? [];
   const want = s.expect.actions ?? [];
-  if (!want.length && !extra.length) return `<span class="muted">click row to choose</span>`;
+  if (!want.length && !extra.length) return `<span class="muted">double-click row to choose</span>`;
   return `<div class="chips">${want.map((a) => `<span class="chip ${missing.has(a) ? 'missing' : ''}" title="${esc(a)}">${esc(a)}</span>`).join('')}${extra.map((a) => `<span class="chip extra" title="happened, not expected">+ ${esc(a)}</span>`).join('')}</div>`;
 }
 
@@ -111,10 +111,11 @@ function status(s, results) {
   const issues = r.verdict.issues, open = expanded.has(s.id);
   // A stuck run has nothing worth accepting; its trouble is in the drawing, not the expectation.
   const accept = r.result.error ? '' : `<button class="small accept" data-act="accept" title="Use this run as the expectation: what happened becomes what is expected">accept run</button>`;
-  const rest = issues.length <= 1 ? ''
-    : open ? `<ul class="issues">${issues.slice(1).map((i) => `<li>${esc(i.message)}</li>`).join('')}</ul><span class="why more" data-act="more">show less</span>`
-    : ` <span class="why more" data-act="more" title="Show every issue">+${issues.length - 1} more</span>`;
-  return `<span class="status ${r.result.error ? 'stuck' : 'bad'}">${r.result.error ? '⚠ stuck' : '✗ fail'}</span><span class="why">${esc(issues[0].message)}</span>${accept}${rest}`;
+  // The column is narrow: the verdict and its buttons on one line, the first issue cut to the line
+  // under it; a click on the issue (or +N more) lists every issue in full.
+  const toggle = open ? `<span class="why more" data-act="more">show less</span>` : issues.length > 1 ? `<span class="why more" data-act="more" title="Show every issue">+${issues.length - 1} more</span>` : '';
+  const body = open ? `<ul class="issues">${issues.map((i) => `<li>${esc(i.message)}</li>`).join('')}</ul>` : `<span class="why first" data-act="more" title="${esc(issues[0].message)}">${esc(issues[0].message)}</span>`;
+  return `<span class="status ${r.result.error ? 'stuck' : 'bad'}">${r.result.error ? '⚠ stuck' : '✗ fail'}</span>${accept}${toggle}${body}`;
 }
 
 /**
@@ -166,7 +167,13 @@ table.addEventListener('input', (ev) => {
 table.addEventListener('pointerdown', (ev) => {
   const tr = ev.target.closest('tr[data-row]');
   if (!tr) return;
-  if (!(store.selection?.type === 'scenario' && store.selection.id === tr.dataset.row)) select({ type: 'scenario', id: tr.dataset.row });
+  if (!(store.selection?.type === 'scenario' && store.selection.id === tr.dataset.row)) selectScenario(tr.dataset.row);
+});
+// A click picks the row; a double-click opens it in the panel, where the rest of it is edited.
+table.addEventListener('dblclick', (ev) => {
+  const tr = ev.target.closest('tr[data-row]');
+  if (!tr || ev.target.closest('button') || store.selection?.open) return;
+  selectScenario(tr.dataset.row, true);
 });
 
 table.addEventListener('click', (ev) => {
@@ -178,19 +185,38 @@ table.addEventListener('click', (ev) => {
   if (b.dataset.act === 'dup') {
     const nid = uid('s');
     commit((doc) => { const s = doc.scenarios.find((s) => s.id === id); doc.scenarios.splice(doc.scenarios.indexOf(s) + 1, 0, { ...structuredClone(s), id: nid, name: s.name + ' (copy)' }); });
-    select({ type: 'scenario', id: nid });
+    selectScenario(nid);
   }
   if (b.dataset.act === 'accept') acceptRun(id);
   if (b.dataset.act === 'more') { if (expanded.has(id)) expanded.delete(id); else expanded.add(id); patch(); }
 });
 
 // Enter in the last row's name starts the next scenario, the way a spreadsheet would; Escape just
-// stops editing (the row stays selected, so the panel keeps showing it).
+// stops editing (the row stays selected, so the panel keeps showing it). Up and down in a text
+// cell go to the same cell a row up or down; a select or a number keeps its arrows for its value.
 table.addEventListener('keydown', (ev) => {
   const t = ev.target;
   if (ev.key === 'Escape' && editing(table)) { ev.stopPropagation(); t.blur(); return; }
+  if ((ev.key === 'ArrowUp' || ev.key === 'ArrowDown') && t.matches('input[type=text]') && !ev.altKey && !ev.metaKey && !ev.ctrlKey && !ev.shiftKey) {
+    const tr = t.closest('tr[data-row]'), col = [...tr.children].indexOf(t.closest('td'));
+    const next = step(ev.key === 'ArrowUp' ? -1 : 1, tr.dataset.row);
+    ev.preventDefault();
+    const c = next?.children[col]?.querySelector('input, select');
+    c?.focus(); c?.select?.();
+    return;
+  }
   if (ev.key === 'Enter' && t.dataset.f === 'name' && !t.closest('tr[data-row]')?.nextElementSibling) { ev.preventDefault(); addScenario(); }
 });
+
+/** Select the scenario `dir` rows away from `from` (the selected one), among the rows the tag filter leaves; it scrolls into view. Its row, or null past either end. */
+export function step(dir, from = store.selection?.id) {
+  const rows = [...table.querySelectorAll('tr[data-row]')].filter((tr) => !tr.hidden);
+  const next = rows[rows.findIndex((tr) => tr.dataset.row === from) + dir];
+  if (!next) return null;
+  selectScenario(next.dataset.row);
+  next.scrollIntoView({ block: 'nearest' });
+  return next;
+}
 
 export function addScenario() {
   const id = uid('s');
@@ -198,6 +224,6 @@ export function addScenario() {
   // A row added while the table is narrowed to a tag gets that tag, so it does not vanish from view.
   const tags = store.tagFilter ? [store.tagFilter] : [];
   commit((doc) => { doc.scenarios.push({ id, name: `Scenario ${doc.scenarios.length + 1}`, tags, inputs: {}, expect: { actions: [], state: {} } }); });
-  select({ type: 'scenario', id });
+  selectScenario(id);
   table.querySelector(`tr[data-row="${id}"] input.name`)?.focus();
 }

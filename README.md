@@ -76,10 +76,12 @@ every guard, set and scenario cell that mentioned it, in one undoable step.
 
 ## Drawing
 
-The gear at the foot of the palette (or *Flow settings…* in the right-click menu) shows the flow
-in the side panel: itself, its inputs and its state. A pencil or a row opens the settings drawer,
-where inputs and state are declared. The panel otherwise shows whatever is selected and goes away
-when nothing is. The scenario table runs the full width of the window; its top edge is a grip.
+The gear at the foot of the palette (or *Flow config…* in the right-click menu) shows the flow
+in the side panel: itself, its inputs and its state. Its name and description are edited right
+there, by clicking them. A pencil or a row opens the config drawer on that card alone: the
+inputs are declared in one, the state in the other. The panel otherwise shows whatever is
+selected and goes away when nothing is. The scenario table runs the full width of the window;
+its top edge is a grip.
 
 The palette on the left holds the four shapes: click one to add it in the middle of the view, or
 drag it onto the canvas to put it exactly where it lands. The canvas has a zoom corner (−, +,
@@ -118,11 +120,13 @@ has), `size == 1`, `count(lines where gift) == 1`, `lines where status == PICKED
 record matches), or the name of an input, meaning "the same as that input". Inside a check,
 `it`, `value`, `size` and `count` name the field's value and its count.
 
-In the scenario panel, expected actions are listed in the order the flow meets them, each marked
-✓ or ✗ for the last run, and every step of the result path is a link to its node. When a
-scenario fails and it is the drawing that is right, **Use this run as the expectation** (or
-*accept run* in the row) copies what actually happened into the expectation. In the table, Enter
-on the last row starts the next scenario and *+N more* opens the full list of issues.
+A click on a row selects the scenario and shows its path; a double-click opens it in the side
+panel, where the rest of it is edited, and ↑ and ↓ go through the scenarios. In the scenario
+panel, expected actions are listed in the order the flow meets them, each marked ✓ or ✗ for the
+last run, and every step of the result path is a link to its node. When a scenario fails and it
+is the drawing that is right, **Use this run as the expectation** (or *accept run* in the row)
+copies what actually happened into the expectation. In the table, Enter on the last row starts
+the next scenario and *+N more* opens the full list of issues.
 
 A scenario can carry **tags**, comma-separated in its panel: `edge`, a ticket number, whose case
 it is. The table grows a tags column once any scenario has one. Every tag shows above the table
@@ -184,6 +188,8 @@ scenario for the else branch" is the sentence you want before the code exists.
 | drag a selected node | move the whole selection together |
 | Delete / Backspace | remove the selected nodes, edge or scenario |
 | ⌘Z · ⇧⌘Z | undo · redo |
+| click · double-click a scenario row | select it, its path on the canvas · open it in the side panel |
+| ↑ · ↓, with a scenario selected | the scenario above · below; in a text cell, the same cell a row up · down |
 | Space, with a scenario selected | play it step by step |
 | F | fit the drawing to the window |
 | arrow keys · ⇧ arrow keys | nudge the selected node one grid step · five |

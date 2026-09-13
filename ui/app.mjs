@@ -1,4 +1,4 @@
-import { store, subscribe, commit, load, restore, restoreDirty, restoreFile, setDirty, setFile, undo, redo, select, selectNodes, emit } from './store.mjs';
+import { store, subscribe, commit, load, restore, restoreDirty, restoreFile, setDirty, setFile, undo, redo, select, selectNodes, panelOpen, emit } from './store.mjs';
 import { toMarkdown } from '../lib/markdown.mjs';
 import { ask, notice, toast, promptText, dialogOpen } from './dialog.mjs';
 import * as canvas from './canvas.mjs';
@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 
 subscribe(() => {
   // The panel is for what is selected; with nothing selected the drawing has the width.
-  document.body.classList.toggle('panel-hidden', !store.selection);
+  document.body.classList.toggle('panel-hidden', !panelOpen());
   canvas.render();
   inspector.render();
   table.render();
@@ -220,6 +220,7 @@ document.addEventListener('keydown', (ev) => {
     });
     select(null);
   }
+  if ((ev.key === 'ArrowUp' || ev.key === 'ArrowDown') && store.selection?.type === 'scenario') { ev.preventDefault(); table.step(ev.key === 'ArrowUp' ? -1 : 1); return; }
   if (ev.key === 'Escape') select(null);
   if (ev.key === 'f') canvas.fit();
   if (ev.key === '?') { ev.preventDefault(); $('helpDialog').showModal(); }

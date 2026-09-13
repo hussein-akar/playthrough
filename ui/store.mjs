@@ -14,7 +14,7 @@ export function emptyDoc(name = 'Untitled flow') {
 
 export const store = {
   doc: emptyDoc(),
-  selection: null,          // { type: 'node'|'edge'|'scenario', id } — a node selection may carry `ids` for a group; `id` is its first member
+  selection: null,          // { type: 'node'|'edge'|'scenario', id } — a node selection may carry `ids` for a group; `id` is its first member; a scenario's `open` shows it in the panel
   view: { x: 40, y: 40, k: 1 },
   showCoverage: false,
   tagFilter: null,          // a tag the scenario table is narrowed to, or null for every row
@@ -83,6 +83,18 @@ function afterLoad() {
 }
 
 export function select(sel) { store.selection = sel; store.playhead = null; emit(); }
+
+/**
+ * Select a scenario. Picking a row only selects it, so its path shows on the canvas and the table
+ * keeps the room; the panel shows it when asked (`open`, a double-click) or when the panel is
+ * already on a scenario, so going down the rows with it open keeps it open.
+ */
+export function selectScenario(id, open = false) {
+  const s = store.selection;
+  select({ type: 'scenario', id, open: open || (s?.type === 'scenario' && Boolean(s.open)) });
+}
+/** Is the side panel showing? For anything selected but a scenario that has not been opened. */
+export function panelOpen() { const s = store.selection; return Boolean(s) && (s.type !== 'scenario' || Boolean(s.open)); }
 
 /** Select a group of nodes: one is a plain node selection, several carry `ids`, none clears it. */
 export function selectNodes(ids) {
