@@ -404,9 +404,9 @@
   /* ==== scenarios ============================================================================= */
   #scenarios { position: relative; grid-column: 1 / -1; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-top: 1px solid var(--line); }
   /* The grip on the table's top edge: a band to drag, a pill in its middle saying so, as on a drawer. */
-  #tableResizer { position: absolute; top: 0; left: 0; right: 0; height: 12px; z-index: 5; cursor: row-resize; }
-  #tableResizer i { position: absolute; top: 5px; left: 50%; width: 44px; height: 4px; border-radius: 2px; background: var(--faint); opacity: .55; transform: translateX(-50%); transition: background .1s, opacity .1s; }
-  #tableResizer:hover i, #tableResizer.on i { background: var(--accent); opacity: 1; }
+  #tableResizer, #drawerResizer { position: absolute; top: 0; left: 0; right: 0; height: 12px; z-index: 5; cursor: row-resize; touch-action: none; }
+  #tableResizer i, #drawerResizer i { position: absolute; top: 5px; left: 50%; width: 44px; height: 4px; border-radius: 2px; background: var(--faint); opacity: .55; transform: translateX(-50%); transition: background .1s, opacity .1s; }
+  #tableResizer:hover i, #tableResizer.on i, #drawerResizer:hover i, #drawerResizer.on i { background: var(--accent); opacity: 1; }
   #scenarios .bar { display: flex; align-items: center; gap: 8px; flex: none; height: 45px; padding: 0 12px; border-bottom: 1px solid var(--line); }
   #scenarios .bar h2 { margin: 0 4px 0 0; font-size: var(--fs-label); font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
   #scenarios .bar .muted { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -466,7 +466,7 @@
   dialog #modalBody input { margin-top: var(--s3); color: var(--ink); }
   dialog .buttons { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: var(--s2); margin-top: var(--s4); }   /* OK is first in the DOM (the default button for Enter) but sits on the right */
   /* The flow config drawer: rises from the bottom over the page, on the inputs or the state, a card per section, its body scrolling between a fixed head and foot. */
-  dialog.drawer { position: fixed; inset: auto 0 0 0; width: 100vw; max-width: none; height: min(76vh, 900px); max-height: none; margin: 0; padding: 0; overflow: hidden; border: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 40px rgba(16, 24, 40, .18); }
+  dialog.drawer { position: fixed; inset: auto 0 0 0; width: 100vw; max-width: none; height: var(--drawer-h, min(76vh, 900px)); max-height: none; margin: 0; padding: 0; overflow: hidden; border: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 40px rgba(16, 24, 40, .18); }   /* --drawer-h is set by the grip on its top edge */
   dialog.drawer[open] { display: flex; flex-direction: column; animation: drawer-up .18s ease-out; }
   @keyframes drawer-up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
   dialog.drawer .head { display: flex; align-items: center; gap: var(--s3); padding: 12px 20px; border-bottom: 1px solid var(--line); }
@@ -694,6 +694,7 @@
     </form>
   </dialog>
   <dialog id="settings" class="drawer">
+    <div id="drawerResizer" title="Drag to resize"><i></i></div>
     <div class="head"><h3>Inputs</h3><span class="muted"></span><button class="small" data-act="close-settings">Close</button></div>
     <div class="body"></div>
     <div class="foot"><span class="muted">changes apply as you type · ⌘Z undoes</span><button class="primary" data-act="close-settings">Done</button></div>

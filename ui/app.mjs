@@ -262,6 +262,26 @@ document.addEventListener('keydown', (ev) => {
   window.addEventListener('resize', () => { height = apply(height); });
 }
 
+// ---- config drawer height ----------------------------------------------------------------------------
+// The same grip as the table's, on the drawer's top edge: the drawer is anchored to the bottom, so it grows upward.
+
+{
+  const key = 'playthrough.drawerHeight', bar = $('drawerResizer'), drawer = $('settings');
+  const apply = (h) => { h = Math.max(200, Math.min(h, window.innerHeight - 48)); drawer.style.setProperty('--drawer-h', `${h}px`); return h; };
+  let height = Number(localStorage.getItem(key)) || 0;
+  if (height) height = apply(height);
+  bar.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    bar.setPointerCapture(ev.pointerId); bar.classList.add('on');
+    const startY = ev.clientY, startH = drawer.getBoundingClientRect().height;
+    const move = (e) => { height = apply(startH + startY - e.clientY); };
+    const up = () => { bar.classList.remove('on'); bar.removeEventListener('pointermove', move); localStorage.setItem(key, String(height)); };
+    bar.addEventListener('pointermove', move);
+    bar.addEventListener('pointerup', up, { once: true });
+  });
+  window.addEventListener('resize', () => { if (height) height = apply(height); });
+}
+
 // ---- boot -------------------------------------------------------------------------------------
 
 /** A `#d=…` link in the address bar: read it, drop it, and open it unless that would lose work. */
