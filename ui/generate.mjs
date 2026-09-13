@@ -1,13 +1,14 @@
-// The Generate… dialog beside + Scenario: one row for every combination of the picked values.
-// Each input is listed with the values the drawing gives it, one chip each. A chip is clicked to
+// The Generate… dialog beside + Scenario: scenarios made from the picked values, one for each way
+// through the drawing (combinations that go the same way are written once) or one for every
+// combination. Each input is listed with the values the drawing gives it, one chip each. A chip is clicked to
 // leave that value out or bring it back, ⌥-clicked to keep only it; the checkbox takes all of an
 // input's values or none. An input with nothing picked holds its usual value. To start with,
 // every value is picked for the inputs some guard reads, since only those change the path. The
-// count of rows follows the picks, and combinations a scenario already holds are left out, so it
-// is safe to press twice.
+// count of rows follows the picks, and what a scenario already has (its way, or its combination)
+// is left out, so it is safe to press twice.
 import { store, commit, select, uid, parseTags } from './store.mjs';
 import { toast } from './dialog.mjs';
-import { candidates, plan, generate, count, MAX_SCENARIOS } from '../lib/generate.mjs';
+import { candidates, plan, ways, generate, count, MAX_SCENARIOS, MAX_COMBINATIONS } from '../lib/generate.mjs';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -17,9 +18,11 @@ const TOO_MANY = 5000;   // combinations, before they are even listed
 let cands = [];
 let picks = new Map();   // input name → Set of the labels picked for it
 let ready = false;       // whether the count says the generate button may go
+let cache = new Map();   // the runs of the combinations, kept while the dialog is open: the drawing cannot change under it
 
 export function show() {
   cands = candidates(store.doc);
+  cache = new Map();
   picks = new Map(cands.map((c) => [c.name, new Set(c.mentioned ? c.values.map((v) => v.label) : [])]));
   $('generateBody').innerHTML = cands.length
     ? cands.map((c) => `<div class="row" data-input="${esc(c.name)}">
@@ -34,6 +37,7 @@ export function show() {
 }
 
 const options = () => ({
+  mode: $('generateDialog').querySelector('[name="generateMode"]:checked')?.value ?? 'ways',
   pick: picks,
   skipCovered: $('generateSkip').checked,
   expect: $('generateDialog').querySelector('[name="generateExpect"]:checked')?.value ?? 'drawing',
@@ -54,10 +58,21 @@ function update() {
   }
 
   const o = options(), out = $('generateCount');
+  $('generateSkipText').textContent = o.mode === 'all' ? 'Leave out combinations some scenario already holds' : 'Leave out ways some scenario already goes';
   const total = count(cands, picks);
   let text, ok = false;
   if (!cands.length) text = 'nothing to combine';
-  else if (total > TOO_MANY) text = `${total} combinations: too many to list; leave some values out`;
+  else if (o.mode !== 'all') {
+    if (total > MAX_COMBINATIONS) text = `${total} combinations: too many to play through; leave some values out`;
+    else {
+      const w = ways(store.doc, { pick: picks, skipCovered: o.skipCovered, cands, cache });
+      const n = w.combos.length, among = `${plural(w.found, 'way')} among ${plural(w.explored, 'combination')}`;
+      const taken = w.skipped ? `, ${w.skipped} already taken` : '';
+      if (!n) text = `nothing new: ${among}, every one already taken by a scenario`;
+      else if (n > MAX_SCENARIOS) text = `${plural(n, 'new scenario')}: more than ${MAX_SCENARIOS} in one go; leave some values out`;
+      else { text = `${plural(n, 'new scenario')} · ${among}${taken}`; ok = true; }
+    }
+  } else if (total > TOO_MANY) text = `${total} combinations: too many to list; leave some values out`;
   else {
     const p = plan(store.doc, { pick: picks, skipCovered: o.skipCovered, cands });
     const n = p.combos.length;
@@ -97,11 +112,11 @@ $('generateOk').addEventListener('click', (ev) => {
   if (!ready) return;
   const o = options();
   $('generateDialog').close('ok');
-  const { scenarios, skipped } = generate(store.doc, { ...o, uid });
+  const { scenarios, skipped } = generate(store.doc, { ...o, cache, uid });
   if (!scenarios.length) return;
   if (store.tagFilter && !o.tags.includes(store.tagFilter)) store.tagFilter = null;   // else the new rows would be hidden
   commit((doc) => { doc.scenarios.push(...scenarios); });
   select({ type: 'scenario', id: scenarios[0].id });
   const stuck = store.results.results.filter((r) => scenarios.some((s) => s.id === r.scenario.id) && r.result.error).length;
-  toast(`Generated ${plural(scenarios.length, 'scenario')}${skipped ? `, ${skipped} already there` : ''}${stuck ? ` · ${stuck} stuck: no branch handles ${stuck === 1 ? 'that one' : 'those'}` : ''}`, stuck ? 4000 : 2600);
+  toast(`Generated ${plural(scenarios.length, 'scenario')}${o.mode === 'all' ? '' : ', one for each way'}${skipped ? `, ${skipped} already there` : ''}${stuck ? ` · ${stuck} stuck: no branch handles ${stuck === 1 ? 'that one' : 'those'}` : ''}`, stuck ? 4000 : 2600);
 });

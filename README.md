@@ -133,24 +133,34 @@ and ends the scenario table with a tally per tag.
 A scenario can also carry a **description**, a few lines saying why it exists. It is shown in the
 scenario's panel only, never in the table. (An older file's scenario *note* is read as its description.)
 
-**Generate…** beside *+ Scenario* writes a scenario for every combination of the inputs. The
-values come from the drawing: an enum's values, yes and no for a boolean, and for a number or a
-text the constants the guards hold it against, one on each side of the line (`amount > 100`
-gives 100 and 101; `attempts >= 3`, with `attempts` starting as the input `attempt`, gives
-`attempt` 2 and 3). A list gets no records, one record of each kind its fields allow (`picked <
-qty` inside a `where` gives `picked` 0 and 1) and one of each together. The dialog lists every
-input with its values as chips. Click a value to leave it out, or bring it back; ⌥-click keeps
-only that one (again, and they all come back); an input's checkbox takes all its values or none.
-An input with nothing picked holds its usual value. To start with, every value of every input
-some guard reads is picked, since only those change the path, and the count of rows follows the
-picks. Picking `Web` and `Phone` out of five channels gives rows for just those two. Combinations a scenario already holds are left
-out, so pressing it again after a value was added to an enum adds only the new rows. Each row is
-named from its values, `channel=Web, hasCoupon=no`, tagged `generated` (or whatever you type in
-the dialog's Tags box, comma-separated; empty for none), and described in its
-panel with the branches it took. What the drawing did with it becomes its expectation, so the
-table documents the drawing branch by branch and you edit the rows the drawing gets wrong; or
-leave the expectations blank and fill them in by hand. A combination no branch handles comes out
-*stuck*, in red: the case nobody drew.
+**Generate…** beside *+ Scenario* writes scenarios from the inputs. The values come from the
+drawing: an enum's values, yes and no for a boolean, and for a number or a text the constants the
+guards hold it against, one on each side of the line (`amount > 100` gives 100 and 101;
+`attempts >= 3`, with `attempts` starting as the input `attempt`, gives `attempt` 2 and 3). A
+list gets no records, one record of each kind its fields allow (`picked < qty` inside a `where`
+gives `picked` 0 and 1) and one of each together. The dialog lists every input with its values as
+chips. Click a value to leave it out, or bring it back; ⌥-click keeps only that one (again, and
+they all come back); an input's checkbox takes all its values or none. An input with nothing
+picked holds its usual value. To start with, every value of every input some guard reads is
+picked, since only those change the path.
+
+Every combination of the picked values is then played through the drawing, and by default a
+scenario is written for each **way through the drawing**, not for each combination: combinations
+that take the same edges to the same end, or get stuck at the same place, are written once. When a
+guard only treats `UK` differently, `DE`, `FR` and `US` share a row, and which of them a row
+holds takes turns across the rows, so each turns up somewhere. A row's name leaves out the inputs
+that make no difference to its way (the order with nothing in stock is `items=none`, whatever its
+coupon), and its description says so, and which other values would have gone the same way. On the
+Advanced checkout that is 15 rows instead of 96, and they touch every node and edge the 96 would.
+*One for every combination* writes all of them instead.
+
+What a scenario already has is left out, its way or its combination, so pressing it again after a
+value was added to an enum adds only what is new. Each row is tagged `generated` (or whatever you
+type in the dialog's Tags box, comma-separated; empty for none) and described in its panel with
+the branches it took. What the drawing did with it becomes its expectation, so the table documents
+the drawing branch by branch and you edit the rows the drawing gets wrong; or leave the
+expectations blank and fill them in by hand. A combination no branch handles comes out *stuck*, in
+red: the case nobody drew.
 
 **Coverage** dims every node and edge that no scenario touches. In a review, "nobody wrote a
 scenario for the else branch" is the sentence you want before the code exists.
@@ -285,7 +295,7 @@ file in a project folder.
 lib/expr.mjs     the condition language: tokenizer, parser, evaluator, name check
 lib/run.mjs      the interpreter: run, verdict, runAll (with coverage), lint
 lib/markdown.mjs the flow as a Markdown spec, for Share ▾
-lib/generate.mjs every combination of the inputs as scenarios, with the values the guards suggest
+lib/generate.mjs scenarios from the inputs: one per way through the drawing, or every combination
 lib/project.mjs  a folder of flows: list with pass counts, read, write without clobbering
 ui/store.mjs     the document, selection, undo, autosave, which project file is open
 ui/canvas.mjs    the SVG drawing and its pointer interactions

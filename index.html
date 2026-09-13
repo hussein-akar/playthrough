@@ -496,6 +496,8 @@
   dialog.generate .chip.on:hover { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
   dialog.generate .opts { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; font-size: var(--fs-sm); }
   dialog.generate .opts label { display: flex; gap: 6px; align-items: center; margin: 0; cursor: pointer; }
+  dialog.generate .opts .opt label { align-items: flex-start; }
+  dialog.generate .opts .opt label > input { flex: none; margin-top: 2px; }
   dialog.generate .opts .opt { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
   dialog.generate .opts .tags input { width: 220px; height: var(--ctl-sm); font-family: var(--mono); font-size: var(--fs-sm); }
   dialog.generate .opts .k { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
@@ -659,16 +661,20 @@
   </dialog>
   <dialog id="generateDialog" class="generate">
     <form method="dialog">
-      <div class="head"><h3>Generate scenarios</h3><span class="muted">one for every combination of the picked values · click a value to leave it out, ⌥-click to keep only it</span></div>
+      <div class="head"><h3>Generate scenarios</h3><span class="muted">made from the picked values · click a value to leave it out, ⌥-click to keep only it</span></div>
       <div class="list">
         <div id="generateBody"></div>
         <div class="opts">
+          <div class="opt"><span class="k">Scenarios</span>
+            <label><input type="radio" name="generateMode" value="ways" checked> <span>one for each way through the drawing <span class="muted">· combinations that go the same way are written once, with the values that would do the same noted</span></span></label>
+            <label><input type="radio" name="generateMode" value="all"> <span>one for every combination</span></label>
+          </div>
           <div class="opt"><span class="k">Expectation</span>
-            <label><input type="radio" name="generateExpect" value="drawing" checked> what the drawing does now <span class="muted">· each row documents the drawing; edit the ones it gets wrong</span></label>
-            <label><input type="radio" name="generateExpect" value="blank"> nothing yet <span class="muted">· fill it in by hand</span></label>
+            <label><input type="radio" name="generateExpect" value="drawing" checked> <span>what the drawing does now <span class="muted">· each row documents the drawing; edit the ones it gets wrong</span></span></label>
+            <label><input type="radio" name="generateExpect" value="blank"> <span>nothing yet <span class="muted">· fill it in by hand</span></span></label>
           </div>
           <label class="tags">Tags <input type="text" id="generateTags" value="generated" placeholder="none" spellcheck="false" title="Comma-separated, as in a scenario's panel; empty for no tag"> <span class="muted">· comma-separated; empty for none</span></label>
-          <label><input type="checkbox" id="generateSkip" checked> Leave out combinations some scenario already holds</label>
+          <label><input type="checkbox" id="generateSkip" checked> <span id="generateSkipText">Leave out ways some scenario already goes</span></label>
         </div>
       </div>
       <div class="foot"><span id="generateCount" class="count"></span><button type="button" id="generateCancel">Cancel</button><button id="generateOk" value="ok" class="primary">Generate</button></div>

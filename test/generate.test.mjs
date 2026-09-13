@@ -1,7 +1,7 @@
 import { test as it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { candidates, plan, generate, count, picked } from '../lib/generate.mjs';
+import { candidates, plan, ways, generate, count, picked, wayOf, MAX_COMBINATIONS } from '../lib/generate.mjs';
 import { runAll, run, expectationOf } from '../lib/run.mjs';
 
 const checkout = JSON.parse(await readFile(new URL('../examples/simple/checkout.json', import.meta.url), 'utf8'));
@@ -72,7 +72,7 @@ it('a list gets no records, one record of each kind its read fields allow, and o
 });
 
 it('every combination of the checkout is a scenario; the four it already holds are left out', () => {
-  const { scenarios, skipped } = generate(checkout, { uid: (p) => p });
+  const { scenarios, skipped } = generate(checkout, { mode: 'all', uid: (p) => p });
   assert.equal(skipped, 4);
   assert.equal(scenarios.length, 6);
   assert.equal(scenarios[0].name, 'channel=Web, hasCoupon=no');
@@ -84,7 +84,7 @@ it('every combination of the checkout is a scenario; the four it already holds a
   assert.equal(all.passed, 3 + 6);
   assert.deepEqual(scenarios[0].expect, { actions: ['Reserve stock', 'Keep full price', 'Take payment', 'Send confirmation email'], end: 'Done', state: { discount: 'null' } });
   // Pressing it again adds nothing.
-  assert.equal(generate({ ...checkout, scenarios: [...checkout.scenarios, ...scenarios] }).scenarios.length, 0);
+  assert.equal(generate({ ...checkout, scenarios: [...checkout.scenarios, ...scenarios] }, { mode: 'all' }).scenarios.length, 0);
   // Without the skip, every combination comes, and only the ticked inputs are combined.
   assert.equal(plan(checkout, { skipCovered: false }).combos.length, 10);
   assert.equal(plan(checkout, { pick: { channel: ['Web', 'App', 'Marketplace', 'Phone', 'Kiosk'] } }).combos.length, 5 - 4);   // Web, App, Kiosk and Phone are held already, with hasCoupon at its fallback
@@ -101,10 +101,10 @@ it('a combination no branch handles comes out stuck, with a blank expectation an
 });
 
 it('the expectation can be left blank, and the tags chosen or left off', () => {
-  const { scenarios } = generate(checkout, { expect: 'blank', tags: [] });
+  const { scenarios } = generate(checkout, { mode: 'all', expect: 'blank', tags: [] });
   assert.deepEqual(scenarios[0].expect, { actions: [], end: '', state: {} });
   assert.deepEqual(scenarios[0].tags, []);
-  const tagged = generate(checkout, { tags: ['combos', 'PROJ-12'] }).scenarios;
+  const tagged = generate(checkout, { mode: 'all', tags: ['combos', 'PROJ-12'] }).scenarios;
   assert.deepEqual(tagged[0].tags, ['combos', 'PROJ-12']);
   tagged[0].tags.push('x');
   assert.deepEqual(tagged[1].tags, ['combos', 'PROJ-12']);   // each row has its own list
@@ -122,12 +122,12 @@ it('only the picked values are combined; an input with none picked holds its usu
   assert.equal(count(candidates(checkout), { channel: ['Web', 'Phone'], hasCoupon: [] }), 2);
   assert.equal(count(candidates(checkout), new Map([['channel', ['Web']]])), 1);   // a Map will do too
 
-  const { scenarios } = generate(checkout, { pick: { channel: ['Marketplace', 'Phone'], hasCoupon: ['yes', 'no'] }, skipCovered: false, uid: (p) => p });
+  const { scenarios } = generate(checkout, { pick: { channel: ['Marketplace', 'Phone'], hasCoupon: ['yes', 'no'] }, mode: 'all', skipCovered: false, uid: (p) => p });
   assert.deepEqual(scenarios.map((s) => s.name), ['channel=Marketplace, hasCoupon=yes', 'channel=Marketplace, hasCoupon=no', 'channel=Phone, hasCoupon=yes', 'channel=Phone, hasCoupon=no']);
   assert.match(scenarios[0].description, /^Generated: one scenario for every combination of channel \(Marketplace, Phone\) and hasCoupon\.\n/);
 
   // One value picked is held, not varied: it is in the description, not in the name.
-  const one = generate(checkout, { pick: { channel: ['Marketplace', 'Phone'], hasCoupon: ['yes'] }, skipCovered: false }).scenarios;
+  const one = generate(checkout, { pick: { channel: ['Marketplace', 'Phone'], hasCoupon: ['yes'] }, mode: 'all', skipCovered: false }).scenarios;
   assert.deepEqual(one.map((s) => [s.name, s.inputs.hasCoupon]), [['channel=Marketplace', true], ['channel=Phone', true]]);
   assert.match(one[0].description, /^Generated: one scenario for every combination of channel \(Marketplace, Phone\)\.\nchannel is Marketplace; hasCoupon is yes\./);
 
@@ -137,7 +137,97 @@ it('only the picked values are combined; an input with none picked holds its usu
   assert.equal(held.skipped, 1);   // Web is held already, whatever its coupon
 
   // A single value everywhere still gets a name.
-  const lone = generate(checkout, { pick: { channel: ['Marketplace'], hasCoupon: ['no'] } }).scenarios;
+  const lone = generate(checkout, { mode: 'all', pick: { channel: ['Marketplace'], hasCoupon: ['no'] } }).scenarios;
   assert.deepEqual(lone.map((s) => s.name), ['channel=Marketplace, hasCoupon=no']);
   assert.match(lone[0].description, /^Generated: the one combination the picked values make\./);
+});
+
+// ---- one scenario for each way through the drawing ----------------------------------------------
+
+/** Start → Where? (UK, or else) → Coupon? (hasCoupon, or else) → End: only UK is treated differently. */
+const shop = () => ({
+  inputs: [{ name: 'country', type: 'enum', values: ['UK', 'DE', 'FR', 'US'] }, { name: 'hasCoupon', type: 'boolean' }, { name: 'note', type: 'text' }],
+  state: [],
+  nodes: [{ id: 's', kind: 'start', label: 'Start' }, { id: 'where', kind: 'decision', label: 'Where?' }, { id: 'home', kind: 'action', label: 'Domestic' }, { id: 'abroad', kind: 'action', label: 'International' },
+    { id: 'coupon', kind: 'decision', label: 'Coupon?' }, { id: 'off', kind: 'action', label: 'Take 10% off' }, { id: 'full', kind: 'action', label: 'Full price' }, { id: 'e', kind: 'end', label: 'Done' }],
+  edges: [{ id: 'e0', from: 's', to: 'where' }, { id: 'e1', from: 'where', to: 'home', when: 'country == UK' }, { id: 'e2', from: 'where', to: 'abroad', else: true, label: 'abroad' },
+    { id: 'e3', from: 'home', to: 'coupon' }, { id: 'e4', from: 'abroad', to: 'coupon' }, { id: 'e5', from: 'coupon', to: 'off', when: 'hasCoupon' }, { id: 'e6', from: 'coupon', to: 'full', else: true },
+    { id: 'e7', from: 'off', to: 'e' }, { id: 'e8', from: 'full', to: 'e' }],
+  scenarios: [],
+});
+
+it('combinations that go the same way are one scenario; the values the drawing treats alike take turns', () => {
+  const doc = shop();
+  const w = ways(doc);
+  assert.deepEqual([w.explored, w.found, w.combos.length, w.skipped], [8, 4, 4, 0]);
+  const { scenarios } = generate(doc, { uid: (p) => p });
+  assert.deepEqual(scenarios.map((s) => s.name), ['country=UK, hasCoupon=yes', 'country=UK, hasCoupon=no', 'country=DE, hasCoupon=yes', 'country=FR, hasCoupon=no']);
+  assert.equal(scenarios[2].description, [
+    'Generated: one scenario for each way through the drawing, 4 found among the 8 combinations of country and hasCoupon.',
+    'country is DE; hasCoupon is yes.',
+    'Would go the same way with country FR or US.',
+    'Branches: Where? → abroad · Coupon? → hasCoupon.',
+  ].join('\n'));
+  assert.doesNotMatch(scenarios[0].description, /same way|no difference/);   // UK stands alone
+  assert.equal(runAll({ ...doc, scenarios }).passed, 4);
+});
+
+it('an input that makes no difference to a way is left out of its name, and said so', () => {
+  const doc = shop();
+  doc.edges = doc.edges.filter((e) => e.id !== 'e1').map((e) => (e.id === 'e2' ? { id: 'e2', from: 'where', to: 'abroad' } : e));   // everyone goes abroad
+  const all = { country: ['UK', 'DE', 'FR', 'US'], hasCoupon: ['yes', 'no'], note: ['blank'] };
+  const { scenarios } = generate(doc, { pick: all });
+  assert.deepEqual(scenarios.map((s) => s.name), ['hasCoupon=yes', 'hasCoupon=no']);
+  assert.deepEqual(scenarios.map((s) => s.inputs.country), ['UK', 'DE']);   // still spread
+  assert.match(scenarios[0].description, /\nMakes no difference on this way: country\.\n/);
+  // When nothing makes a difference, the name says which inputs were free.
+  doc.edges = doc.edges.filter((e) => !['e5', 'e6', 'e8'].includes(e.id)).concat({ id: 'x', from: 'coupon', to: 'off' });
+  const one = generate(doc, { pick: all }).scenarios;
+  assert.deepEqual(one.map((s) => s.name), ['Any country and hasCoupon']);
+  assert.match(one[0].description, /Makes no difference on this way: country and hasCoupon\./);
+});
+
+it('a way some scenario already goes is left out, whatever values that scenario holds', () => {
+  const doc = shop();
+  doc.scenarios = [{ id: 'x', name: 'US with a coupon', inputs: { country: 'US', hasCoupon: true }, expect: {} }];
+  const w = ways(doc);
+  assert.equal(w.skipped, 1);
+  assert.deepEqual(w.combos.map((c) => [c.inputs.country, c.inputs.hasCoupon]), [['UK', true], ['UK', false], ['DE', false]]);
+  assert.equal(ways(doc, { skipCovered: false }).combos.length, 4);
+});
+
+it('each place a run gets stuck is a way of its own', () => {
+  const doc = flow([{ name: 'channel', type: 'enum', values: ['Web', 'App', 'Phone', 'Kiosk'] }], [{ when: 'channel == Web' }, { when: 'channel in [Web, App]' }]);
+  const w = ways(doc);
+  assert.equal(w.found, 3);   // Web is ambiguous, App goes to B, Phone and Kiosk match nothing
+  const { scenarios } = generate(doc);
+  assert.deepEqual(scenarios.map((s) => s.name), ['channel=Web', 'channel=App', 'channel=Phone']);
+  assert.match(scenarios[0].description, /Stuck: ambiguous/);
+  assert.match(scenarios[2].description, /Would go the same way with channel Kiosk\.\nStuck: nothing matched/);
+  assert.notEqual(wayOf(run(doc, { inputs: { channel: 'Web' } })), wayOf(run(doc, { inputs: { channel: 'Phone' } })));
+});
+
+it('the runs are kept between calls, and too many combinations are refused', () => {
+  const doc = shop(), cache = new Map();
+  ways(doc, { cache });
+  assert.equal(cache.size, 8);
+  const again = ways(doc, { cache, pick: { country: ['UK', 'DE'], hasCoupon: ['yes', 'no'] } });
+  assert.equal(cache.size, 8);   // every one of these was played already
+  assert.equal(again.found, 4);
+  const big = { inputs: Array.from({ length: 15 }, (_, k) => ({ name: `b${k}`, type: 'boolean' })), nodes: [], edges: [], state: [], scenarios: [] };
+  const pick = Object.fromEntries(big.inputs.map((i) => [i.name, ['yes', 'no']]));
+  assert.ok(count(candidates(big), pick) > MAX_COMBINATIONS);
+  assert.throws(() => ways(big, { pick }), /more than 20000 combinations/);
+});
+
+it('every example flow: each way passes, and the ways cover every edge the combinations reach', async () => {
+  for (const f of ['simple/checkout', 'advanced/orders/checkout', 'advanced/orders/payment', 'advanced/fulfilment/delivery', 'advanced/fulfilment/pick-and-pack', 'advanced/after-sale/returns', 'advanced/after-sale/refunds']) {
+    const doc = JSON.parse(await readFile(new URL(`../examples/${f}.json`, import.meta.url), 'utf8'));
+    const byWay = generate(doc, { skipCovered: false }).scenarios, every = generate(doc, { mode: 'all', skipCovered: false }).scenarios;
+    assert.ok(byWay.length < every.length, f);
+    const a = runAll({ ...doc, scenarios: byWay }), b = runAll({ ...doc, scenarios: every });
+    assert.equal(a.passed, byWay.length, f);
+    assert.deepEqual(a.coverage.untouchedEdges, b.coverage.untouchedEdges, f);
+    assert.deepEqual(a.coverage.untouchedNodes, b.coverage.untouchedNodes, f);
+  }
 });
