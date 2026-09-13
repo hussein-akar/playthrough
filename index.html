@@ -114,6 +114,11 @@
   body.has-project:not(.side-hidden) #project { display: flex; }
   #project .head { display: flex; align-items: center; gap: 6px; padding: 10px 10px 8px 14px; border-bottom: 1px solid var(--line-2); }
   #project .head .grow { flex: 1; }
+  /* At the top left of the drawing, beside the sidebar: « hides it, and » brings it back. */
+  #sideToggle { display: none; position: absolute; top: 10px; left: 12px; color: var(--muted); box-shadow: var(--shadow); }
+  body.has-project #sideToggle { display: inline-flex; }
+  body:not(.side-hidden) #sideToggle svg { transform: scaleX(-1); }
+  body.has-project #lint { left: 44px; }
   #project .pname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
   #project ul { list-style: none; margin: 0; padding: 6px 6px; }
   #project li { position: relative; display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px calc(8px + var(--depth, 0) * 16px); border-radius: var(--r1); cursor: pointer; }
@@ -563,7 +568,6 @@
     <div class="sep"></div>
     <div class="group" aria-label="View">
       <button id="coverage" class="toggle" title="Dim what no scenario touches">Coverage</button>
-      <button id="projectToggle" class="toggle" title="Show or hide the project's flows" hidden>Flows</button>
     </div>
     <div class="sep"></div>
     <details id="share" class="menu">
@@ -582,6 +586,7 @@
   <nav id="project" aria-label="Project"></nav>
   <div id="stage">
     <svg id="canvas"></svg>
+    <button id="sideToggle" class="small icon" title="Hide the flows" aria-label="Hide the flows"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l4 4-4 4M8 4l4 4-4 4"/></svg></button>
     <div id="palette" role="toolbar" aria-label="Shapes">
       <h2>Shapes</h2>
       <div class="grid">

@@ -101,10 +101,17 @@ async function openFile(file) {
   try { const doc = JSON.parse(await file.text()); setFile(null); load(doc); canvas.fit(); toast(`Opened ${file.name}`); }
   catch (e) { notice('Could not read that file', `${file.name}: ${e.message}`); }
 }
-$('projectToggle').addEventListener('click', () => {
-  const hidden = document.body.classList.toggle('side-hidden');
+/** Hide or show the project's flows; the arrow at the top left of the drawing points the way a click takes them. */
+function sideHidden(hidden) {
+  document.body.classList.toggle('side-hidden', hidden);
+  const label = hidden ? 'Show the flows' : 'Hide the flows';
+  $('sideToggle').title = label; $('sideToggle').setAttribute('aria-label', label);
+}
+$('sideToggle').addEventListener('click', (ev) => {
+  const hidden = !document.body.classList.contains('side-hidden');
+  ev.currentTarget.blur();
+  sideHidden(hidden);
   try { localStorage.setItem('playthrough.sideHidden', hidden ? '1' : ''); } catch {}
-  $('projectToggle').classList.toggle('on', !hidden);
   canvas.render();
 });
 $('undo').addEventListener('click', undo);
@@ -282,9 +289,7 @@ window.addEventListener('hashchange', openLink);
   const saved = restore(), wasDirty = restoreDirty(), last = restoreFile();   // read the flags before load() resets them
   const info = await project.detect();
   if (info) {
-    try { if (localStorage.getItem('playthrough.sideHidden') === '1') document.body.classList.add('side-hidden'); } catch {}
-    $('projectToggle').hidden = false;
-    $('projectToggle').classList.toggle('on', !document.body.classList.contains('side-hidden'));
+    try { sideHidden(localStorage.getItem('playthrough.sideHidden') === '1'); } catch {}
     $('saveDoc').title = 'Write the flow to its file (⌘S)';
   }
   const known = last && info?.flows.some((f) => f.file === last.file) ? last : null;

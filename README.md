@@ -221,7 +221,8 @@ group, named as you type it; **Save** (or ⌘S) writes the open flow back to its
 row, ✎ renames the file, as typed with `.json` at the end (a `/` moves it; the flow keeps its own name) and × deletes it; a group's
 ✎ renames the folder, with everything in it coming along (a `/` moves it under other groups), and
 its × deletes it with everything in it, after saying how much that is. The project's name sits in the header, in place of the flow's: type there
-to name it once, and it is kept in `project.json`; until then the folder's name is used. **Flows** in the header hides the sidebar.
+to name it once, and it is kept in `project.json`; until then the folder's name is used. The « at the top left of the drawing, beside the sidebar,
+hides it; the same button, now », brings it back.
 
 Put the folder in git. That is the whole collaboration story, on purpose: the pull request is
 the review, `git log` is the history, and a merge conflict in a flow file is a real disagreement
