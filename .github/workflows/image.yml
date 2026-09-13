@@ -106,9 +106,15 @@ jobs:
       # Before the build, so the image tagged :1.3.0 holds a package.json that says 1.3.0. Only in this
       # checkout: main is protected and takes nothing but reviewed pull requests, so the version is not
       # committed back. The repository's package.json says 0.0.0-development; the tag is the version.
-      - name: Write the new version into the image's package.json
-        if: steps.release.outputs.release == 'true'
-        run: npm version --no-git-tag-version --allow-same-version "${{ steps.release.outputs.version }}"
+      #
+      # Two ways to get here. A push to main that releases has the version from the step above. A v1.3.0
+      # tag pushed by hand does not: the commits since the newest tag are none, because the newest tag
+      # is the one just pushed, so that step says no release. The tag's own name is the version then.
+      - name: Write the version into the image's package.json
+        if: steps.release.outputs.release == 'true' || github.ref_type == 'tag'
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || steps.release.outputs.version }}
+        run: npm version --no-git-tag-version --allow-same-version "${VERSION#v}"
 
       # arm64 as well as amd64: most people running this are on a laptop, and many laptops are ARM.
       - uses: docker/setup-qemu-action@v4

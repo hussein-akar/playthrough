@@ -446,7 +446,7 @@ The image is built and published by [`.github/workflows/image.yml`](.github/work
 | A pull request | Runs the tests on Node 22, 24 and 26, builds the image and smoke-tests it. Publishes nothing. |
 | A push to `main` | The same, then publishes `husseinakar/playthrough:latest` for amd64 and arm64 and updates the Docker Hub page from [`README.docker.md`](README.docker.md). |
 | …with a `feat:`, `fix:` or breaking commit since the last release ([which commits count](CONTRIBUTING.md#commit-messages-which-cut-releases)) | Also works out the next version, publishes `:1.3.0` and `:1.3` (with that version in the image's `package.json`), and tags the commit `v1.3.0`. Nothing is committed back to `main`. |
-| A `v*` tag pushed by hand | Publishes that version's tags. |
+| A `v*` tag pushed by hand | Publishes that version's tags, with that version in the image's `package.json`. |
 
 The smoke test starts the image with a folder mounted, as a Linux user would, and checks that it
 answers `/health`, serves the page and the presets, and writes a flow into the folder.
