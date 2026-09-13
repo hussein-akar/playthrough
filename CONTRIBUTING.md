@@ -140,14 +140,20 @@ When a release goes out, the workflow commits `chore(release): vX.Y.Z` and tags 
 
 ## Pull requests
 
-Branch off `main` and open a pull request against `main`. CI runs two checks side by side:
+`main` is protected: nobody pushes to it directly, and every change arrives as a pull request.
 
-- **The suite**, on Node 22, 24 and 26. 22 is what the image ships, so it is the one that must pass.
-- **The image**, built and run with a folder mounted as a Linux user would mount it: it must answer
-  `/health`, serve the page and the presets, and write a flow into the folder.
+1. Fork the repository (or, with write access, branch off `main`) and push your branch.
+2. Open a pull request against `main`.
+3. CI runs two checks side by side, and both must pass:
+   - **The suite**, on Node 22, 24 and 26. 22 is what the image ships, so it is the one that must pass.
+   - **The image**, built and run with a folder mounted as a Linux user would mount it: it must answer
+     `/health`, serve the page and the presets, and write a flow into the folder.
+4. The maintainer, the code owner in [`.github/CODEOWNERS`](.github/CODEOWNERS), approves it. A new
+   push after an approval needs approving again, and every review conversation must be resolved.
+5. It is merged, and the push to `main` publishes the image.
 
-Both must pass before anything is published. Small pull requests with one argument each are read
-faster than large ones.
+On a pull request from a fork, the workflow waits for the maintainer to approve running it. Small pull
+requests with one argument each are read faster than large ones.
 
 ## What not to commit
 
