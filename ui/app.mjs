@@ -194,6 +194,8 @@ function play() {
   }, 380);
 }
 document.addEventListener('play', play);
+// Done in the config drawer saves the flow to its file; without a project folder there is no file, and Save would download one, so Done only closes.
+document.addEventListener('flow-save', () => { if (project.project.info) save(); });
 
 // ---- keyboard ---------------------------------------------------------------------------------
 

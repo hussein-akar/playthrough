@@ -475,6 +475,7 @@
   dialog.drawer .body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 20px 20px; background: var(--bg); }
   dialog.drawer .foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--s3); padding: 10px 20px; border-top: 1px solid var(--line); }
   dialog.drawer .foot .muted { font-size: var(--fs-sm); }
+  body:not(.has-project) dialog.drawer .in-project { display: none; }
   dialog.drawer .card { margin-bottom: 14px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
   dialog.drawer .card h3 { margin: 0 0 10px; font-size: var(--fs); }
   dialog.drawer .field { margin-bottom: 0; }
@@ -697,7 +698,7 @@
     <div id="drawerResizer" title="Drag to resize"><i></i></div>
     <div class="head"><h3>Inputs</h3><span class="muted"></span><button class="small" data-act="close-settings">Close</button></div>
     <div class="body"></div>
-    <div class="foot"><span class="muted">changes apply as you type · ⌘Z undoes</span><button class="primary" data-act="close-settings">Done</button></div>
+    <div class="foot"><span class="muted">changes apply as you type · ⌘Z undoes<span class="in-project"> · Done saves the flow</span></span><button class="primary" data-act="done-settings">Done</button></div>
   </dialog>
   <dialog id="presetsDialog" class="presets">
     <form method="dialog">

@@ -71,7 +71,6 @@ export function openSettings(focus = 'input') {
   const target = sheet.querySelector(`.row[data-${kind}="${k}"] [data-f="name"]`);
   if (target) { target.focus(); target.select?.(); target.scrollIntoView?.({ block: 'center' }); }
 }
-sheet.querySelector('[data-act="close-settings"]').addEventListener('click', () => sheet.close());
 sheet.addEventListener('close', () => render());
 // The gear in the palette and the canvas's right-click menu open the flow in the panel: its
 // scenarios, inputs and state; editing the schema is one more click, into the drawer.
@@ -520,6 +519,9 @@ for (const r of roots) r.addEventListener('click', (ev) => {
   const act = b.dataset.act;
   const sel = store.selection;
   if (act === 'open-settings') return openSettings(b.dataset.focus);
+  // Close puts the sheet away; Done also saves, which in a project writes the flow's file (app.mjs listens).
+  if (act === 'close-settings') return sheet.close();
+  if (act === 'done-settings') { sheet.close(); return document.dispatchEvent(new Event('flow-save')); }
   if (act === 'add-input-open') { commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); }); return openSettings('input:last'); }
   if (act === 'add-state-open') { commit((doc) => { doc.state.push({ name: `field${doc.state.length + 1}`, initial: null }); }); return openSettings('state:last'); }
   if (act === 'add-input') commit((doc) => { doc.inputs.push({ name: `input${doc.inputs.length + 1}`, type: 'text' }); });
