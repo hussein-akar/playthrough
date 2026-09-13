@@ -1,5 +1,6 @@
 // A static file server for the app, and, when started with a folder, the project API over it:
-// `node serve.mjs ./specs` (or `npm start -- ./specs`, or PLAYTHROUGH_DIR=./specs). ES modules
+// `node serve.mjs ./specs` (or `npm start -- ./specs`, or PLAYTHROUGH_DIR=./specs). PORT picks the
+// port (8095). GET /health answers {"status":"UP"} for a container's health check. ES modules
 // refuse to load over file://, so the static part is the smallest thing that lets `index.html`
 // import `ui/*.mjs`. The API is four routes over the folder; everything else about a project
 // (history, review, merging) is the job of git.
@@ -72,8 +73,9 @@ async function api(req, res, url) {
   }
 }
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/health') return send(res, 200, { status: 'UP', project: project?.name ?? null });
   if (url.pathname.startsWith('/api/')) return api(req, res, url);
   let path = normalize(decodeURIComponent(url.pathname));
   if (path.endsWith('/')) path += 'index.html';
@@ -90,3 +92,7 @@ createServer(async (req, res) => {
   console.error(`playthrough · port ${port} is already in use; stop what is on it, or pick another: PORT=${port + 1} npm start`);
   process.exit(1);
 }).listen(port, () => console.log(`playthrough · http://localhost:${port}/${project ? `  · project "${project.name}" in ${project.dir}` : '  · no project folder (npm start -- ./specs to open one)'}`));
+
+// A container is stopped with SIGTERM, and Node as process 1 ignores it by default, so `docker stop`
+// would wait ten seconds and kill it. Nothing is held open between requests, so stopping is just exiting.
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => server.close(() => process.exit(0)).closeAllConnections());

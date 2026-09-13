@@ -1,0 +1,176 @@
+# Run the tests, build the image, prove it answers, then publish it to Docker Hub.
+#
+# Two gates, and they check different things. The **suite** is the interpreter, the condition
+# language, the generator and the project folder, none of which is checked by the image booting. The
+# **smoke test** is the opposite: it says nothing about correctness and everything about the image,
+# because an image that builds but cannot write to the folder mounted into it is the one somebody
+# pulls and debugs for an hour.
+#
+# Both gate `publish`, and neither gates the other, so a pull request gets both answers at once.
+
+name: image
+
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+env:
+  IMAGE: husseinakar/playthrough
+
+jobs:
+  # The suite, on the Node the image ships (22, the one that has to pass) and the two majors above it,
+  # which are the forward signal. There is no `npm ci`: there are no dependencies.
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24', '26']
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: node --test
+        run: npm test
+
+  # One architecture, loaded into the runner's daemon, because a multi-arch manifest cannot be run.
+  # This is the gate; the build in `publish` is the artefact.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build for this runner
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: playthrough:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Mounted and run as the runner's own user, the way the README tells Linux users to run it, so
+      # a folder the container cannot write to fails here and not on somebody's laptop.
+      - name: It boots, and it answers
+        run: |
+          mkdir -p "$RUNNER_TEMP/specs"
+          docker run -d --name playthrough -p 8095:8095 \
+            --user "$(id -u):$(id -g)" -v "$RUNNER_TEMP/specs:/app/specs" playthrough:ci
+          for _ in $(seq 1 30); do
+            curl -fsS localhost:8095/health > /dev/null && break
+            sleep 1
+          done
+          curl -fsS localhost:8095/health | tee /dev/stderr | grep -q '"status":"UP"'
+          curl -fsS localhost:8095/ | grep -q '<title>Playthrough</title>'
+          curl -fsS localhost:8095/examples/presets.json | grep -q '"advanced"'
+
+      - name: A flow is written into the mounted folder, and listed back
+        run: |
+          curl -fsS -X POST localhost:8095/api/flows -H 'content-type: application/json' \
+            -d '{"name":"Billing/Refund intake","doc":{"nodes":[],"edges":[],"scenarios":[]}}' | tee /dev/stderr
+          test -f "$RUNNER_TEMP/specs/Billing/Refund intake.json"
+          curl -fsS localhost:8095/api/project | tee /dev/stderr | grep -q '"Refund intake"'
+
+      - name: What it said on the way up
+        if: always()
+        run: docker logs playthrough
+
+  publish:
+    # Both gates. The image being publishable says nothing about whether the code in it is right.
+    needs: [test, build]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # The last step writes a commit and a tag back. Nothing else here needs more than read.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        # Whole history, for the tags: the next step decides by asking what has been released already.
+        with:
+          fetch-depth: 0
+
+      # What the commits since the last tag say this release is: `feat:` a minor, `fix:`/`perf:` a
+      # patch, a `!` or a `BREAKING CHANGE:` footer a major, anything else (ui, docs, chore, refactor)
+      # no release. It logs what each commit counted for; see .github/next-version.mjs.
+      - id: release
+        run: node .github/next-version.mjs
+
+      # Before the build, so the image tagged :1.3.0 holds a package.json that says 1.3.0.
+      # `--allow-same-version` because the very first release is 0.1.0, which package.json already says.
+      - name: Write the new version into package.json
+        if: steps.release.outputs.release == 'true'
+        run: npm version --no-git-tag-version --allow-same-version "${{ steps.release.outputs.version }}"
+
+      # arm64 as well as amd64: most people running this are on a laptop, and many laptops are ARM.
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      # Two repository secrets: the Docker Hub account name, and an access token from hub.docker.com →
+      # Account Settings → Personal access tokens, with Read, Write, Delete (the overview sync below
+      # needs more than Read & Write, and a narrower token is refused with a confusing Forbidden).
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # :latest and :main on every push to main; :1.3.0 and :1.3 when this push is a release, or when
+      # a v1.3.0 tag is pushed by hand.
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.release.outputs.version }},enable=${{ github.ref == 'refs/heads/main' && steps.release.outputs.release == 'true' }}
+            type=raw,value=${{ steps.release.outputs.minor }},enable=${{ github.ref == 'refs/heads/main' && steps.release.outputs.release == 'true' }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The release itself, after the image it names is out: a tag claims this version shipped, and a
+      # failed build should not leave one behind. `chore(release)` counts for nothing on the next run,
+      # so a release cannot cause another. Neither push starts a new run (GITHUB_TOKEN never does).
+      - name: Commit the version and cut the tag
+        if: github.ref == 'refs/heads/main' && steps.release.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          BUMP: ${{ steps.release.outputs.bump }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json
+          git diff --cached --quiet || git commit -m "chore(release): v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION ($BUMP)"
+          # main first: a tag on a commit no branch holds is the state to avoid if the second push fails.
+          git push origin HEAD:main
+          git push origin "v$VERSION"
+
+      # Docker Hub's overview is README.docker.md, written for somebody landing on the image: what it
+      # is, how to run it, what to mount. Docker Hub caps it at 25,000 bytes; README.md is the rest.
+      - name: Sync the Docker Hub overview
+        if: github.ref == 'refs/heads/main'
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.IMAGE }}
+          short-description: 'Draw a feature as a flow, list its scenarios, and play each one through the drawing.'
+          readme-filepath: ./README.docker.md

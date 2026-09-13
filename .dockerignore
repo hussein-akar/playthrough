@@ -1,0 +1,22 @@
+# The image carries the page and the server; a team's flows are mounted into it at run time.
+# Everything below is either somebody's local work or not read at run time.
+
+# Somebody's own project folder. COPY would otherwise hand every user of the image that person's flows.
+specs/
+
+# Not read at run time.
+test/
+README.md
+README.docker.md
+Dockerfile
+.dockerignore
+assets/
+
+.git/
+.github/
+.gitignore
+.idea/
+.claude/
+.DS_Store
+node_modules/
+*.log

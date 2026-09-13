@@ -2,40 +2,151 @@
 
 **Draw the feature before it exists. Then play your scenarios through the drawing.**
 
-A team designing a feature draws a flow on a whiteboard and lists the cases in a spreadsheet:
-*if the order came from the app and there is a coupon, then…* The drawing and the spreadsheet
-never meet, so nobody notices the case that no branch handles, or the two branches that both
-claim the same case, until the code is written and a tester finds it.
+A team designing a feature draws a flow on a whiteboard and lists the cases in a spreadsheet: *if
+the order came from the app and there is a coupon, then…* The drawing and the spreadsheet never
+meet, so nobody notices the case that no branch handles, or two branches that claim the same case,
+until the code is written and a tester finds it.
 
-Playthrough is the drawing and the spreadsheet in one page. The flow is a picture of nodes and
-guarded edges. Each scenario is a row: inputs on the left, what should happen on the right. Every
-row is played through the picture as you type, its path lights up node by node, and the row turns
-green or red. Nothing about it is tied to code: it is a design-time tool, and the document it
-produces is the spec.
+Playthrough puts the drawing and the spreadsheet on one page. You draw the flow as nodes joined by
+guarded edges. Each scenario is a row: its inputs, and what should happen. Every row is played
+through the drawing as you type, its path lights up, and the row turns green or red. It is a design
+tool and is not tied to any code: the flow file it saves is the spec.
 
-No build step, no dependencies. Node 22 or newer and this checkout.
+![Playthrough: projects on the left, the flow in the middle, the selected scenario on the right, the scenario table below](assets/playthrough.jpg)
+
+[Try it](#try-it) · [Use it with your team](#use-it-with-your-team) · [How a flow works](#how-a-flow-works) · [The page](#the-page) · [The flow file](#the-flow-file) · [Running it](#running-it) · [Development](#development) · [Publishing](#publishing)
+
+## Try it
+
+Five minutes. You need [Docker](https://docs.docker.com/get-docker/), or Node 22 or newer.
+
+1. **Start Playthrough.**
+
+   ```bash
+   docker run --rm -p 8095:8095 husseinakar/playthrough
+   ```
+
+   Or from source:
+
+   ```bash
+   git clone https://github.com/hussein-akar/playthrough
+   cd playthrough
+   npm start -- ./specs
+   ```
+
+2. **Open <http://localhost:8095>.** The page is empty: the project folder has no flows in it yet.
+
+3. **Load the example shop.** Click **Template** at the top right, then **Presets**. On the
+   **Simple** card, press **Load it**. The *Checkout* flow opens: the drawing in the middle, its four
+   scenarios in the table at the bottom. The header says **1 of 4 fail**.
+
+4. **Find out why one fails.** In the table, click the red row, *Phone order (someone assumed an
+   email)*. Its path lights up on the drawing: a phone order goes **in person**, to **Print
+   receipt**, but the scenario expects **Send confirmation email**. Double-click the row to open it
+   in the side panel, where **Result** says what did not match.
+
+5. **Decide who is right.**
+   - *The drawing is right:* press **Use this run as the expectation** in the panel. The row turns
+     green.
+   - *The scenario is right:* click the edge labelled **online** and add `Phone` to its condition,
+     so it reads `channel in [Web, App, Marketplace, Phone]`. The row turns green as you type.
+
+Then try these:
+
+- **Play it step by step.** Select a row and press Space, or press ▶ at the end of the row.
+- **Let it write the scenarios.** Press **Generate…** above the table, then **Generate**. You get one
+  scenario for each way through the drawing, with what the drawing does as the expectation.
+- **See a bigger example.** **Template → Presets → Advanced → Load it**: six flows in three groups,
+  with lists of records, state set along the way, and a scenario for every branch.
+
+> Run like this, whatever you save lives inside the container and is gone when it stops. The next
+> section keeps it on your disk.
+
+## Use it with your team
+
+### 1. Run it on a folder in your repository
+
+From the root of the repository the feature belongs to:
 
 ```bash
-npm start                  # http://localhost:8095/, one flow at a time
-npm start -- ./specs       # the same page over a project folder (see "A team and a folder")
-npm run start:example      # the page over the Advanced preset: six flows in three groups
-npm test                   # the interpreter, the condition language, the generator, the project folder, the presets
+docker run -d --name playthrough -p 8095:8095 \
+  -v "$PWD/specs:/app/specs" \
+  husseinakar/playthrough
 ```
 
-The page opens on a shop's checkout, a flow with four scenarios. One of them fails on purpose:
-somebody assumed a phone order gets a confirmation email, and the drawing says it prints a
-receipt. **Template ▾** holds the presets, a small shop and a bigger one (see "Templates").
+| Part | Why it is there |
+|---|---|
+| `-d --name playthrough` | Runs in the background. `docker stop playthrough` stops it; `docker start playthrough` starts it again. |
+| `-p 8095:8095` | Your browser reaches it at <http://localhost:8095>. |
+| `-v "$PWD/specs:/app/specs"` | Every flow is saved as a file in `specs/`, on your disk, so it outlives the container and can be committed. |
 
-## What a flow is made of
+**On Linux**, add `--user "$(id -u):$(id -g)"` to the command, so the container can write to
+`specs/`. Docker Desktop on macOS and Windows does not need it.
+
+Without Docker, from a checkout of this repository: `npm start -- /path/to/your/repo/specs`.
+
+### 2. Name the project and add a flow
+
+1. The project's name is in the header, next to **Playthrough**. Click it and type a name. It is
+   kept in `specs/project.json`.
+2. Press **+ Flow** in the sidebar and name the flow. A `/` in the name puts it in a group (a
+   subfolder): `Orders/Checkout` is saved as `specs/Orders/Checkout.json`.
+
+### 3. Draw it
+
+1. Drag **Start**, **Action**, **Decision** and **End** from the palette onto the canvas.
+2. Select a node, then drag from one of the dots on its side to another node to connect them.
+3. Press **Config** at the foot of the palette. Add the **Inputs** a scenario provides (a coupon, a
+   channel, a list of order lines) and the **State** your actions leave behind.
+4. Click an edge leaving a decision and write its **Condition**, such as `channel in [Web, App]`. The
+   **insert…** menu beside it lists every name and value you can use.
+
+### 4. Write the scenarios
+
+- **+ Scenario** adds a row. Fill in its inputs in the table. Double-click the row to set, in the side
+  panel, what should happen: the actions, the end it lands on, and the state.
+- Or press **Generate…** to write one scenario for each way through the drawing, then fix the rows
+  where the drawing is wrong.
+
+### 5. Save and share
+
+- **Save** (or ⌘S / Ctrl+S) writes the flow to its file in `specs/`.
+- **Commit `specs/`.** The pull request is the design review, and `git log` is its history. If a file
+  changed on disk since you opened it (after a pull, say), the page asks before writing over it.
+- For a ticket, **Template → Export → Copy as Markdown** puts the flow on your clipboard as a spec.
+  **Copy link** puts the whole flow in a URL that anyone can open.
+
+### In Docker Compose
+
+```yaml
+services:
+  playthrough:
+    image: husseinakar/playthrough
+    ports:
+      - "8095:8095"
+    volumes:
+      - ./specs:/app/specs
+    restart: unless-stopped
+    # On Linux, so the container can write to ./specs. Use your own ids, from `id -u` and `id -g`.
+    # user: "1000:1000"
+```
+
+Then `docker compose up -d`, and open <http://localhost:8095>.
+
+## How a flow works
+
+### The pieces
 
 | Piece | What it means |
 |---|---|
 | **Start** | Where a scenario enters. One per flow. |
 | **Action** | Something that happens: a document created, an event published. A scenario expects a set of these. An action may also *set* a state field. |
-| **Decision** | A fork. Each edge leaving it carries a condition; one edge may be *else*. An edge may carry a short label, shown on the canvas in place of its condition, and a status colour: success, failed, warning or info. A wire is smooth or square; a small bar over the selected wire switches both. |
+| **Decision** | A fork. Each edge leaving it carries a condition, and one edge may be *else*. |
 | **End** | Where a scenario lands. A scenario may expect a particular one. |
-| **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text, or a list of records with fields of their own. Conditions can only mention declared inputs, so a typo is caught while drawing, not while running. |
-| **State** | Fields an action may set along the way, and a scenario may check at the end. An initial value is taken as written, unless it reads as an expression over the inputs: an input's name starts the field as a copy of that input. |
+| **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text, or a list of records. A condition can only mention declared names, so a typo is caught while drawing. |
+| **State** | Fields an action may set along the way and a scenario may check at the end. |
+
+### Conditions
 
 Conditions read like the sentence in the spreadsheet:
 
@@ -46,208 +157,183 @@ amount > 100 and not blocked
 deliveryDate == null
 ```
 
-Enum values need no quotes. `and`, `or`, `not`, `in`, comparisons, arithmetic and `a ?? b` (b
-when a is blank) are all there is, plus two words for lists.
+Enum values need no quotes. The language has `and`, `or`, `not`, `in`, comparisons, arithmetic, and
+`a ?? b` (b when a is blank), plus `where` and `count` for lists.
 
-A list input holds records: it is declared with its fields (`lines`, with `status` an enum of
-PICKED, SHORT, CANCELLED and `gift` a boolean), and a scenario writes the records one per line,
-`status=PICKED, gift=yes`, or just the values in field order, `PICKED, yes`. A state field whose
-initial value is `lines` starts as a copy of it, and `lines where gift` as the gift lines only;
-an action narrows it further with `where`, and a guard measures it with `count`:
+The panel checks a condition as you type: a name nobody declared, or a missing bracket, shows up
+under the field at once. Renaming an input or a state field rewrites every condition, set and
+scenario cell that mentions it, in one undoable step.
+
+### Lists of records
+
+A list input is declared with its fields: `lines`, where `status` is an enum of PICKED, SHORT and
+CANCELLED, and `gift` is a boolean. A scenario writes one record per line, as `status=PICKED,
+gift=yes` or just the values in field order, `PICKED, yes`. In the side panel each record is a row of
+controls.
+
+An action narrows a list with `where`, and a condition measures it with `count`:
 
 ```
 kept = kept where status != CANCELLED         an action's set
-count(kept) == 0                              a guard
+count(kept) == 0                              a condition
 count(kept where gift) > 1
 ```
 
-Inside `where`, a bare word is first a field of the record being looked at. An empty list is
-false, so `kept where gift` alone reads "some kept line is a gift". A scenario's expected
-state for a list is a count, `*` for some, or `null` for none. The filters in the drawing are
-then really exercised: how many lines remain is worked out, not typed in.
+Inside `where`, a bare word is a field of the record. An empty list is false, so `kept where gift`
+reads "some kept line is a gift".
 
-Beside the condition on an edge sits an *insert…* menu with every declared input and state
-field, each enum's values and the operators: a pick lands at the cursor, so a guard is assembled
-from what the flow declares rather than typed from memory.
+### State
 
-The panel checks a condition or a set expression as you type: a name nobody declared or a
-missing bracket shows up under the field at once. Renaming an input or a state field rewrites
-every guard, set and scenario cell that mentioned it, in one undoable step.
+A state field starts as its **initial value**. That is taken as written (`0`, `null`), unless it is
+an expression over the inputs: `lines` starts as a copy of the input `lines`, and `lines where gift`
+as the gift lines only. An action changes a field with a *set*, such as `discount = 10`.
 
-## Drawing
-
-The gear at the foot of the palette (or *Flow config…* in the right-click menu) shows the flow
-in the side panel: itself, its inputs and its state. Its name and description are edited right
-there, by clicking them. A pencil or a row opens the config drawer on that card alone: the
-inputs are declared in one, the state in the other. The panel otherwise shows whatever is
-selected and goes away when nothing is. The scenario table runs the full width of the window;
-its top edge is a grip.
-
-The palette on the left holds the four shapes: click one to add it in the middle of the view, or
-drag it onto the canvas to put it exactly where it lands. The bar over the canvas has **Tidy**,
-which lays the flow out left to right from the start node in one undoable step, **Fit**, and −,
-the percentage (a click goes back to 100%) and +. Nodes snap to a 20px grid while dragging (hold Alt for
-free placement); arrow keys nudge the selected nodes by one grid step, Shift by five.
-Double-click a node to edit its label straight away.
-
-Moving around works as in Figma: the wheel (or two fingers on a trackpad) pans, ⌘-wheel or a
-pinch zooms, and holding Space or the middle button turns a drag into a pan. A wire, a node or a
-selection band dragged to the edge of the window pans the view that way, so a far-off node can be
-reached without letting go.
-
-Several nodes can be selected at once: dragging on empty canvas draws a band that catches every
-node it touches, Shift-drag adds to what is already selected, Shift-click adds a node or takes it
-out, and ⌘A takes them all. ⌘C, ⌘X and ⌘V copy, cut and paste the selection with the edges
-between its nodes, and ⌘D duplicates it. A right-click on the canvas opens a small menu with the
-same, plus the four shapes on empty canvas. Dragging any node of the
-selection moves the whole of it, the arrow keys nudge it, Delete removes it with the edges that
-touched it, and the panel offers *Align left* and *Align top*. Each of these is one undo step.
-
-## Playing a scenario
+### How a scenario is played
 
 At each node the runner looks at the edges leaving it. Exactly one must match: the one whose
-condition holds, or the *else* edge when none does. Two matching edges is a finding
-(*ambiguous*), no matching edge is a finding (*nothing matched*), a node with no way out is a
-finding (*leads nowhere*), and so is a loop. The path up to the trouble is kept and the node
-where it stopped is painted red, because "it got stuck here" is exactly what the design review
-needs to see.
+condition holds, or the *else* edge when none does. Anything else stops the run, and the node where
+it stopped is painted red:
 
-A scenario passes when every expected action happened, nothing unexpected happened, it landed
-where it said it would, and each expected state field holds. In the expected-state cell, `*`
-means *any value but null*, `null` means null, and a plain value is compared to the value. A
-cell can also be a check: `== 1` or `> 100` on the value (for a list, on how many records it
-has), `size == 1`, `count(lines where gift) == 1`, `lines where status == PICKED` (some
-record matches), or the name of an input, meaning "the same as that input". Inside a check,
-`it`, `value`, `size` and `count` name the field's value and its count.
+| Finding | Meaning |
+|---|---|
+| *ambiguous* | Two edges match. |
+| *nothing matched* | No edge matches and there is no *else*. |
+| *leads nowhere* | The node has no way out and is not an End. |
+| *loop* | The run is still going after 500 steps. |
 
-A click on a row selects the scenario and shows its path; a double-click (or ✎ at the end of the
-row) opens it in the side panel, where the rest of it is edited, and ↑ and ↓ go through the
-scenarios. ▶ at the end of a row plays it step by step, ⧉ duplicates it and × deletes it; the grip
-that takes the place of its number on hover drags it to another place in the list. Expected
-actions are chosen in the scenario panel only, listed in the order the flow meets them, each
-marked ✓ or ✗ for the last run, and every step of the result path is a link to its node. When a scenario fails and it
-is the drawing that is right, **Use this run as the expectation** (or *accept run* in the row)
-copies what actually happened into the expectation. In the table, Enter on the last row starts
-the next scenario and *+N more* opens the full list of issues.
+A scenario **passes** when every expected action happened, nothing unexpected happened, it landed on
+the expected End, and every expected state field holds. An expected state cell can be:
 
-A scenario can carry **tags**, comma-separated in its panel: `edge`, a ticket number, whose case
-it is. The table grows a tags column once any scenario has one. Every tag shows above the table
-with its pass count, and clicking one narrows the table to it (a row added while narrowed gets
-the tag). The Markdown export carries the tags
-and ends the scenario table with a tally per tag.
+| Cell | Holds when the field is |
+|---|---|
+| `*` | anything but null |
+| `null` | null |
+| `100`, `UK` | that value |
+| `== 1`, `> 100`, `size > 0` | true for that check; for a list, on how many records it has |
+| `count(lines where gift) == 1`, `lines where status == PICKED` | true for that expression |
+| the name of an input | the same as that input |
 
-A scenario can also carry a **description**, a few lines saying why it exists. It is shown in the
-scenario's panel only, never in the table. (An older file's scenario *note* is read as its description.)
+## The page
 
-**Generate…** beside *+ Scenario* writes scenarios from the inputs. The values come from the
-drawing: an enum's values, yes and no for a boolean, and for a number or a text the constants the
-guards hold it against, one on each side of the line (`amount > 100` gives 100 and 101;
-`attempts >= 3`, with `attempts` starting as the input `attempt`, gives `attempt` 2 and 3). A
-list gets no records, one record of each kind its fields allow (`picked < qty` inside a `where`
-gives `picked` 0 and 1) and one of each together. The dialog lists every input with its values as
-chips. Click a value to leave it out, or bring it back; ⌥-click keeps only that one (again, and
-they all come back); an input's checkbox takes all its values or none. An input with nothing
-picked holds its usual value. To start with, every value of every input some guard reads is
-picked, since only those change the path.
+### The header
 
-Every combination of the picked values is then played through the drawing, and by default a
-scenario is written for each **way through the drawing**, not for each combination: combinations
-that take the same edges to the same end, or get stuck at the same place, are written once. When a
-guard only treats `UK` differently, `DE`, `FR` and `US` share a row, and which of them a row
-holds takes turns across the rows, so each turns up somewhere. A row's name leaves out the inputs
-that make no difference to its way (the order with nothing in stock is `items=none`, whatever its
-coupon), and its description says so, and which other values would have gone the same way. On the
-Advanced checkout that is 15 rows instead of 96, and they touch every node and edge the 96 would.
-*One for every combination* writes all of them instead.
+- **Playthrough**, then the flow's name (or, in a project, the project's name). Click it to rename.
+- Pills that say how the flow stands: **unsaved changes**, **all 4 pass** or **1 of 4 fail**, and **2
+  drawing problems** (click it to go to the first).
+- **Undo** and **redo**, the **Template** menu, **Save**, and **?**, which lists every key.
 
-What a scenario already has is left out, its way or its combination, so pressing it again after a
-value was added to an enum adds only what is new. Each row is tagged `generated` (or whatever you
-type in the dialog's Tags box, comma-separated; empty for none) and described in its panel with
-the branches it took. What the drawing did with it becomes its expectation, so the table documents
-the drawing branch by branch and you edit the rows the drawing gets wrong; or leave the
-expectations blank and fill them in by hand. A combination no branch handles comes out *stuck*, in
-red: the case nobody drew.
+### Drawing
 
-## Keys
+- **Add a node:** click a shape in the palette to drop it in the middle, or drag it to where it
+  should go. Double-click a node to edit its label.
+- **Connect:** select a node, then drag from a dot on its side to another node. Drag an end of a
+  selected wire to move it; drag the wire itself to route it around something.
+- **An edge's look:** a label shown instead of the condition, a status colour (success, failed,
+  warning, info), and a smooth or square line, from the small bar over a selected wire or the panel.
+- **Move around:** the wheel or two fingers pan; ⌘-wheel or a pinch zooms; hold Space or the middle
+  button to drag the view. The bar over the canvas has **Tidy** (lay the flow out from the start),
+  **Fit**, and the zoom.
+- **Select several:** drag on empty canvas, Shift-click, or ⌘A. Then drag, nudge with the arrow keys,
+  copy (⌘C), cut (⌘X), paste (⌘V), duplicate (⌘D), delete, or line them up from the panel.
+- **The flow's own settings:** press **Config** in the palette. The panel shows the flow's name and
+  description and its inputs and state; a pencil opens the drawer where they are edited.
+
+### Scenarios
+
+- **Select** a row with a click: its path lights up on the drawing. ↑ and ↓ move to the next one.
+- **Open** it in the side panel with a double-click, or ✎ at the end of the row. The panel has its
+  name, description, result, tags, inputs, and what it expects.
+- **Play** it step by step with ▶ at the end of the row, or Space.
+- **Duplicate** (⧉), **delete** (×), or **move** it: on hover the row number becomes a grip to drag.
+- **Accept a run:** when a scenario fails and the drawing is right, **Use this run as the
+  expectation** in the panel (or **accept run** in the row) copies what happened into what it expects.
+- **Tags**, such as `edge` or a ticket number, go in the panel. Each tag shows above the table with
+  its pass count; click one to show only its scenarios.
+
+### Generate…
+
+**Generate…** writes scenarios from the inputs. The values come from the drawing: an enum's values,
+yes and no for a boolean, and for numbers and text the constants the conditions compare them with
+(`amount > 100` gives 100 and 101). A list gets no records, one record of each kind, and one of
+each together.
+
+In the dialog, every input shows its values as chips. Click a value to leave it out; ⌥-click
+(Alt-click) keeps only that one. Then:
+
+- **One for each way through the drawing** (the default): combinations that take the same edges to
+  the same end are written once. On the Advanced checkout that is 15 scenarios instead of 96, and
+  they touch every node and edge the 96 would.
+- **One for every combination** writes all of them.
+
+Ways (or combinations) a scenario already covers are left out, unless you untick **Leave out…** in
+the dialog. Each new one is tagged `generated`, described with the
+branches it took, and expects what the drawing did, so the table documents the drawing and you fix
+the rows where it is wrong. A combination that no branch handles comes out *stuck*: the case nobody
+drew.
+
+### The project sidebar
+
+Shown when Playthrough runs on a folder. Every `*.json` in the folder and its subfolders is a flow.
+
+- Click a flow to open it. Its dot and count say how its scenarios stand (`5/7`).
+- **+ Flow** creates one, **+ Group** creates a folder, and a group's **+** creates a flow inside it.
+- Drag a flow or a group onto a group to move it there, or onto empty space to move it to the top.
+- On hover, ✎ renames and × deletes, after asking.
+- « at the left of the bar over the canvas hides the sidebar; » brings it back.
+
+### Saving, importing and exporting
+
+| Where | What it does |
+|---|---|
+| **Save**, ⌘S | In a project: writes the flow to its file. Without a project folder: downloads it as JSON. |
+| **Template → Import → Open a file…** | Opens a flow's `.json` from your computer. Dropping the file on the page does the same. |
+| **Template → Import → From JSON** | Opens a flow from JSON you paste. |
+| **Template → Export → Copy link** | Puts the whole flow in a URL (compressed; nothing is uploaded). |
+| **Template → Export → Copy as JSON** | Puts the flow's JSON on your clipboard. |
+| **Template → Export → Copy as Markdown** | Puts the flow on your clipboard as a spec: inputs, state, every decision and the scenario table with each result. |
+| **Template → Export → Download as JSON** | Downloads the flow's file. |
+
+The browser also keeps the flow you are working on between reloads, but that is not a save: the
+**unsaved changes** pill stays until you press **Save**, and the page asks before you close it.
+
+### Presets
+
+**Template → Presets** offers three starting points, kept in `examples/`:
+
+| Preset | What is in it |
+|---|---|
+| **Empty** | A blank canvas. In a project, loading it empties the folder. |
+| **Simple** | A shop in two flows, *Checkout* and *Returns*. One scenario fails on purpose. |
+| **Advanced** | The same shop in six flows and three groups: orders, fulfilment and after-sale, with lists of records, state, labelled and coloured edges, and a scenario for every branch. |
+
+**Load it** replaces what is in the project folder with the preset, after asking. **Add to this one**
+writes the preset's flows next to yours, under a group named after the preset.
+
+### Keys
+
+Press **?** on the page for the same list.
 
 | Key | Does |
 |---|---|
-| click or drag a shape from the palette | add a node · place it where it drops |
-| drag empty canvas | rubber-band select (Shift adds to the selection) |
-| Space-drag · middle button · wheel | pan |
-| ⌘-wheel · pinch | zoom |
-| drag from a dot on the selected node's side to another node | connect them, on those sides; the dots show on the selected node, and under the pointer while a wire is out |
-| drag an end of the selected wire | move that end to another dot or node |
-| drag a wire | pull it through that point, out of the way; double-click straightens it |
-| drag a wire's pill | slide the label along the wire; double-click puts it back in the middle |
-| Shift-click a node | add it to the selection, or take it out |
-| ⌘A | select every node |
-| ⌘C · ⌘X · ⌘V · ⌘D | copy · cut · paste (at the pointer) · duplicate the selected nodes |
-| right-click | a menu: add a shape or paste on empty canvas; copy, cut, duplicate or delete a node |
-| drag a selected node | move the whole selection together |
-| Delete / Backspace | remove the selected nodes, edge or scenario |
 | ⌘Z · ⇧⌘Z | undo · redo |
-| click · double-click a scenario row | select it, its path on the canvas · open it in the side panel |
-| ↑ · ↓, with a scenario selected | the scenario above · below; in a text cell, the same cell a row up · down |
-| Space, with a scenario selected | play it step by step |
-| F | fit the drawing to the window |
-| arrow keys · ⇧ arrow keys | nudge the selected node one grid step · five |
-| Alt while dragging a node | place it off the grid |
-| double-click a node | edit its label |
-| Esc | clear the selection |
-| ? | this table, in the page |
 | ⌘S | save |
-| drop a `.json` file on the page | open it |
+| Delete, Backspace | delete what is selected |
+| Esc | clear the selection |
+| F | fit the drawing to the window |
+| Space | play the selected scenario; hold and drag to pan |
+| ↑ · ↓ | the scenario above · below |
+| arrow keys · ⇧ arrow keys | nudge the selected nodes by one grid step · five |
+| ⌘A · ⌘C · ⌘X · ⌘V · ⌘D | select every node · copy · cut · paste · duplicate |
+| double-click a node | edit its label |
+| double-click a scenario row | open it in the side panel |
+| Alt while dragging a node | place it off the grid |
+| right-click the canvas | add a shape, paste, copy, cut, duplicate, delete |
 
-## A team and a folder
+On Windows and Linux, use Ctrl for ⌘.
 
-A team has more than one feature, and every feature has a flow. Give the server a folder and the
-page becomes a project:
+## The flow file
 
-```bash
-npm start -- ./specs       # or PLAYTHROUGH_DIR=./specs npm start; npm run start:example for a demo
-```
-
-Every `*.json` in the folder, and in its subfolders, is a flow. A sidebar shows them as a tree:
-a group (a subfolder on disk) keeps related flows together, its `+`/`−` folds it, and a flow or
-a group dragged onto another group moves there, a group with everything in it; dropped on the
-list's empty space it goes back to the root. Each flow shows its pass count (`3/4`), a ⚠ when the drawing
-has problems, and *no scenarios* when nobody has written any yet. Click one to open it. **+ Flow**
-starts a new file, and a `/` in its name puts it in a group, made if it is not there yet
-(`Billing/refund intake`); a group's own + starts one inside it; **+ Group** makes an empty
-group, named as you type it; **Save** (or ⌘S) writes the open flow back to its file, and a flow that came in through
-**Import** (pasted or a file), a preset or a link is added to the folder the first time it is saved. On a
-row, ✎ renames the file, as typed with `.json` at the end (a `/` moves it; the flow keeps its own name) and × deletes it; a group's
-✎ renames the folder, with everything in it coming along (a `/` moves it under other groups), and
-its × deletes it with everything in it, after saying how much that is. The project's name sits in the header, in place of the flow's: type there
-to name it once, and it is kept in `project.json`; until then the folder's name is used. The « at the left of the bar over the drawing
-hides it; the same button, now », brings it back.
-
-Put the folder in git. That is the whole collaboration story, on purpose: the pull request is
-the review, `git log` is the history, and a merge conflict in a flow file is a real disagreement
-about the design. The page notices when a file changed on disk since it was opened, a pull for
-instance, and asks before writing over it. The server is only ever a way for the page to reach
-the folder; it holds nothing itself. There are no accounts, and two people editing the same flow
-at the same moment will find out when the second one saves.
-
-## The file
-
-Without a project folder, **Save** downloads the flow as JSON; *Import › Open a file…* reads one
-back, and so does dropping the file anywhere on the page. In a project, Save writes the file in
-place and *Download as JSON* under **Template ▾ › Export** does what Save used to. The browser also
-keeps the current flow between reloads, but that is not a file: an *unsaved changes* pill in the
-header (and a dot in the tab title) means the flow has changed since it was last saved or opened,
-and the page will say so before you close it or replace it with an **Import** or a preset. Beside
-it, a pill says whether the scenarios pass, and another how many drawing problems there are; a
-click on that one goes to the first.
-
-**Template ▾ › Export** has two more ways out that need no file. *Copy as Markdown* puts
-the flow on the clipboard as a spec: inputs, state, every decision with its branches, and the
-scenario table with each row's current pass or fail, ready for a ticket or a pull request. *Copy link* puts the whole flow in the
-URL (compressed, nothing leaves the browser); whoever opens the link gets the flow, and the page
-drops the hash once it has read it. Flows too big for a link are told so; use **Save**.
-
-The shape is small enough to write by hand or generate:
+A flow is one JSON file, small enough to read in a diff and to write by hand or generate:
 
 ```json
 {
@@ -269,60 +355,196 @@ The shape is small enough to write by hand or generate:
 }
 ```
 
-See `examples/simple/checkout.json` for the whole thing, and `examples/advanced/` for flows
-with list inputs, state set along the way and edges with labels and colours.
+[`examples/simple/checkout.json`](examples/simple/checkout.json) is a whole one, and
+[`examples/advanced/`](examples/advanced) has flows with lists, state, and labelled, coloured edges.
+A project folder may also hold a `project.json` with the project's name: `{ "name": "Shop" }`.
 
-## Templates
+## Running it
 
-**Template ▾** in the header has *Presets*, then two submenus: *Import*, with *Open a file…* and
-*From JSON*, and *Export*, with *Copy link*, *Copy as JSON* (here), *Copy as Markdown* and
-*Download as JSON*, described in "The file".
+### Docker
 
-*Presets* opens a list of starting points, each a small project of flows kept under `examples/`:
+```bash
+docker run -d --name playthrough -p 8095:8095 -v "$PWD/specs:/app/specs" husseinakar/playthrough
+```
 
-| Preset | What is in it |
+| | |
 |---|---|
-| **Empty** | Nothing: a blank canvas. In a project folder, loading it empties the folder. |
-| **Simple** | A shop in two flows, *Checkout* and *Returns*, at the root of the folder. |
-| **Advanced** | The same shop in six flows and three groups: `orders/` (checkout, payment), `fulfilment/` (pick and pack, delivery) and `after-sale/` (returns, refunds). List inputs, `where`, `count`, state, labelled and coloured edges, and a scenario for every branch. |
+| **Image** | `husseinakar/playthrough`, for `linux/amd64` and `linux/arm64` |
+| **Tags** | `latest` (the main branch), `1.2.3` (a release), `1.2` (the newest 1.2.x) |
+| **Port** | `8095` inside the container |
+| **Project folder** | `/app/specs`; mount yours there |
+| **User** | `node` (uid 1000). On Linux, run as yourself with `--user "$(id -u):$(id -g)"` so a mounted folder is writable. |
+| **Health check** | `GET /health` answers `{"status":"UP"}`; `docker ps` shows the container as healthy |
 
-Each card shows its flows as the tree the sidebar would show. In a folder a preset lands under a
-group of its own name, so the Advanced one is `advanced/orders/checkout.json` and so on, and two
-presets, or a preset and your own flows, keep apart. A flow's name opens just that flow on the
-page, not in any file. **Load it** starts over from the preset: without a project folder the page
-shows the preset's first flow; with one, the folder is emptied, after a question that says how much
-is in it, and the preset's flows are written in, groups and all. **Add to this one** (only with a
-folder) writes the preset's flows in beside what is there, leaving alone any file that already
-exists.
+To use another port on your machine, change the left side only: `-p 9000:8095`, then open
+<http://localhost:9000>.
 
-*Import › From JSON* takes a flow's JSON pasted into a box and puts it on the page. *Export ›
-Copy as JSON* puts the flow's JSON on the clipboard, to paste into another page's Import or into a
-file in a project folder.
+To update: `docker pull husseinakar/playthrough`, then remove the container and run it again. Your
+flows are in the mounted folder, not the container.
 
-## Layout of the code
+### From source
+
+Node 22 or newer. There is nothing to install: no dependencies, no build step.
+
+| Command | What it does |
+|---|---|
+| `npm start` | The page at <http://localhost:8095>, one flow at a time, without a project folder |
+| `npm start -- ./specs` | The page over a project folder, created if it does not exist |
+| `npm run start:example` | The page over the Advanced preset's six flows |
+| `npm test` | The test suite |
+
+### Environment variables
+
+| Variable | Default | What it does |
+|---|---|---|
+| `PORT` | `8095` | The port the server listens on. |
+| `PLAYTHROUGH_DIR` | none from source; `/app/specs` in Docker | The project folder. A folder given on the command line wins. In Docker, set it to empty (`-e PLAYTHROUGH_DIR=`) to run without one. |
+
+### The HTTP API
+
+The page talks to the server over a small API, which scripts can use too. A path inside the project
+is URL-encoded, slashes included.
+
+| Route | Does |
+|---|---|
+| `GET /health` | `{"status":"UP","project":"<name>"}` |
+| `GET /api/project` | The project's name, folder, flows (with pass counts) and groups |
+| `PUT /api/project` | Renames the project: `{"name":"Shop"}` |
+| `GET /api/flows/:file` | Reads a flow |
+| `PUT /api/flows/:file` | Writes a flow: `{"doc":{…},"ifMtime":…}`; answers 409 if the file changed since `ifMtime` |
+| `POST /api/flows` | Creates a flow: `{"name":"Orders/Checkout","doc":{…}}` |
+| `POST /api/flows/:file/rename` | Renames or moves a flow: `{"name":"…","folder":"…"}` |
+| `DELETE /api/flows/:file` | Deletes a flow |
+| `POST /api/folders` | Creates a group: `{"path":"Orders"}` |
+| `POST /api/folders/:path/rename` | Renames or moves a group |
+| `DELETE /api/folders/:path?all=1` | Deletes a group; `all=1` deletes what is in it too |
+
+There is no authentication: run it on your machine or a trusted network.
+
+## Development
+
+### The one rule: no dependencies
+
+Playthrough runs on Node's standard library and the browser, with nothing to install and nothing to
+build. Please keep it that way: a change that needs a package needs a very good reason first.
+
+### Tests
+
+```bash
+npm test
+```
+
+`lib/` has no DOM in it and is what the tests exercise: the condition language, the interpreter, the
+generator, the project folder and the presets. To check the image as well:
+
+```bash
+docker build -t playthrough .
+docker run --rm -p 8095:8095 playthrough
+```
+
+### Where things are
 
 ```
-lib/expr.mjs     the condition language: tokenizer, parser, evaluator, name check
-lib/run.mjs      the interpreter: run, verdict, runAll (with coverage), lint
-lib/markdown.mjs the flow as a Markdown spec, for Copy as Markdown
-lib/generate.mjs scenarios from the inputs: one per way through the drawing, or every combination
-lib/project.mjs  a folder of flows: list with pass counts, read, write without clobbering
-ui/store.mjs     the document, selection, undo, autosave, which project file is open
-ui/canvas.mjs    the SVG drawing and its pointer interactions
-ui/inspector.mjs the side panel for whatever is selected
-ui/table.mjs     the scenario spreadsheet
-ui/project.mjs   the project sidebar and the calls to the folder API
-ui/presets.mjs   the Presets dialog under Template ▾
-ui/generate.mjs  the Generate… dialog beside + Scenario
-ui/dialog.mjs    ask, notice, prompt, toast: the page's own dialogs
-ui/app.mjs       header, keyboard, play, boot
-serve.mjs        a static file server, plus GET/PUT/POST/DELETE /api/flows over the folder
-examples/        the presets: presets.json lists them; simple/ and advanced/ are project folders
+lib/expr.mjs      the condition language: tokenizer, parser, evaluator, name check
+lib/run.mjs       the interpreter: run, verdict, runAll (with coverage), lint
+lib/generate.mjs  scenarios from the inputs: one per way through the drawing, or every combination
+lib/markdown.mjs  the flow as a Markdown spec, for Copy as Markdown
+lib/project.mjs   a folder of flows: list with pass counts, read, write without clobbering
+ui/app.mjs        header, keyboard, play, boot
+ui/store.mjs      the document, selection, undo, autosave, which project file is open
+ui/canvas.mjs     the SVG drawing and its pointer interactions
+ui/inspector.mjs  the side panel for whatever is selected, and the config drawer
+ui/table.mjs      the scenario table
+ui/generate.mjs   the Generate… dialog
+ui/project.mjs    the project sidebar and the calls to the folder API
+ui/presets.mjs    the Presets dialog
+ui/dialog.mjs     ask, notice, prompt, toast: the page's own dialogs
+index.html        the page: its markup and all of its CSS
+serve.mjs         a static file server, the folder API, and /health
+examples/         the presets: presets.json lists them; simple/ and advanced/ are project folders
+Dockerfile        the image: Node 22 on Alpine with the source in it
+.github/          the workflow that tests, builds and publishes the image
 ```
 
-`lib/` has no DOM in it and is what the tests exercise. Everything in `ui/` re-renders from the
-document on every change; the drawings this is for have dozens of nodes, not thousands.
+Everything in `ui/` re-renders from the document on every change; the flows this is for have dozens
+of nodes, not thousands.
+
+### Commit messages
+
+Releases are cut from commit messages (see [Publishing](#publishing)), so they follow
+[Conventional Commits](https://www.conventionalcommits.org/):
+
+| Subject | Releases |
+|---|---|
+| `feat: …` | a minor version: 1.2.0 → 1.3.0 |
+| `fix: …`, `perf: …` | a patch: 1.2.0 → 1.2.1 |
+| `feat!: …`, or a `BREAKING CHANGE:` footer | a major version: 1.2.0 → 2.0.0 |
+| `ui: …`, `docs: …`, `chore: …`, `refactor: …`, `test: …` | nothing |
+
+## Publishing
+
+The image is built and published by [`.github/workflows/image.yml`](.github/workflows/image.yml).
+
+### What happens, and when
+
+| Event | What the workflow does |
+|---|---|
+| A pull request | Runs the tests on Node 22, 24 and 26, builds the image and smoke-tests it. Publishes nothing. |
+| A push to `main` | The same, then publishes `husseinakar/playthrough:latest` for amd64 and arm64 and updates the Docker Hub page from [`README.docker.md`](README.docker.md). |
+| …with a `feat:`, `fix:` or breaking commit since the last release | Also works out the next version, writes it into `package.json`, publishes `:1.3.0` and `:1.3`, then commits `chore(release): v1.3.0` and tags `v1.3.0`. |
+| A `v*` tag pushed by hand | Publishes that version's tags. |
+
+The smoke test starts the image with a folder mounted, as a Linux user would, and checks that it
+answers `/health`, serves the page and the presets, and writes a flow into the folder.
+
+### One-time setup
+
+1. **Create the GitHub repository** and push to it:
+
+   ```bash
+   gh repo create hussein-akar/playthrough --public --source . --push
+   ```
+
+   Or create it on github.com, then `git remote add origin git@github.com:hussein-akar/playthrough.git`
+   and `git push -u origin main`.
+
+2. **Create a Docker Hub access token.** On hub.docker.com: **Account Settings → Personal access
+   tokens → Generate new token**, with the permission **Read, Write, Delete**. (Read & Write is
+   enough to push, but not to update the repository's description, and Docker Hub refuses a narrower
+   token with a `Forbidden` that looks like a wrong password.)
+
+3. **Add two repository secrets.** On GitHub: **Settings → Secrets and variables → Actions → New
+   repository secret**:
+
+   | Name | Value |
+   |---|---|
+   | `DOCKERHUB_USERNAME` | `husseinakar` |
+   | `DOCKERHUB_TOKEN` | the token from step 2 |
+
+   Or from the terminal:
+
+   ```bash
+   gh secret set DOCKERHUB_USERNAME --body husseinakar
+   gh secret set DOCKERHUB_TOKEN          # paste the token when asked
+   ```
+
+4. **Run the workflow.** Push to `main`, or start it by hand: **Actions → image → Run workflow**. The
+   first run publishes `latest` and, because the history holds `feat:` commits, releases `v0.1.0`.
+   Docker Hub creates the `husseinakar/playthrough` repository on that first push.
+
+If `main` is protected, allow GitHub Actions to push to it, or the release step cannot commit the
+version and tag it.
+
+### Releasing by hand
+
+Merge commits with a `feat:` or `fix:` subject and the next push to `main` releases on its own. To
+release a specific version instead:
+
+```bash
+git tag -a v1.0.0 -m "v1.0.0"
+git push origin v1.0.0
+```
 
 ## License
 
-Apache 2.0.
+[Apache 2.0](LICENSE).

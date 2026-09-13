@@ -1,3 +1,5 @@
 node_modules/
 .DS_Store
 *.log
+# A local project folder, as `npm start -- ./specs` makes one
+/specs/
