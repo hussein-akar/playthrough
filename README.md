@@ -120,10 +120,12 @@ has), `size == 1`, `count(lines where gift) == 1`, `lines where status == PICKED
 record matches), or the name of an input, meaning "the same as that input". Inside a check,
 `it`, `value`, `size` and `count` name the field's value and its count.
 
-A click on a row selects the scenario and shows its path; a double-click opens it in the side
-panel, where the rest of it is edited, and ↑ and ↓ go through the scenarios. In the scenario
-panel, expected actions are listed in the order the flow meets them, each marked ✓ or ✗ for the
-last run, and every step of the result path is a link to its node. When a scenario fails and it
+A click on a row selects the scenario and shows its path; a double-click (or ✎ at the end of the
+row) opens it in the side panel, where the rest of it is edited, and ↑ and ↓ go through the
+scenarios. ▶ at the end of a row plays it step by step, ⧉ duplicates it and × deletes it; the grip
+that takes the place of its number on hover drags it to another place in the list. Expected
+actions are chosen in the scenario panel only, listed in the order the flow meets them, each
+marked ✓ or ✗ for the last run, and every step of the result path is a link to its node. When a scenario fails and it
 is the drawing that is right, **Use this run as the expectation** (or *accept run* in the row)
 copies what actually happened into the expectation. In the table, Enter on the last row starts
 the next scenario and *+N more* opens the full list of issues.

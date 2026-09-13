@@ -64,6 +64,9 @@
   button.danger { color: var(--bad); }
   button.danger:hover { border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: var(--bad-soft); color: var(--bad); }
   button.primary.danger { background: var(--bad); border-color: transparent; color: #fff; }
+  /* Play is green, the colour of a start: filled in the panel, the icon alone at the end of a row. */
+  button.play { background: var(--ok); border-color: transparent; color: #fff; }
+  button.play:hover { background: color-mix(in srgb, var(--ok) 86%, #000); border-color: transparent; color: #fff; }
   button.small { height: var(--ctl-sm); padding: 0 9px; font-size: 11.5px; }
   button.icon { width: var(--ctl); padding: 0; }
   button.small.icon { width: var(--ctl-sm); }
@@ -430,17 +433,27 @@
   #table tr.row.active td { background: var(--accent-soft); }
   #table tr.row.active td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
   #table td:first-child { width: 1%; padding-left: var(--s3); font-variant-numeric: tabular-nums; }
+  /* The row number gives way to a grip on hover: drag it to move the scenario; the row it would land beside shows a line on that edge. */
+  #table td.num { position: relative; min-width: 34px; color: var(--muted); }
+  #table td.num .grip { display: none; align-items: center; justify-content: center; width: 16px; height: 22px; margin-left: -4px; border-radius: 4px; color: var(--faint); cursor: grab; touch-action: none; }
+  #table td.num .grip svg { width: 8px; height: 14px; }
+  #table td.num .grip:hover { background: var(--line-2); color: var(--ink-2); }
+  #table tr.row:hover td.num .grip { display: inline-flex; }
+  #table tr.row:hover td.num .n { display: none; }
+  #table tr.dragging td { opacity: .45; }
+  #table tr.dragging td.num .grip { display: inline-flex; }
+  #table tr.dragging td.num .n { display: none; }
+  body.moving-row, body.moving-row * { cursor: grabbing !important; user-select: none; }
+  #table tr.drop-before td { box-shadow: inset 0 2px 0 var(--accent); }
+  #table tr.drop-after td { box-shadow: inset 0 -2px 0 var(--accent); }
+  #table tr.row.active.drop-before td:first-child { box-shadow: inset 3px 0 0 var(--accent), inset 0 2px 0 var(--accent); }
+  #table tr.row.active.drop-after td:first-child { box-shadow: inset 3px 0 0 var(--accent), inset 0 -2px 0 var(--accent); }
   #table .muted { color: var(--muted); }
   #table td input[type=text], #table td input[type=number], #table td select { height: var(--ctl-sm); width: auto; min-width: 72px; padding: 0 6px; }
   #table td select { padding-right: 22px; }
-  #table td input.name { width: 240px; min-width: 200px; }
+  #table td input.name { width: 300px; min-width: 240px; }
   #table td input.st { width: 96px; min-width: 0; }
   #table td input.tags { width: 150px; min-width: 110px; }
-  #table td.actions { width: 55%; min-width: 240px; white-space: normal; }
-  #table .chips { display: flex; flex-wrap: wrap; gap: 2px 4px; padding: 1px 0; }
-  #table .chip { display: inline-block; max-width: 180px; height: 20px; padding: 0 8px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel-2); color: var(--ink-2); font-size: 11px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #table .chip.missing { background: var(--bad-soft); border-color: var(--bad-line); color: var(--bad-ink); text-decoration: line-through; }
-  #table .chip.extra { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn-ink); }
   #table td.result { width: 1%; white-space: normal; line-height: 1.35; }
   #table td.result .why.first { display: block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }   /* the cut sets the column's width; a failing row stays two lines */
   #table .status { display: inline-block; margin-right: 6px; font-weight: 600; white-space: nowrap; }
@@ -453,6 +466,11 @@
   #table ul.issues { max-width: 170px; margin: 3px 0 2px; padding-left: 16px; color: var(--muted); }
   #table button.accept { margin-left: 6px; vertical-align: middle; font-size: var(--fs-xs); }
   #table td.tools { width: 1%; padding-right: var(--s3); text-align: right; }
+  #table td.tools button { margin-left: 2px; color: var(--ink-2); }
+  #table td.tools button svg { width: 14px; height: 14px; }
+  #table td.tools button.danger { color: var(--bad); }
+  #table td.tools button.play { background: var(--panel); border-color: var(--line); color: var(--ok); }
+  #table td.tools button.play:hover { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
   #table td.tools button { opacity: 0; transition: opacity .1s; }
   #table tr.row:hover td.tools button, #table tr.row.active td.tools button, #table td.tools button:focus-visible { opacity: 1; }
   #table td.empty { height: auto; padding: 28px var(--s4); border: 0; text-align: center; color: var(--muted); white-space: normal; }
@@ -566,11 +584,9 @@
     #table th, #table td { padding-left: 6px; padding-right: 6px; }
     #table td:first-child { padding-left: var(--s2); }
     #table td select { padding-right: 20px; }
-    #table td input.name { width: 150px; min-width: 130px; }
-    #table td.actions { min-width: 272px; }
+    #table td input.name { width: 190px; min-width: 150px; }
     #table td.tools { padding-right: var(--s2); }
-    #table td.tools button + button { margin-left: -4px; }
-    #table .chip { max-width: 128px; padding: 0 6px; }
+    #table td.tools button + button { margin-left: 0; }
   }
 </style>
 </head>

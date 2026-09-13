@@ -8,6 +8,14 @@ const table = document.getElementById('table');
 const tagBar = document.getElementById('tagBar');
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const expanded = new Set();   // scenario ids whose result cell shows every issue, not just the first
+const svg = (d) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICON = {
+  play: svg('<path d="M5 3.5v9l7-4.5z" fill="currentColor" stroke-width="1.2"/>'),
+  edit: svg('<path d="M11.5 2.5l2 2L5 13H3v-2z"/>'),
+  dup: svg('<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h.5"/>'),
+  rm: svg('<path d="M4 4l8 8M12 4l-8 8"/>'),
+};
+const GRIP = `<svg viewBox="0 0 8 14" fill="currentColor"><circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/><circle cx="2" cy="7" r="1.2"/><circle cx="6" cy="7" r="1.2"/><circle cx="2" cy="12" r="1.2"/><circle cx="6" cy="12" r="1.2"/></svg>`;
 
 // What the table's columns and rows are built from. While this is unchanged (a selection change,
 // a keystroke, an undo of a value) the existing rows are patched in place; rebuilding them would
@@ -32,19 +40,18 @@ export function render() {
   // The tags column appears once a scenario has a tag (given in its panel): until then it is noise.
   const tagged = doc.scenarios.some((s) => s.tags?.length);
   let html = `<thead><tr><th>#</th><th>Scenario</th>${tagged ? '<th>tags</th>' : ''}${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}
-    <th class="expect">expected actions</th><th class="expect">lands on</th>${doc.state.map((f) => `<th class="expect">${esc(f.name)}</th>`).join('')}<th>result</th><th></th></tr></thead><tbody>`;
+    <th class="expect">lands on</th>${doc.state.map((f) => `<th class="expect">${esc(f.name)}</th>`).join('')}<th>result</th><th></th></tr></thead><tbody>`;
   doc.scenarios.forEach((s, k) => {
     const active = selection?.type === 'scenario' && selection.id === s.id;
     html += `<tr class="row ${active ? 'active' : ''}" data-row="${s.id}">
-      <td class="muted">${k + 1}</td>
+      <td class="num"><span class="grip" title="Drag to move this scenario">${GRIP}</span><span class="n">${k + 1}</span></td>
       <td><input type="text" class="name" data-f="name" value="${esc(s.name)}" placeholder="what is being tried"></td>
       ${tagged ? `<td><input type="text" class="tags" data-f="tags" value="${esc((s.tags ?? []).join(', '))}" placeholder="edge, PROJ-12" title="Tags, comma-separated"></td>` : ''}
       ${doc.inputs.map((i) => (i.type === 'list' ? `<td class="list" data-list="${esc(i.name)}">${listCell(i, s)}</td>` : `<td>${inputControl(i, s.inputs[i.name], `data-input="${esc(i.name)}"`, true)}</td>`)).join('')}
-      <td class="expect actions">${chips(s, results)}</td>
       <td class="expect"><select data-f="end"><option value="">any</option>${ends.map((e) => `<option value="${esc(e)}" ${s.expect.end === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></td>
       ${doc.state.map((f) => `<td class="expect"><input type="text" class="st expr" data-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}" placeholder="*, null, value, == 1" title="* any value · null · the value · a check such as == 1, size > 0, count(notices where linked) == 1"></td>`).join('')}
       <td class="result">${status(s, results)}</td>
-      <td class="tools"><button class="icon" data-act="dup" title="Duplicate">⧉</button> <button class="icon danger" data-act="rm" title="Delete">×</button></td>
+      <td class="tools"><button class="small icon play" data-act="play" title="Play it step by step on the canvas (Space)">${ICON.play}</button><button class="small icon" data-act="edit" title="Open it in the panel (double-click the row)">${ICON.edit}</button><button class="small icon" data-act="dup" title="Duplicate">${ICON.dup}</button><button class="small icon danger" data-act="rm" title="Delete">${ICON.rm}</button></td>
     </tr>`;
   });
   table.innerHTML = html + '</tbody>';
@@ -95,15 +102,6 @@ function listCell(i, s) {
   return `<span class="recs" title="${esc(records.map((r) => fields.map((f) => `${f}=${word(r[f])}`).join(', ')).join('\n'))}">${records.length} record${records.length === 1 ? '' : 's'}</span>`;
 }
 
-function chips(s, results) {
-  const r = resultFor(s, results);
-  const missing = new Set(r?.verdict.issues.filter((i) => i.kind === 'missing-action').map((i) => i.action));
-  const extra = r?.verdict.issues.filter((i) => i.kind === 'extra-action').map((i) => i.action) ?? [];
-  const want = s.expect.actions ?? [];
-  if (!want.length && !extra.length) return `<span class="muted">double-click row to choose</span>`;
-  return `<div class="chips">${want.map((a) => `<span class="chip ${missing.has(a) ? 'missing' : ''}" title="${esc(a)}">${esc(a)}</span>`).join('')}${extra.map((a) => `<span class="chip extra" title="happened, not expected">+ ${esc(a)}</span>`).join('')}</div>`;
-}
-
 function status(s, results) {
   const r = resultFor(s, results);
   if (!r) return '';
@@ -130,7 +128,7 @@ function patch() {
     const s = doc.scenarios.find((s) => s.id === tr.dataset.row);
     if (!s) continue;
     tr.classList.toggle('active', selection?.type === 'scenario' && selection.id === s.id);
-    const cells = [['td.expect', chips(s, results)], ['td.result', status(s, results)], ...doc.inputs.filter((i) => i.type === 'list').map((i) => [`td[data-list="${CSS.escape(i.name)}"]`, listCell(i, s)])];
+    const cells = [['td.result', status(s, results)], ...doc.inputs.filter((i) => i.type === 'list').map((i) => [`td[data-list="${CSS.escape(i.name)}"]`, listCell(i, s)])];
     for (const [sel, html] of cells) { const td = tr.querySelector(sel); if (td && td.written !== html) { td.innerHTML = html; td.written = html; } }
     tr.hidden = Boolean(store.tagFilter) && !(s.tags ?? []).includes(store.tagFilter);
     for (const c of tr.querySelectorAll('input, select')) {
@@ -188,8 +186,56 @@ table.addEventListener('click', (ev) => {
     selectScenario(nid);
   }
   if (b.dataset.act === 'accept') acceptRun(id);
+  if (b.dataset.act === 'play') { selectScenario(id); document.dispatchEvent(new Event('play')); }
+  if (b.dataset.act === 'edit') selectScenario(id, true);
   if (b.dataset.act === 'more') { if (expanded.has(id)) expanded.delete(id); else expanded.add(id); patch(); }
 });
+
+// A row moves by its grip: press it and drag, and the row it would land beside shows a line on
+// the edge it would go (above or below, whichever half the pointer is over). Near the top or the
+// bottom of the table it scrolls. Letting go puts it there, in one commit, so one undo; Escape or a
+// press that never moved leaves the list alone.
+{
+  const scroller = table.closest('.scroll');
+  let drag = null;   // { id, row, pointerId, startY, moved, target, after }
+  const clearMarks = () => table.querySelectorAll('.drop-before, .drop-after').forEach((t) => t.classList.remove('drop-before', 'drop-after'));
+  const stop = () => { if (!drag) return; clearMarks(); drag.row.classList.remove('dragging'); document.body.classList.remove('moving-row'); drag = null; };
+  table.addEventListener('pointerdown', (ev) => {
+    const grip = ev.target.closest('.grip');
+    if (!grip || ev.button !== 0) return;
+    ev.preventDefault();
+    const row = grip.closest('tr[data-row]');
+    grip.setPointerCapture(ev.pointerId);
+    drag = { id: row.dataset.row, row, pointerId: ev.pointerId, startY: ev.clientY, moved: false, target: null, after: false };
+  });
+  table.addEventListener('pointermove', (ev) => {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    if (!drag.moved && Math.abs(ev.clientY - drag.startY) < 4) return;
+    if (!drag.moved) { drag.moved = true; drag.row.classList.add('dragging'); document.body.classList.add('moving-row'); }
+    const box = scroller.getBoundingClientRect();
+    if (ev.clientY < box.top + 36) scroller.scrollTop -= 12; else if (ev.clientY > box.bottom - 24) scroller.scrollTop += 12;
+    const rows = [...table.querySelectorAll('tr[data-row]')].filter((tr) => !tr.hidden);
+    const over = rows.find((tr) => { const r = tr.getBoundingClientRect(); return ev.clientY >= r.top && ev.clientY < r.bottom; })
+      ?? (ev.clientY < rows[0].getBoundingClientRect().top ? rows[0] : rows[rows.length - 1]);
+    const r = over.getBoundingClientRect(), after = ev.clientY > r.top + r.height / 2;
+    clearMarks();
+    drag.target = over.dataset.row === drag.id ? null : over.dataset.row;
+    drag.after = after;
+    if (drag.target) over.classList.add(after ? 'drop-after' : 'drop-before');
+  });
+  table.addEventListener('pointerup', (ev) => {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    const { id, target, after, moved } = drag;
+    stop();
+    if (!moved || !target) return;
+    commit((doc) => {
+      const [s] = doc.scenarios.splice(doc.scenarios.findIndex((x) => x.id === id), 1);
+      doc.scenarios.splice(doc.scenarios.findIndex((x) => x.id === target) + (after ? 1 : 0), 0, s);
+    });
+  });
+  table.addEventListener('pointercancel', stop);
+  window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && drag) { ev.stopPropagation(); stop(); } }, true);
+}
 
 // Enter in the last row's name starts the next scenario, the way a spreadsheet would; Escape just
 // stops editing (the row stays selected, so the panel keeps showing it). Up and down in a text
