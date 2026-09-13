@@ -14,7 +14,7 @@ tool and is not tied to any code: the flow file it saves is the spec.
 
 ![Playthrough: projects on the left, the flow in the middle, the selected scenario on the right, the scenario table below](assets/playthrough.jpg)
 
-[Try it](#try-it) · [Use it with your team](#use-it-with-your-team) · [How a flow works](#how-a-flow-works) · [The page](#the-page) · [The flow file](#the-flow-file) · [Running it](#running-it) · [Development](#development) · [Publishing](#publishing)
+[Try it](#try-it) · [Use it with your team](#use-it-with-your-team) · [How a flow works](#how-a-flow-works) · [The page](#the-page) · [The flow file](#the-flow-file) · [Running it](#running-it) · [Development](#development) · [Publishing](#publishing) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
 
 ## Try it
 
@@ -423,63 +423,17 @@ There is no authentication: run it on your machine or a trusted network.
 
 ## Development
 
-### The one rule: no dependencies
-
-Playthrough runs on Node's standard library and the browser, with nothing to install and nothing to
-build. Please keep it that way: a change that needs a package needs a very good reason first.
-
-### Tests
+Node 22 or newer, and nothing to install:
 
 ```bash
-npm test
+npm test                    # the test suite
+npm start -- ./specs        # the page over a scratch project folder (ignored by git)
+docker build -t playthrough . && docker run --rm -p 8095:8095 playthrough   # the image
 ```
 
-`lib/` has no DOM in it and is what the tests exercise: the condition language, the interpreter, the
-generator, the project folder and the presets. To check the image as well:
-
-```bash
-docker build -t playthrough .
-docker run --rm -p 8095:8095 playthrough
-```
-
-### Where things are
-
-```
-lib/expr.mjs      the condition language: tokenizer, parser, evaluator, name check
-lib/run.mjs       the interpreter: run, verdict, runAll (with coverage), lint
-lib/generate.mjs  scenarios from the inputs: one per way through the drawing, or every combination
-lib/markdown.mjs  the flow as a Markdown spec, for Copy as Markdown
-lib/project.mjs   a folder of flows: list with pass counts, read, write without clobbering
-ui/app.mjs        header, keyboard, play, boot
-ui/store.mjs      the document, selection, undo, autosave, which project file is open
-ui/canvas.mjs     the SVG drawing and its pointer interactions
-ui/inspector.mjs  the side panel for whatever is selected, and the config drawer
-ui/table.mjs      the scenario table
-ui/generate.mjs   the Generate… dialog
-ui/project.mjs    the project sidebar and the calls to the folder API
-ui/presets.mjs    the Presets dialog
-ui/dialog.mjs     ask, notice, prompt, toast: the page's own dialogs
-index.html        the page: its markup and all of its CSS
-serve.mjs         a static file server, the folder API, and /health
-examples/         the presets: presets.json lists them; simple/ and advanced/ are project folders
-Dockerfile        the image: Node 22 on Alpine with the source in it
-.github/          the workflow that tests, builds and publishes the image
-```
-
-Everything in `ui/` re-renders from the document on every change; the flows this is for have dozens
-of nodes, not thousands.
-
-### Commit messages
-
-Releases are cut from commit messages (see [Publishing](#publishing)), so they follow
-[Conventional Commits](https://www.conventionalcommits.org/):
-
-| Subject | Releases |
-|---|---|
-| `feat: …` | a minor version: 1.2.0 → 1.3.0 |
-| `fix: …`, `perf: …` | a patch: 1.2.0 → 1.2.1 |
-| `feat!: …`, or a `BREAKING CHANGE:` footer | a major version: 1.2.0 → 2.0.0 |
-| `ui: …`, `docs: …`, `chore: …`, `refactor: …`, `test: …` | nothing |
+[CONTRIBUTING.md](CONTRIBUTING.md) has the rest: the no-dependencies rule, where things are in the
+code, what the tests cover, how commit messages cut releases, pull requests, and how to report a bug
+or a vulnerability.
 
 ## Publishing
 
@@ -491,7 +445,7 @@ The image is built and published by [`.github/workflows/image.yml`](.github/work
 |---|---|
 | A pull request | Runs the tests on Node 22, 24 and 26, builds the image and smoke-tests it. Publishes nothing. |
 | A push to `main` | The same, then publishes `husseinakar/playthrough:latest` for amd64 and arm64 and updates the Docker Hub page from [`README.docker.md`](README.docker.md). |
-| …with a `feat:`, `fix:` or breaking commit since the last release | Also works out the next version, writes it into `package.json`, publishes `:1.3.0` and `:1.3`, then commits `chore(release): v1.3.0` and tags `v1.3.0`. |
+| …with a `feat:`, `fix:` or breaking commit since the last release ([which commits count](CONTRIBUTING.md#commit-messages-which-cut-releases)) | Also works out the next version, writes it into `package.json`, publishes `:1.3.0` and `:1.3`, then commits `chore(release): v1.3.0` and tags `v1.3.0`. |
 | A `v*` tag pushed by hand | Publishes that version's tags. |
 
 The smoke test starts the image with a folder mounted, as a Linux user would, and checks that it
@@ -545,6 +499,12 @@ git tag -a v1.0.0 -m "v1.0.0"
 git push origin v1.0.0
 ```
 
+## Contributing
+
+Bug reports, questions and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first:
+it is short, and it explains the one rule (no dependencies) and how a commit message decides a
+release.
+
 ## License
 
-[Apache 2.0](LICENSE).
+Copyright 2026 Hussein Akar. Licensed under the [Apache License, Version 2.0](LICENSE).
