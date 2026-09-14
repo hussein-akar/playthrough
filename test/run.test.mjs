@@ -168,3 +168,32 @@ it('an expected-state cell may be a check on the value or the count', async () =
   assert.equal(stateMatches('pending', 'pending', scope), true, 'a plain word is a value');
   assert.equal(stateMatches('*', list, scope), true);
 });
+
+it('a condition belongs on an edge leaving a decision, and nowhere else', () => {
+  // e2 leaves "Reserve stock", an action: there is nothing for a guard to choose between.
+  const guarded = clone();
+  guarded.edges.find((e) => e.id === 'e2').when = 'hasCoupon';
+  assert.deepEqual(lint(guarded).map((p) => p.edge), ['e2']);
+  assert.match(lint(guarded)[0].message, /"Reserve stock" is an action, not a decision; a condition here cannot branch/);
+
+  // "else" is the same mistake wearing a checkbox.
+  const otherwise = clone();
+  otherwise.edges.find((e) => e.id === 'e2').else = true;
+  assert.match(lint(otherwise)[0].message, /"else" here has no other branch to fall through from/);
+
+  // e1 leaves the start, which is named as itself rather than as an action.
+  const atStart = clone();
+  atStart.edges.find((e) => e.id === 'e1').when = 'hasCoupon';
+  assert.match(lint(atStart)[0].message, /"Order placed" is the start, not a decision/);
+
+  // A fork drawn straight from an action runs, but the shape is the thing being ruled out: a
+  // branch is a decision, so both of its ways out are named.
+  const fork = clone();
+  fork.edges.find((e) => e.id === 'e5').when = 'hasCoupon';
+  fork.edges.push({ id: 'e12', from: 'apply', to: 'pay', else: true });
+  assert.deepEqual(lint(fork).map((p) => p.edge).sort(), ['e12', 'e5']);
+  assert.equal(run(fork, doc.scenarios[0]).error, null, 'and it still runs; the drawing is the complaint');
+
+  // The edges that do leave a decision keep their guards, and the flow stays clean.
+  assert.deepEqual(lint(doc), []);
+});
