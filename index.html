@@ -104,10 +104,14 @@
   /* ==== header ================================================================================ */
   /* The name and how the flow stands on the left, as chips; what you do to it on the right. */
   header { grid-column: 1 / -1; position: relative; z-index: 30; display: flex; align-items: center; gap: 7px; min-width: 0; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  header .brand { flex: none; margin: 0 4px 0 2px; font-size: 19px; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
+  /* The name and the build it is, sharing a baseline. The pair is centred in the header as one thing
+     and baseline-aligned inside: centring each on its own sat the version's digits 3.5px above the
+     name's, because `Playthrough` has descenders and drops its letters lower in its box. */
+  header .brandbox { flex: none; display: flex; align-items: baseline; gap: 6px; margin: 0 6px 0 2px; }
+  header .brand { flex: none; margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
   header .brand span { color: var(--accent); }
-  /* Which build this is: the number a published image carries, or `dev` when running from source. */
-  header .version { flex: none; margin: 0 6px 0 -2px; padding: 1px 5px; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); color: var(--faint); font-family: var(--mono); font-size: var(--fs-xs); line-height: 1.5; white-space: nowrap; }
+  /* Which build this is: `v1.2.0` for a published image, `dev` when running from source. */
+  header .version { color: var(--faint); font-family: var(--mono); font-size: var(--fs-xs); white-space: nowrap; }
   header .title { flex: 0 1 auto; width: auto; min-width: 80px; max-width: 280px; field-sizing: content; height: 32px; padding: 0 8px; font-size: 15px; font-weight: 600; letter-spacing: -.01em; border-color: transparent; background: transparent; text-overflow: ellipsis; }
   header .title:hover { border-color: transparent; background: var(--panel-2); }
   header .title:focus { border-color: var(--accent); background: #fff; }
@@ -638,8 +642,10 @@
 </head>
 <body>
   <header>
-    <h1 class="brand">Play<span>through</span></h1>
-    <span id="version" class="version" hidden></span>
+    <div class="brandbox">
+      <h1 class="brand">Play<span>through</span></h1>
+      <span id="version" class="version" hidden></span>
+    </div>
     <input id="docName" class="title" type="text" placeholder="Untitled flow" title="Flow name">
     <input id="projectName" class="title" type="text" placeholder="Project name" title="The project's name, kept in project.json" hidden>
     <div class="chips">

@@ -289,7 +289,7 @@ document.addEventListener('keydown', (ev) => {
 /**
  * Which build this is, beside the brand. The number comes from the server, not from the page,
  * because the repository's package.json says 0.0.0-development and only a published image's copy
- * says a real one: `1.1.1` is a release somebody can pull again, `dev` is this checkout. Nothing is
+ * says a real one: `v1.2.0` is a release somebody can pull again, `dev` is this checkout. Nothing is
  * shown if the server does not say, so an older one simply looks as it did.
  */
 async function showVersion() {
@@ -298,7 +298,7 @@ async function showVersion() {
   if (!version) return;
   const dev = version.startsWith('0.0.0');
   const el = $('version');
-  el.textContent = dev ? 'dev' : version;
+  el.textContent = dev ? 'dev' : `v${version}`;
   el.title = dev ? 'Running from source, not a published release' : `Playthrough ${version}`;
   el.hidden = false;
 }
