@@ -94,6 +94,7 @@ ui/app.mjs        header, keyboard, play, boot
 ui/store.mjs      the document, selection, undo, autosave, upgrading older files
 ui/canvas.mjs     the SVG drawing and its pointer interactions
 ui/inspector.mjs  the side panel for whatever is selected, and the config drawer
+ui/expression.mjs "What you can write here": the ƒx beside every expression box
 ui/table.mjs      the scenario table
 ui/generate.mjs   the Generate… dialog
 ui/project.mjs    the project sidebar and the calls to the folder API

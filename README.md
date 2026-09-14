@@ -166,6 +166,12 @@ reach for is the one that works. Brackets group: `a || b && c` is `a || (b && c)
 otherwise. A list of values takes brackets or parentheses, `in [Web, App]` and `in (Web, App)`
 alike.
 
+**The ƒx button beside every expression box** opens *What you can write here*: every name in scope,
+every field of every list, every value an enum takes, the functions with what each one takes, and a
+builder for a question about a list. The box itself is at the top, and under it is what the line
+comes to when it is run against one of your scenarios — so `lines.count(picked < qty)` says `1`
+before you have played anything.
+
 A condition belongs on an edge leaving a decision, because that is the only place it has anything to
 choose between. On the way out of a start or an action the panel does not offer the field, and a
 condition already there — left behind by a node that used to be a decision — is a drawing problem:
