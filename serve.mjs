@@ -1,6 +1,7 @@
 // A static file server for the app, and, when started with a folder, the project API over it:
 // `node serve.mjs ./specs` (or `npm start -- ./specs`, or PLAYTHROUGH_DIR=./specs). PORT picks the
-// port (8095). GET /health answers {"status":"UP"} for a container's health check. ES modules
+// port (8095). GET /health answers {"status":"UP"} with the version, for a container's health check
+// and for the page, which shows which build it is. ES modules
 // refuse to load over file://, so the static part is the smallest thing that lets `index.html`
 // import `ui/*.mjs`. The API is four routes over the folder; everything else about a project
 // (history, review, merging) is the job of git.
@@ -10,6 +11,11 @@ import { extname, join, normalize, relative } from 'node:path';
 import { openProject, setProjectName, listFlows, listFolders, readFlow, writeFlow, deleteFlow, renameFlow, createFolder, renameFolder, deleteFolder, fileFor, under } from './lib/project.mjs';
 
 const root = new URL('.', import.meta.url).pathname;
+// What build this is. The repository's package.json says 0.0.0-development and only the published
+// image's copy says a real number, which is the point: a team sharing an image needs to know which
+// one they are looking at, and somebody running from source needs to know that is what they are
+// doing. Read once at boot; the file does not change under a running server.
+const version = await readFile(join(root, 'package.json'), 'utf8').then((s) => JSON.parse(s).version).catch(() => null);
 const port = Number(process.env.PORT ?? 8095);
 const dirArg = process.argv[2] ?? process.env.PLAYTHROUGH_DIR;
 const project = dirArg ? await openProject(dirArg) : null;   // its name is updated in place when renamed
@@ -75,7 +81,7 @@ async function api(req, res, url) {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
-  if (url.pathname === '/health') return send(res, 200, { status: 'UP', project: project?.name ?? null });
+  if (url.pathname === '/health') return send(res, 200, { status: 'UP', version, project: project?.name ?? null });
   if (url.pathname.startsWith('/api/')) return api(req, res, url);
   let path = normalize(decodeURIComponent(url.pathname));
   if (path.endsWith('/')) path += 'index.html';

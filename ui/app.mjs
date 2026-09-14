@@ -286,6 +286,24 @@ document.addEventListener('keydown', (ev) => {
 
 // ---- boot -------------------------------------------------------------------------------------
 
+/**
+ * Which build this is, beside the brand. The number comes from the server, not from the page,
+ * because the repository's package.json says 0.0.0-development and only a published image's copy
+ * says a real one: `1.1.1` is a release somebody can pull again, `dev` is this checkout. Nothing is
+ * shown if the server does not say, so an older one simply looks as it did.
+ */
+async function showVersion() {
+  let version = null;
+  try { ({ version } = await (await fetch('/health')).json()); } catch { return; }
+  if (!version) return;
+  const dev = version.startsWith('0.0.0');
+  const el = $('version');
+  el.textContent = dev ? 'dev' : version;
+  el.title = dev ? 'Running from source, not a published release' : `Playthrough ${version}`;
+  el.hidden = false;
+}
+
+
 /** A `#d=…` link in the address bar: read it, drop it, and open it unless that would lose work. */
 async function openLink() {
   const m = /^#d=([\w-]+)$/.exec(location.hash);
@@ -302,6 +320,7 @@ window.addEventListener('hashchange', openLink);
 
 {
   const saved = restore(), wasDirty = restoreDirty(), last = restoreFile();   // read the flags before load() resets them
+  showVersion();   // not awaited: the flow on the page does not wait on a label
   const info = await project.detect();
   if (info) {
     try { sideHidden(localStorage.getItem('playthrough.sideHidden') === '1'); } catch {}

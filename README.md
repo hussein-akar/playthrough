@@ -455,7 +455,7 @@ is URL-encoded, slashes included.
 
 | Route | Does |
 |---|---|
-| `GET /health` | `{"status":"UP","project":"<name>"}` |
+| `GET /health` | `{"status":"UP","version":"1.1.1","project":"<name>"}` |
 | `GET /api/project` | The project's name, folder, flows (with pass counts) and groups |
 | `PUT /api/project` | Renames the project: `{"name":"Shop"}` |
 | `GET /api/flows/:file` | Reads a flow |

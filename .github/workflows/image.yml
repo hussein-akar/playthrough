@@ -69,6 +69,8 @@ jobs:
             sleep 1
           done
           curl -fsS localhost:8095/health | tee /dev/stderr | grep -q '"status":"UP"'
+          # The page reads its version from here; a build that cannot say which one it is is broken.
+          curl -fsS localhost:8095/health | grep -q '"version":"[^"]\+"'
           curl -fsS localhost:8095/ | grep -q '<title>Playthrough</title>'
           curl -fsS localhost:8095/examples/presets.json | grep -q '"advanced"'
 
