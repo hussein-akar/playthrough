@@ -384,7 +384,9 @@
   #inspector .records .rec.head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #inspector .records .rec.head > .x { flex: 0 0 var(--ctl); }
   #inspector .records .actions { margin-top: 2px; }
-  #inspector .row > select.insert { flex: 0 0 auto; width: 92px; color: var(--muted); font-size: var(--fs-sm); }
+  /* The ƒx beside an expression box, in the panel and in the flow config drawer alike. */
+  button.fx { flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-sm); font-weight: 400; color: var(--muted); }
+  button.fx:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
   #inspector .checks label { display: flex; gap: 8px; align-items: center; margin: 0; padding: 4px 0; font-size: var(--fs-sm); font-weight: 400; color: var(--ink); }
   #inspector .checks label > span:first-of-type { flex: 1; }
   #inspector .checks .did { flex: 0 0 auto; font-family: var(--mono); font-size: var(--fs-xs); }
@@ -501,7 +503,7 @@
   dialog.drawer .row > input[data-f="name"], dialog.drawer .row > input[data-f="fname"] { flex: 0 1 260px; }
   dialog.drawer .row > select { flex: 0 0 130px; }
   dialog.drawer .row > .values, dialog.drawer .row > input[data-f="initial"] { flex: 1 1 200px; }
-  dialog.drawer .row > .use { flex: 1 1 200px; font-size: var(--fs-sm); }
+  dialog.drawer .row > .use { flex: 1 1 160px; font-size: var(--fs-sm); }
   dialog.drawer .row > .mover { display: inline-flex; flex: 0 0 auto; }
   dialog.drawer .mover button { width: 18px; height: var(--ctl); padding: 0; border-color: transparent; background: transparent; color: var(--faint); font-size: 12px; }
   dialog.drawer .mover button:hover:not(:disabled) { color: var(--ink); background: var(--line-2); }
@@ -563,6 +565,49 @@
   dialog.generate .foot { display: flex; align-items: center; gap: var(--s2); padding: 12px 20px; border-top: 1px solid var(--line); }
   dialog.generate .foot .count { flex: 1; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
   dialog.generate .foot .count.bad { color: var(--bad); }
+  /* "What you can write here": the bar is the box being written, the left column is everything that
+     may go in it, the right says what one of those is and what it comes to against a scenario. */
+  dialog.write { width: min(940px, calc(100vw - 32px)); max-width: none; height: min(660px, calc(100vh - 48px)); max-height: none; padding: 0; overflow: hidden; }
+  dialog.write[open], dialog.write form { display: flex; flex-direction: column; min-height: 0; }
+  dialog.write form { flex: 1 1 auto; }
+  dialog.write .head { display: flex; align-items: baseline; gap: 10px; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); }
+  dialog.write .head h3 { margin: 0; flex: none; }
+  dialog.write .head .muted { min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dialog.write .bar { flex: none; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+  dialog.write .bar input { width: 100%; height: 36px; font-family: var(--mono); font-size: var(--fs); }
+  dialog.write .verdict { margin-top: 6px; min-height: 17px; font-size: var(--fs-sm); color: var(--muted); }
+  dialog.write .verdict.ok { color: var(--ok-ink); }
+  dialog.write .verdict.bad { color: var(--bad-ink); }
+  dialog.write .verdict.warn { color: var(--warn-ink); }
+  dialog.write .cols { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 300px; }
+  dialog.write .left { min-height: 0; overflow: auto; padding: 0 16px 16px; background: var(--bg); }
+  dialog.write .find { position: sticky; top: 0; z-index: 1; width: 100%; height: var(--ctl); margin: 12px 0 4px; font-family: var(--mono); font-size: var(--fs-sm); }
+  dialog.write .band { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 6px; }
+  dialog.write .band .k { font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+  dialog.write .band .n { font-size: var(--fs-xs); color: var(--faint); font-variant-numeric: tabular-nums; }
+  dialog.write .sub { margin: 8px 0 4px; font-size: var(--fs-xs); color: var(--faint); text-transform: uppercase; letter-spacing: .06em; }
+  dialog.write .toks { display: flex; flex-wrap: wrap; gap: 4px; }
+  dialog.write .tok { height: 24px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel); color: var(--ink-2); font-family: var(--mono); font-size: var(--fs-xs); font-weight: 400; }
+  dialog.write .tok:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  dialog.write .builder { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 10px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); }
+  dialog.write .builder label { display: flex; flex-direction: column; gap: 3px; margin: 0; font-size: var(--fs-xs); color: var(--muted); }
+  dialog.write .builder select, dialog.write .builder input { width: 100%; height: var(--ctl-sm); font-size: var(--fs-sm); }
+  dialog.write .builder .out { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding-top: 4px; border-top: 1px solid var(--line-2); }
+  dialog.write .builder .out code { flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--fs-sm); color: var(--ink); overflow-wrap: anywhere; }
+  dialog.write .right { min-height: 0; overflow: auto; padding: 16px 18px; border-left: 1px solid var(--line); }
+  dialog.write .right .lead { margin: 0; color: var(--muted); line-height: 1.55; font-size: var(--fs-sm); }
+  dialog.write .right h4 { margin: 0 0 4px; font-family: var(--mono); font-size: var(--fs); font-weight: 600; overflow-wrap: anywhere; }
+  dialog.write .right .role { margin-bottom: 10px; font-size: var(--fs-sm); color: var(--muted); }
+  dialog.write .right p { margin: 0 0 8px; font-size: var(--fs-sm); line-height: 1.5; color: var(--ink-2); }
+  dialog.write .right code { font-family: var(--mono); font-size: var(--fs-xs); }
+  dialog.write .right .now { display: flex; flex-direction: column; gap: 2px; margin: 10px 0; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: var(--r1); }
+  dialog.write .right .now .k, dialog.write .right .eg .k { font-size: var(--fs-label); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); }
+  dialog.write .right .eg { margin-top: 12px; }
+  dialog.write .right .eg .line { display: block; width: 100%; margin-top: 4px; padding: 7px 9px; border: 1px solid var(--line); border-radius: var(--r1); background: var(--panel-2); color: var(--ink); font-family: var(--mono); font-size: var(--fs-xs); font-weight: 400; text-align: left; overflow-wrap: anywhere; }
+  dialog.write .right .eg .line:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  dialog.write .right .eg .ran { display: block; margin-top: 5px; font-size: var(--fs-xs); color: var(--ok-ink); }
+  dialog.write .foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: 10px 20px; border-top: 1px solid var(--line); }
+  dialog.write .foot .muted { font-size: var(--fs-sm); }
   dialog table.keys { border-collapse: collapse; font-size: var(--fs); }
   dialog table.keys td { padding: 5px 12px 5px 0; border-bottom: 1px solid var(--line-2); vertical-align: top; }
   dialog table.keys tr:last-child td { border-bottom: 0; }
@@ -743,6 +788,23 @@
       <div class="foot"><span id="generateCount" class="count"></span><button type="button" id="generateCancel">Cancel</button><button id="generateOk" value="ok" class="primary">Generate</button></div>
     </form>
   </dialog>
+  <dialog id="writeDialog" class="write">
+    <form method="dialog">
+      <div class="head"><h3>What you can write here</h3><span id="writeWhat" class="muted"></span></div>
+      <div class="bar">
+        <input type="text" id="writeBar" class="expr" spellcheck="false" autocomplete="off" placeholder="the expression; blank means always">
+        <div id="writeVerdict" class="verdict"></div>
+      </div>
+      <div class="cols">
+        <div class="left">
+          <input type="text" id="writeFind" class="find" spellcheck="false" autocomplete="off" placeholder="find a name or a function">
+          <div id="writeList"></div>
+        </div>
+        <div id="writeDetail" class="right"></div>
+      </div>
+      <div class="foot"><span class="muted">changes apply as you type · ⌘Z undoes</span><button value="close" class="primary">Close</button></div>
+    </form>
+  </dialog>
   <dialog id="helpDialog">
     <form method="dialog">
       <h3>Keys</h3>
@@ -760,6 +822,7 @@
         <tr><td><kbd>⌘C</kbd> · <kbd>⌘X</kbd> · <kbd>⌘V</kbd> · <kbd>⌘D</kbd></td><td>copy · cut · paste (at the pointer) · duplicate the selected nodes</td></tr>
         <tr><td><kbd>right-click</kbd></td><td>a menu: add a shape, paste or open the flow config on empty canvas; copy, cut, duplicate or delete a node</td></tr>
         <tr><td><kbd>click</kbd> empty canvas</td><td>clear the selection · the side panel goes away until something is selected</td></tr>
+        <tr><td>the <kbd>ƒx</kbd> beside any expression box</td><td>what you can write in it: every name in scope, every field of every list, the functions, a builder for a question about a list, and what the line comes to against a scenario</td></tr>
         <tr><td>the <kbd>⚙</kbd> at the foot of the palette</td><td>the flow in the panel: scenarios with their verdicts, inputs and state · a pencil opens the config drawer on that card's inputs or state</td></tr>
         <tr><td><kbd>drag</kbd> a selected node</td><td>move the whole selection together</td></tr>
         <tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>remove the selected nodes, edge or scenario</td></tr>

@@ -3,7 +3,8 @@
 // declared here.
 import { store, commit, select, selectScenario, panelOpen, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
-import { check, compile, names } from '../lib/expr.mjs';
+import { check, ambiguous, compile, names } from '../lib/expr.mjs';
+import { show as writeExpression } from './expression.mjs';
 import { knownNames, listsOf, parseRecords, initialIsExpression, expectationOf, nodeName } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
@@ -18,6 +19,8 @@ const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const mover = (act, k, n) => `<span class="mover"><button class="icon" data-act="${act}" data-dir="-1" title="Move up" ${k === 0 ? 'disabled' : ''}>↑</button><button class="icon" data-act="${act}" data-dir="1" title="Move down" ${k === n - 1 ? 'disabled' : ''}>↓</button></span>`;
 const swap = (list, k, dir) => { const j = k + dir; if (j < 0 || j >= list.length) return; [list[k], list[j]] = [list[j], list[k]]; };
 const RESERVED = new Set(['and', 'or', 'not', 'in', 'true', 'false', 'null', 'where']);   // the words of the condition language, which a name cannot be
+/** Beside an expression box: opens "What you can write here" on it. Every box that takes one has it. */
+const fx = (kind, extra = '') => `<button type="button" class="small icon fx" data-act="write" data-kind="${kind}" ${extra} title="What you can write here">ƒx</button>`;
 
 export function render() {
   // Never rebuild under the user's cursor: a keystroke commits, and the commit re-renders. What
@@ -92,8 +95,9 @@ function usesOf(doc, name) {
 }
 const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n} time${n === 1 ? '' : 's'}` : 'not used yet'; };
 
-const CHEATSHEET = `<div class="muted">Guards read like <code>channel in [Web, App]</code>, <code>hasCoupon</code>, <code>amount &gt; 100 and not blocked</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
-    <div class="muted" style="margin-top: 6px">A list is narrowed with <code>where</code> and measured with <code>count</code>: an action may set <code>notices = notices where status != CLOSED</code>, and a guard may read <code>count(notices) == 0</code>. Inside <code>where</code> a bare word is a field of the record.</div>`;
+const CHEATSHEET = `<div class="muted">Guards read like <code>channel in (Web, App)</code>, <code>hasCoupon</code>, <code>amount &gt; 100 &amp;&amp; !blocked</code>, <code>(faulty || damaged) &amp;&amp; hasReceipt</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
+    <div class="muted" style="margin-top: 6px">A list answers <code>notices.size</code>, and is asked about with <code>filter</code>, <code>count</code>, <code>any</code>, <code>all</code> and <code>none</code>: <code>notices.any(status == OPEN)</code>, <code>notices.filter(status != CLOSED)</code> — inside the brackets a bare word is a field of the record. Where a field and an input share a name, name the record: in <code>notices.any(o -&gt; o.status == status)</code> the record is <code>o</code> and a bare word is the input. The older <code>notices where status != CLOSED</code> and <code>count(notices)</code> mean the same.</div>
+    <div class="muted" style="margin-top: 6px">The ƒx beside any expression box opens what may go in it: every name in scope, every field, every function, and what the line comes to against a scenario.</div>`;
 
 // Every view is a head and a column of sections, as in Antipode's panel. The head says what is
 // selected, in small caps beside a dot in its colour, and carries its name as a title that is
@@ -142,7 +146,7 @@ function settingsView(doc, kind) {
     <div class="row" data-state="${k}">
       <input type="text" data-f="name" data-check value="${esc(f.name)}" placeholder="field">
       <input type="text" class="expr" data-f="initial" data-check value="${esc(f.initial ?? '')}" placeholder="initial value, or an input's name" title="The value before any action sets it: a value as written, or an expression over the inputs, such as an input's name to start as a copy of it. Blank means null.">
-      <span class="use muted">${uses(doc, f.name)}</span>
+      ${fx('initial')}<span class="use muted">${uses(doc, f.name)}</span>
       ${mover('mv-state', k, doc.state.length)}<button class="icon danger" data-act="rm-state" title="Remove">×</button>
     </div><div class="errs"></div>`).join('');
   return `
@@ -164,7 +168,7 @@ function nodeView(doc, n) {
   const sets = Object.entries(n.set ?? {}).map(([field, src], k) => `<div class="row" data-set="${k}">
       <select data-f="field">${doc.state.map((f) => opt(f.name, field)).join('')}${doc.state.some((f) => f.name === field) ? '' : opt(field, field)}</select>
       <input type="text" class="expr" data-f="src" data-check value="${esc(src)}" placeholder="expression">
-      <button class="icon danger" data-act="rm-set" title="Remove">×</button>
+      ${fx('set')}<button class="icon danger" data-act="rm-set" title="Remove">×</button>
     </div><div class="errs"></div>`).join('');
   return phead(`${n.kind} node`, `var(--${n.kind})`, `<input type="text" class="inline name" data-node="label" value="${esc(n.label)}" placeholder="Label" title="The label on the canvas">`) + `<div class="pbody">
     ${sect('Node', `<div class="field"><label>Kind</label><select data-node="kind">${['start', 'action', 'decision', 'end'].map((k) => opt(k, n.kind, k[0].toUpperCase() + k.slice(1))).join('')}</select></div>
@@ -188,6 +192,13 @@ function groupView(doc, ids) {
   </div>`;
 }
 
+/** The line under the dialog's title for a guard: which branch out of which decision it is. */
+function whatEdge(doc, id) {
+  const e = doc.edges.find((x) => x.id === id);
+  const name = (nid) => nodeName(doc.nodes.find((n) => n.id === nid)) || '(untitled)';
+  return e ? `the condition on “${name(e.from)}” → “${name(e.to)}”` : 'the condition';
+}
+
 function edgeView(doc, e) {
   if (!e) return '';
   const from = doc.nodes.find((n) => n.id === e.from), to = doc.nodes.find((n) => n.id === e.to);
@@ -199,8 +210,8 @@ function edgeView(doc, e) {
   const held = (e.when && e.when.trim()) || e.else;
   return phead('Edge', 'var(--faint)', `<div class="title-static">${esc(from?.label)} <span class="muted">→</span> ${esc(to?.label)}</div>`) + `<div class="pbody">
     ${sect('Condition', branches || held ? `<div class="row">
-        <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. channel in [Web, App]" ${e.else ? 'disabled' : ''}>
-        ${insertMenu(doc, e.else)}
+        <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. channel in (Web, App)" ${e.else ? 'disabled' : ''}>
+        ${e.else ? '' : fx('guard')}
       </div>
       <div class="errs"></div>
       <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>
@@ -218,33 +229,6 @@ function edgeView(doc, e) {
   </div>`;
 }
 
-// The menu beside a condition: every declared name, each enum's values and the operators, so a
-// guard is assembled by picking rather than remembering. A pick lands at the cursor.
-const OPERATORS = ['==', '!=', '<', '<=', '>', '>=', 'in []', 'not in []', 'and', 'or', 'not', 'null', 'true', 'false', 'where', 'count()'];
-function insertMenu(doc, disabled) {
-  const group = (label, items) => items.length ? `<optgroup label="${label}">${items.map(([v, l]) => `<option value="${esc(v)}">${esc(l ?? v)}</option>`).join('')}</optgroup>` : '';
-  const word = (v) => (IDENT.test(v) && !RESERVED.has(v) ? v : JSON.stringify(v));
-  return `<select class="insert" data-insert title="Put a name or an operator at the cursor" ${disabled ? 'disabled' : ''}>
-    <option value="">insert…</option>
-    ${group('Inputs', doc.inputs.filter((i) => i.name).map((i) => [i.name]))}
-    ${group('State', doc.state.filter((f) => f.name).map((f) => [f.name]))}
-    ${doc.inputs.filter((i) => i.type === 'enum' && i.values?.length).map((i) => group(`${i.name} values`, i.values.map((v) => [word(v), v]))).join('')}
-    ${doc.inputs.filter((i) => i.type === 'list' && i.fields?.length).map((i) => group(`${i.name} fields`, i.fields.filter((f) => f.name).map((f) => [f.name])) + i.fields.filter((f) => f.type === 'enum' && f.values?.length).map((f) => group(`${i.name}.${f.name} values`, f.values.map((v) => [word(v), v]))).join('')).join('')}
-    ${group('Operators', OPERATORS.map((o) => [o]))}
-  </select>`;
-}
-
-/** Put `token` into the text control at its cursor, spaced from what is around it, and leave the cursor after it. */
-function insertAt(input, token) {
-  const v = input.value, a = input.selectionStart ?? v.length, b = input.selectionEnd ?? a;
-  const before = v.slice(0, a), after = v.slice(b);
-  const lead = before && !/[\s([]$/.test(before) ? ' ' : '', tail = /^[\s)\],]/.test(after) ? '' : ' ';
-  input.value = before + lead + token + tail + after;
-  const at = (before + lead + token).length - (token.endsWith('[]') || token.endsWith('()') ? 1 : 0);   // inside the brackets of `in []` or `count()`
-  input.focus();
-  input.setSelectionRange(at, at);
-}
-
 function scenarioView(doc, s) {
   if (!s) return '';
   const actions = [...new Set(flowOrder(doc).filter((n) => n.kind === 'action').map(nodeName))];
@@ -256,7 +240,7 @@ function scenarioView(doc, s) {
     ${sect('Inputs', doc.inputs.map((i) => `<div class="field"><label>${esc(i.name)}${i.type === 'list' ? recordsToggle(i, s.inputs[i.name]) : ''}</label>${i.type === 'list' && !recordsAsText.has(i.name) && readable(i, s.inputs[i.name]) ? recordsForm(i, s.inputs[i.name]) : inputControl(i, s.inputs[i.name], `data-scn-input="${esc(i.name)}"`)}</div>`).join('') || '<div class="muted">The flow declares no inputs yet.</div>', { n: doc.inputs.length })}
     ${sect('Expected actions', `<div class="checks">${actions.map((a) => `<label><input type="checkbox" data-scn-action="${esc(a)}" ${want.has(a) ? 'checked' : ''}> <span>${esc(a)}</span><span class="did"></span></label>`).join('') || '<div class="muted">No action nodes in the flow yet.</div>'}</div>`, { note: 'in flow order; ✓ happened in the last run' })}
     ${sect('Expected landing', `<select data-scn="end"><option value="">(any end)</option>${ends.map((e) => opt(e, s.expect.end ?? '')).join('')}</select>`)}
-    ${doc.state.length ? sect('Expected state', `<p class="muted hint"><code>*</code> any value, <code>null</code>, the value, or a check: <code>== 1</code>, <code>size &gt; 0</code>, <code>count(notices where linked) == 1</code></p>
+    ${doc.state.length ? sect('Expected state', `<p class="muted hint"><code>*</code> any value, <code>null</code>, the value, or a check: <code>== 1</code>, <code>size &gt; 0</code>, <code>notices.count(linked) == 1</code></p>
       ${doc.state.map((f) => `<div class="field"><label>${esc(f.name)}</label><input type="text" class="expr" data-scn-state="${esc(f.name)}" value="${esc(s.expect.state?.[f.name] ?? '')}"></div>`).join('')}`, { n: doc.state.length }) : ''}
     ${danger('Delete scenario', 'rm-scn')}
   </div>`;
@@ -388,10 +372,12 @@ const err = (text) => ({ cls: 'err', text }), warn = (text) => ({ cls: 'warn', t
 /** What is wrong with one control's current text, judged against the document as it stands. */
 function problemsOf(c, known, lists) {
   const { doc } = store, d = c.dataset, v = c.value;
-  if (d.edge === 'when') return c.disabled ? [] : check(v, known, lists).map(err);
+  // A name read two ways is a warning, not an error: it runs, it just does not say what it means.
+  if (d.edge === 'when') return c.disabled ? [] : check(v, known, lists).map(err).concat(ambiguous(v, known, lists).map(warn));
   if (d.f === 'src') {
     const field = c.closest('.row').querySelector('[data-f="field"]').value;
-    return (doc.state.some((f) => f.name === field) ? [] : [err(`${field} is not a declared state field`)]).concat(check(v, known, lists).map(err));
+    return (doc.state.some((f) => f.name === field) ? [] : [err(`${field} is not a declared state field`)])
+      .concat(check(v, known, lists).map(err)).concat(ambiguous(v, known, lists).map(warn));
   }
   if (d.f === 'fname') {
     const i = doc.inputs[Number(c.closest('[data-input]').dataset.input)], j = Number(c.closest('[data-lf]').dataset.lf);
@@ -402,7 +388,8 @@ function problemsOf(c, known, lists) {
   }
   // An initial value is taken as written unless it reads as an expression over the inputs, in
   // which case it starts as that value; say which, so `pending` and `items where inStock` both make sense.
-  if (d.f === 'initial') return initialIsExpression(doc, v) && !/^[0-9]/.test(v.trim()) && !doc.inputs.every((i) => !new RegExp(`\\b${i.name}\\b`).test(v)) ? [note(`starts as the value of ${v.trim()}`)] : [];
+  if (d.f === 'initial') return (initialIsExpression(doc, v) && !/^[0-9]/.test(v.trim()) && !doc.inputs.every((i) => !new RegExp(`\\b${i.name}\\b`).test(v)) ? [note(`starts as the value of ${v.trim()}`)] : [])
+    .concat(ambiguous(v, known, lists).map(warn));
   if (d.f === 'name') {
     const row = c.closest('[data-input], [data-state]'), ix = Number(row.dataset.input ?? -1), sx = Number(row.dataset.state ?? -1);
     const taken = doc.inputs.filter((_, j) => j !== ix).map((x) => x.name).concat(doc.state.filter((_, j) => j !== sx).map((x) => x.name));
@@ -498,13 +485,6 @@ for (const r of roots) r.addEventListener('input', (ev) => {
 for (const r of roots) r.addEventListener('change', (ev) => {
   const t = ev.target;
   const d = t.dataset;
-  if (d.insert != null) {
-    // A pick goes into the condition beside the menu; the panel is not rebuilt, so the cursor stays put.
-    const input = t.parentElement.querySelector('[data-edge="when"]');
-    if (t.value && input) { insertAt(input, t.value); commit((doc) => { const e = doc.edges.find((e) => e.id === store.selection.id); e.when = input.value; }); }
-    t.value = '';
-    return;
-  }
   if (d.edge === 'else') { commit((doc) => { const e = doc.edges.find((e) => e.id === store.selection.id); e.else = t.checked; if (t.checked) e.when = ''; }); t.blur(); render(); }
   if (d.scnAction != null) commit((doc) => {
     const s = doc.scenarios.find((s) => s.id === store.selection.id);
@@ -527,6 +507,25 @@ for (const r of roots) r.addEventListener('click', (ev) => {
   if (!b) return;
   const act = b.dataset.act;
   const sel = store.selection;
+  // "What you can write here" on the box beside the button. It writes through to the document
+  // rather than to the control, because the panel rebuilds behind the dialog and the control it
+  // was opened from is gone by the second keystroke.
+  if (act === 'write') {
+    const kind = b.dataset.kind;
+    if (kind === 'guard') writeExpression({ kind, what: whatEdge(store.doc, sel.id), get: () => store.doc.edges.find((e) => e.id === sel.id)?.when ?? '', set: (v) => commit((doc) => { doc.edges.find((e) => e.id === sel.id).when = v; }) });
+    if (kind === 'set') {
+      const k = Number(b.closest('[data-set]').dataset.set);
+      const node = store.doc.nodes.find((n) => n.id === sel.id);
+      const field = Object.keys(node.set ?? {})[k];
+      writeExpression({ kind, what: `what “${nodeName(node)}” sets ${field} to`, get: () => store.doc.nodes.find((n) => n.id === sel.id)?.set?.[field] ?? '', set: (v) => commit((doc) => { doc.nodes.find((n) => n.id === sel.id).set[field] = v; }) });
+    }
+    if (kind === 'initial') {
+      const k = Number(b.closest('[data-state]').dataset.state);
+      const name = store.doc.state[k]?.name;
+      writeExpression({ kind, what: `what ${name} holds before any action sets it`, get: () => store.doc.state[k]?.initial ?? '', set: (v) => commit((doc) => { doc.state[k].initial = v === '' ? null : v; }) });
+    }
+    return b.blur();
+  }
   if (act === 'open-settings') return openSettings(b.dataset.focus);
   // Close puts the sheet away; Done also saves, which in a project writes the flow's file (app.mjs listens).
   if (act === 'close-settings') return sheet.close();

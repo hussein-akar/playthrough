@@ -12,8 +12,8 @@
     { "name": "express", "type": "boolean" }
   ],
   "state": [
-    { "name": "short", "initial": "lines where picked < qty" },
-    { "name": "fragileLines", "initial": "lines where fragile" },
+    { "name": "short", "initial": "lines.filter(picked < qty)" },
+    { "name": "fragileLines", "initial": "lines.filter(fragile)" },
     { "name": "packing", "initial": null }
   ],
   "nodes": [
@@ -39,14 +39,14 @@
   "edges": [
     { "id": "e1", "from": "start", "to": "pick" },
     { "id": "e2", "from": "pick", "to": "allpicked" },
-    { "id": "e3", "from": "allpicked", "to": "anyfragile", "when": "count(short) == 0", "color": "success" },
+    { "id": "e3", "from": "allpicked", "to": "anyfragile", "when": "short.size == 0", "color": "success" },
     { "id": "e4", "from": "allpicked", "to": "discrepancy", "else": true, "label": "something short", "color": "warning" },
     { "id": "e5", "from": "discrepancy", "to": "partial" },
     { "id": "e6", "from": "partial", "to": "splitoff", "when": "express", "label": "express: ship in part" },
     { "id": "e7", "from": "partial", "to": "hold", "else": true, "color": "failed" },
     { "id": "e8", "from": "splitoff", "to": "anyfragile" },
     { "id": "e9", "from": "hold", "to": "onhold" },
-    { "id": "e10", "from": "anyfragile", "to": "padded", "when": "count(fragileLines) > 0" },
+    { "id": "e10", "from": "anyfragile", "to": "padded", "when": "fragileLines.any(fragile)" },
     { "id": "e11", "from": "anyfragile", "to": "standard", "else": true },
     { "id": "e12", "from": "padded", "to": "giftq" },
     { "id": "e13", "from": "standard", "to": "giftq" },
@@ -77,6 +77,6 @@
       "expect": { "actions": ["Pick the lines", "Raise a stock discrepancy", "Hold the order"], "end": "On hold", "state": { "short": "1", "packing": "null" } } },
     { "id": "s6", "name": "Every line short", "tags": ["stock", "edge"],
       "inputs": { "lines": "A1, 2, 0, yes\nB2, 4, 0, no", "giftWrap": true, "express": false },
-      "expect": { "actions": ["Pick the lines", "Raise a stock discrepancy", "Hold the order"], "end": "On hold", "state": { "short": "count(short where picked == 0) == 2" } } }
+      "expect": { "actions": ["Pick the lines", "Raise a stock discrepancy", "Hold the order"], "end": "On hold", "state": { "short": "short.count(picked == 0) == 2" } } }
   ]
 }
