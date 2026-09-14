@@ -191,13 +191,22 @@ function groupView(doc, ids) {
 function edgeView(doc, e) {
   if (!e) return '';
   const from = doc.nodes.find((n) => n.id === e.from), to = doc.nodes.find((n) => n.id === e.to);
+  // Only a decision branches, so only an edge leaving one is offered a guard. Elsewhere the fields
+  // are still shown when something is already in them — the node was a decision when the condition
+  // was written, and changing its kind must not be the thing that silently drops it — but with the
+  // reason it is wrong under them, so the way out is to empty it or to make the node a decision.
+  const branches = from?.kind === 'decision';
+  const held = (e.when && e.when.trim()) || e.else;
   return phead('Edge', 'var(--faint)', `<div class="title-static">${esc(from?.label)} <span class="muted">→</span> ${esc(to?.label)}</div>`) + `<div class="pbody">
-    ${sect('Condition', `<div class="row">
+    ${sect('Condition', branches || held ? `<div class="row">
         <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. channel in [Web, App]" ${e.else ? 'disabled' : ''}>
         ${insertMenu(doc, e.else)}
       </div>
       <div class="errs"></div>
-      <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>`, { note: 'blank means always' })}
+      <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>
+      ${branches ? '' : `<div class="muted empty">${esc(from?.label || 'What this leaves')} is not a decision, so this cannot branch: it can only stop the run when it does not hold. Empty it, or select ${esc(from?.label || 'the node')} and set its kind to Decision.</div>`}`
+      : `<div class="muted empty">Only a decision branches. To put a condition here, select ${esc(from?.label || 'the node')} and set its kind to Decision.</div>`,
+      branches ? { note: 'blank means always' } : {})}
     ${sect('Label', `<input type="text" data-edge="label" value="${esc(e.label ?? '')}" placeholder="e.g. approved">`, { note: 'shown on the canvas instead of the condition' })}
     ${sect('Look', `<div class="field"><label>Line</label>
         <div class="swatches">${[['smooth', 'Smooth'], ['square', 'Square']].map(([v, l]) => `<button class="swatch none${(e.shape === 'square' ? 'square' : 'smooth') === v ? ' on' : ''}" data-act="edge-shape" data-shape="${v}">${l}</button>`).join('')}</div>

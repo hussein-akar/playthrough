@@ -160,6 +160,12 @@ deliveryDate == null
 Enum values need no quotes. The language has `and`, `or`, `not`, `in`, comparisons, arithmetic, and
 `a ?? b` (b when a is blank), plus `where` and `count` for lists.
 
+A condition belongs on an edge leaving a decision, because that is the only place it has anything to
+choose between. On the way out of a start or an action the panel does not offer the field, and a
+condition already there — left behind by a node that used to be a decision — is a drawing problem:
+it cannot send the run one way or the other, it can only stop it. Make the node a decision, or empty
+the field.
+
 The panel checks a condition as you type: a name nobody declared, or a missing bracket, shows up
 under the field at once. Renaming an input or a state field rewrites every condition, set and
 scenario cell that mentions it, in one undoable step.
