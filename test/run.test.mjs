@@ -223,3 +223,75 @@ it('a stray space around a label does not make an action or an end a different o
   // the one the example fails on purpose.
   assert.equal(runAll(d).passed, runAll(doc).passed);
 });
+
+// A state field built from another one: `short` narrows the input, `urgent` narrows `short`. This
+// used to be kept as the text of its own definition, because an initial value was read over the
+// inputs alone — and the run then failed at whichever action first filtered it, saying that a
+// filter needs a list, nowhere near the field that was actually wrong.
+const chained = (state) => ({
+  name: 'Chained',
+  inputs: [{ name: 'items', type: 'list', fields: [{ name: 'status', type: 'enum', values: ['OPEN', 'CLOSED'] }, { name: 'qty', type: 'number' }] }],
+  state,
+  nodes: [
+    { id: 's', kind: 'start', label: 'Start' },
+    { id: 'a', kind: 'action', label: 'Trim it', set: { urgent: 'urgent.filter(qty > 2)' } },
+    { id: 'e', kind: 'end', label: 'Done' },
+  ],
+  edges: [{ id: 'e1', from: 's', to: 'a' }, { id: 'e2', from: 'a', to: 'e' }],
+  scenarios: [{ id: 'x', name: 'Three', inputs: { items: 'status=OPEN, qty=3\nstatus=OPEN, qty=1\nstatus=CLOSED, qty=9' }, expect: { actions: ['Trim it'], end: 'Done', state: {} } }],
+});
+const ORDERED = [{ name: 'open', initial: 'items.filter(status != CLOSED)' }, { name: 'urgent', initial: 'open' }];
+
+it('a state field starts as the state fields above it, worked out in order', async () => {
+  const { initialState, coerceInputs, runAll, lint } = await import('../lib/run.mjs');
+  const doc = chained(ORDERED);
+  const inputs = coerceInputs(doc, doc.scenarios[0].inputs);
+  const s = initialState(doc, inputs);
+  assert.equal(s.open.length, 2, 'narrowed from the input');
+  assert.deepEqual(s.urgent, s.open, 'and the one below starts as a copy of it, not as the text "open"');
+  const r = runAll(doc).results[0];
+  assert.equal(r.result.error, null, 'so an action may filter it again');
+  assert.deepEqual(r.result.state.urgent, [{ status: 'OPEN', qty: 3 }]);
+  assert.deepEqual(lint(doc), []);
+});
+
+it('an initial value that cannot be worked out is a drawing problem, not a run that fails elsewhere', async () => {
+  const { lint, runAll } = await import('../lib/run.mjs');
+  const below = lint(chained([ORDERED[1], ORDERED[0]]));
+  assert.equal(below.length, 1);
+  assert.match(below[0].message, /"urgent" starts as `open`/);
+  assert.match(below[0].message, /"open" is a state field below it.*move "open" above "urgent"/);
+
+  const itself = lint(chained([{ name: 'urgent', initial: 'urgent.filter(qty > 2)' }]));
+  assert.match(itself[0].message, /"urgent" starts as itself, which it cannot/);
+
+  const typo = lint(chained([{ name: 'urgent', initial: 'itmes.filter(qty > 2)' }]));
+  assert.match(typo[0].message, /kept as text and never worked out: unknown name 'itmes'/);
+
+  // Text is a perfectly good initial value, and none of this may start calling it a mistake.
+  assert.deepEqual(lint(chained([{ name: 'urgent', initial: 'items' }, { name: 'note', initial: 'pending' }, { name: 'n', initial: '0' }, { name: 'blank', initial: null }])), []);
+  // The run itself still says what went wrong, for a field that is text on purpose and filtered anyway.
+  const text = runAll(chained([{ name: 'urgent', initial: 'pending' }])).results[0];
+  assert.match(text.result.error.message, /in "Trim it", set urgent: filter needs a list/);
+});
+
+it('a name is declared once, and a second one is said out loud', async () => {
+  const { lint } = await import('../lib/run.mjs');
+  const flow = (inputs, state) => ({
+    name: 'Named twice', inputs, state,
+    nodes: [{ id: 's', kind: 'start', label: 'S' }, { id: 'e', kind: 'end', label: 'E' }],
+    edges: [{ id: '1', from: 's', to: 'e' }], scenarios: [],
+  });
+  // The one that costs the most: nothing fails, the flow just does something other than what it
+  // says. A guard reading `items` gets the input; the action set it on the state, where nothing looks.
+  const both = lint(flow([{ name: 'items', type: 'number' }], [{ name: 'items', initial: null }]));
+  assert.equal(both.length, 1);
+  assert.match(both[0].message, /"items" is both an input and a state field/);
+  assert.match(both[0].message, /never read back/);
+
+  assert.match(lint(flow([{ name: 'a', type: 'number' }, { name: 'a', type: 'text' }], []))[0].message, /declared twice as an input/);
+  assert.match(lint(flow([], [{ name: 'a', initial: null }, { name: 'a', initial: '1' }]))[0].message, /declared twice as a state field/);
+  assert.deepEqual(lint(flow([{ name: 'a', type: 'number' }], [{ name: 'b', initial: null }])), []);
+  // A half-typed row has no name yet, which is the panel's business and not a drawing problem.
+  assert.deepEqual(lint(flow([{ name: '', type: 'number' }, { name: '', type: 'text' }], [])), []);
+});

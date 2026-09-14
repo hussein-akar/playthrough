@@ -388,8 +388,15 @@ function problemsOf(c, known, lists) {
   }
   // An initial value is taken as written unless it reads as an expression over the inputs, in
   // which case it starts as that value; say which, so `pending` and `items where inStock` both make sense.
-  if (d.f === 'initial') return (initialIsExpression(doc, v) && !/^[0-9]/.test(v.trim()) && !doc.inputs.every((i) => !new RegExp(`\\b${i.name}\\b`).test(v)) ? [note(`starts as the value of ${v.trim()}`)] : [])
-    .concat(ambiguous(v, known, lists).map(warn));
+  if (d.f === 'initial') {
+    // An initial is read over the inputs and the state fields above this one, so the hint and the
+    // check both depend on where the row sits.
+    const k = Number(c.closest('[data-state]').dataset.state);
+    const above = doc.state.slice(0, k).map((f) => f.name);
+    const reads = doc.inputs.concat(doc.state.slice(0, k)).some((x) => new RegExp(`\\b${x.name}\\b`).test(v));
+    return (initialIsExpression(doc, v, above) && !/^[0-9]/.test(v.trim()) && reads ? [note(`starts as the value of ${v.trim()}`)] : [])
+      .concat(ambiguous(v, known, lists).map(warn));
+  }
   if (d.f === 'name') {
     const row = c.closest('[data-input], [data-state]'), ix = Number(row.dataset.input ?? -1), sx = Number(row.dataset.state ?? -1);
     const taken = doc.inputs.filter((_, j) => j !== ix).map((x) => x.name).concat(doc.state.filter((_, j) => j !== sx).map((x) => x.name));
