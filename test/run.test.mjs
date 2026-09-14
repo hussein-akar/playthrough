@@ -197,3 +197,29 @@ it('a condition belongs on an edge leaving a decision, and nowhere else', () => 
   // The edges that do leave a decision keep their guards, and the flow stays clean.
   assert.deepEqual(lint(doc), []);
 });
+
+it('a stray space around a label does not make an action or an end a different one', async () => {
+  const { nodeName } = await import('../lib/run.mjs');
+  assert.equal(nodeName({ label: '  Apply coupon ' }), 'Apply coupon');
+  assert.equal(nodeName({}), '', 'a node with no label is not named "undefined"');
+
+  // Someone typed a space after the label. It shows nowhere: not on the canvas, not in the panel,
+  // not in the expectation the scenario already holds.
+  const d = clone();
+  d.nodes.find((n) => n.id === 'apply').label = 'Apply coupon ';
+  d.nodes.find((n) => n.id === 'done').label = ' Done';
+  const r = run(d, d.scenarios[0]);
+  assert.deepEqual(r.actions, ['Reserve stock', 'Apply coupon', 'Take payment', 'Send confirmation email']);
+  assert.equal(r.end, 'Done');
+  assert.deepEqual(verdict(r, d.scenarios[0].expect).issues, [], 'the scenario still passes');
+
+  // The same space typed into the expectation instead.
+  const s = structuredClone(doc.scenarios[0]);
+  s.expect.actions = ['Reserve stock', 'Apply coupon ', 'Take payment', ' Send confirmation email'];
+  s.expect.end = 'Done ';
+  assert.equal(verdict(run(doc, s), s.expect).pass, true);
+
+  // The whole set is unmoved: the same scenarios pass as before the spaces were typed, including
+  // the one the example fails on purpose.
+  assert.equal(runAll(d).passed, runAll(doc).passed);
+});

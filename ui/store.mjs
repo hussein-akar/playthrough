@@ -1,6 +1,6 @@
 // One place the document lives. Every change goes through `commit`, which snapshots for undo,
 // replays every scenario (cheap: it is a walk over a drawing), lints, saves, and tells the views.
-import { runAll, lint } from '../lib/run.mjs';
+import { runAll, lint, nodeName } from '../lib/run.mjs';
 
 const KEY = 'playthrough.doc';
 const DIRTY = 'playthrough.dirty';
@@ -135,7 +135,7 @@ export function restoreFile() { try { return JSON.parse(localStorage.getItem(FIL
 export function normalize(doc) {
   const d = { ...emptyDoc(), ...doc };
   for (const k of ['inputs', 'state', 'nodes', 'edges', 'scenarios']) if (!Array.isArray(d[k])) d[k] = [];
-  for (const n of d.nodes) { n.id ??= uid('n'); n.kind ??= 'action'; n.label ??= ''; n.x ??= 0; n.y ??= 0; }
+  for (const n of d.nodes) { n.id ??= uid('n'); n.kind ??= 'action'; n.label = nodeName(n); n.x ??= 0; n.y ??= 0; }
   for (const e of d.edges) { e.id ??= uid('e'); e.when ??= ''; }
   for (const s of d.scenarios) { s.id ??= uid('s'); s.name ??= ''; s.inputs ??= {}; s.expect ??= {}; s.expect.actions ??= []; s.expect.state ??= {}; s.tags = parseTags(Array.isArray(s.tags) ? s.tags.join(',') : s.tags); if (s.note != null) { s.description ??= s.note; delete s.note; } }
   return d;
