@@ -274,3 +274,24 @@ it('an initial value that cannot be worked out is a drawing problem, not a run t
   const text = runAll(chained([{ name: 'urgent', initial: 'pending' }])).results[0];
   assert.match(text.result.error.message, /in "Trim it", set urgent: filter needs a list/);
 });
+
+it('a name is declared once, and a second one is said out loud', async () => {
+  const { lint } = await import('../lib/run.mjs');
+  const flow = (inputs, state) => ({
+    name: 'Named twice', inputs, state,
+    nodes: [{ id: 's', kind: 'start', label: 'S' }, { id: 'e', kind: 'end', label: 'E' }],
+    edges: [{ id: '1', from: 's', to: 'e' }], scenarios: [],
+  });
+  // The one that costs the most: nothing fails, the flow just does something other than what it
+  // says. A guard reading `items` gets the input; the action set it on the state, where nothing looks.
+  const both = lint(flow([{ name: 'items', type: 'number' }], [{ name: 'items', initial: null }]));
+  assert.equal(both.length, 1);
+  assert.match(both[0].message, /"items" is both an input and a state field/);
+  assert.match(both[0].message, /never read back/);
+
+  assert.match(lint(flow([{ name: 'a', type: 'number' }, { name: 'a', type: 'text' }], []))[0].message, /declared twice as an input/);
+  assert.match(lint(flow([], [{ name: 'a', initial: null }, { name: 'a', initial: '1' }]))[0].message, /declared twice as a state field/);
+  assert.deepEqual(lint(flow([{ name: 'a', type: 'number' }], [{ name: 'b', initial: null }])), []);
+  // A half-typed row has no name yet, which is the panel's business and not a drawing problem.
+  assert.deepEqual(lint(flow([{ name: '', type: 'number' }, { name: '', type: 'text' }], [])), []);
+});

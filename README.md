@@ -146,6 +146,11 @@ Then `docker compose up -d`, and open <http://localhost:8095>.
 | **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text, or a list of records. A condition can only mention declared names, so a typo is caught while drawing. |
 | **State** | Fields an action may set along the way and a scenario may check at the end. |
 
+Inputs and state fields share one set of names, and each name belongs to one of them. Declaring the
+same name twice is reported as a drawing problem: an input wins wherever a name is read, so a state
+field sharing an input's name would be written by an action and never read back, and nothing would
+fail to say so.
+
 ### Conditions
 
 Conditions read like the sentence in the spreadsheet, and spell the everyday operators the way
