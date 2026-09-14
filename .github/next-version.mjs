@@ -83,6 +83,7 @@ if (process.env.GITHUB_OUTPUT) {
     `bump=${bump ?? ''}`,
     `version=${next ?? ''}`,
     `minor=${next ? next.split('.').slice(0, 2).join('.') : ''}`,
+    `previous=${last ?? ''}`,
     '',
   ].join('\n'));
 }
