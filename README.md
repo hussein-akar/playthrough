@@ -148,17 +148,23 @@ Then `docker compose up -d`, and open <http://localhost:8095>.
 
 ### Conditions
 
-Conditions read like the sentence in the spreadsheet:
+Conditions read like the sentence in the spreadsheet, and spell the everyday operators the way
+code does:
 
 ```
-channel in [Web, App, Marketplace]
+channel in (Web, App, Marketplace)
 hasCoupon
-amount > 100 and not blocked
+amount > 100 && !blocked
+(faulty || damaged) && hasReceipt
+lines.size >= 1
 deliveryDate == null
 ```
 
-Enum values need no quotes. The language has `and`, `or`, `not`, `in`, comparisons, arithmetic, and
-`a ?? b` (b when a is blank), plus `where` and `count` for lists.
+Enum values need no quotes. The language has comparisons, arithmetic, `a ?? b` (b when a is blank),
+and both spellings of the connectives — `and` / `&&`, `or` / `||`, `not` / `!` — so whichever you
+reach for is the one that works. Brackets group: `a || b && c` is `a || (b && c)` until you say
+otherwise. A list of values takes brackets or parentheses, `in [Web, App]` and `in (Web, App)`
+alike.
 
 A condition belongs on an edge leaving a decision, because that is the only place it has anything to
 choose between. On the way out of a start or an action the panel does not offer the field, and a
@@ -177,22 +183,41 @@ CANCELLED, and `gift` is a boolean. A scenario writes one record per line, as `s
 gift=yes` or just the values in field order, `PICKED, yes`. In the side panel each record is a row of
 controls.
 
-An action narrows a list with `where`, and a condition measures it with `count`:
+A list answers `.size`, and is asked about with `filter`, `count`, `any`, `all` and `none`. Each
+takes a condition on one record, and inside the brackets a bare word is a field of that record:
 
 ```
-kept = kept where status != CANCELLED         an action's set
-count(kept) == 0                              a condition
-count(kept where gift) > 1
+lines.size >= 1                          how many there are
+lines.filter(status != CANCELLED)        the ones that match — an action's set
+lines.count(gift) > 1                    how many match
+lines.any(status == SHORT)               at least one
+lines.all(status == PICKED)              every one; an empty list is all of them
+lines.none(gift)                         not one
 ```
 
-Inside `where`, a bare word is a field of the record. An empty list is false, so `kept where gift`
-reads "some kept line is a gift".
+A field the list does not declare is caught as you type. An empty list is false, so
+`lines.filter(gift)` reads "some line is a gift".
+
+**When a field and an input are called the same thing**, a bare word is the field, and nothing on
+the page says so. Name the record and it becomes the only way to reach it:
+
+```
+lines.filter(o -> o.qty > qty)      o.qty is the line's; a bare qty is the input
+```
+
+Under a name, the record is `o` and nothing else, so either meaning can be written down. A bare word
+that would be read both ways at once is reported as a problem on the drawing, with both spellings
+offered — the flow runs, but it does not say which it meant, and a specification has to.
+
+The older spellings still work and still mean the same, because flows live in people's
+repositories: `lines where status != CANCELLED` is `lines.filter(…)`, and `count(lines)` is
+`lines.size`.
 
 ### State
 
 A state field starts as its **initial value**. That is taken as written (`0`, `null`), unless it is
-an expression over the inputs: `lines` starts as a copy of the input `lines`, and `lines where gift`
-as the gift lines only. An action changes a field with a *set*, such as `discount = 10`.
+an expression over the inputs: `lines` starts as a copy of the input `lines`, and
+`lines.filter(gift)` as the gift lines only. An action changes a field with a *set*, such as `discount = 10`.
 
 ### How a scenario is played
 

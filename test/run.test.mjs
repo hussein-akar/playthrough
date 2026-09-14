@@ -148,7 +148,7 @@ it('a field used outside where gets told how a list is narrowed', async () => {
   const { check } = await import('../lib/expr.mjs');
   const msgs = check('status != CANCELLED', new Set(['lines', 'CANCELLED']), new Map([['lines', new Set(['status'])]]));
   assert.match(msgs[0], /field of a lines record/);
-  assert.match(msgs[0], /lines where status/);
+  assert.match(msgs[0], /lines\.filter\(status/);
 });
 
 it('an expected-state cell may be a check on the value or the count', async () => {

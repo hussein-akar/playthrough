@@ -17,7 +17,7 @@
       "id": "advanced",
       "name": "Advanced",
       "dir": "examples/advanced",
-      "description": "The same shop, grown up: six flows in three groups, from a basket with a list of lines through payment, the warehouse and the courier to returns and refunds. List inputs are narrowed with where and measured with count, state is set along the way, and every branch is covered by a scenario.",
+      "description": "The same shop, grown up: six flows in three groups, from a basket with a list of lines through payment, the warehouse and the courier to returns and refunds. List inputs are asked about with size, filter, count and any, state is set along the way, and every branch is covered by a scenario.",
       "flows": ["orders/checkout.json", "orders/payment.json", "fulfilment/pick-and-pack.json", "fulfilment/delivery.json", "after-sale/returns.json", "after-sale/refunds.json"]
     }
   ]
