@@ -221,9 +221,15 @@ repositories: `lines where status != CANCELLED` is `lines.filter(…)`, and `cou
 
 ### State
 
-A state field starts as its **initial value**. That is taken as written (`0`, `null`), unless it is
-an expression over the inputs: `lines` starts as a copy of the input `lines`, and
-`lines.filter(gift)` as the gift lines only. An action changes a field with a *set*, such as `discount = 10`.
+A state field starts as its **initial value**. That is taken as written (`0`, `null`, `pending`),
+unless it is an expression over the inputs: `lines` starts as a copy of the input `lines`, and
+`lines.filter(gift)` as the gift lines only.
+
+The fields are worked out **in the order they are declared**, and each may build on the ones above
+it — `open` can be `lines.filter(status != CANCELLED)`, and `urgent` below it `open.filter(rush)`.
+Only the ones above: a field cannot start as something not worked out yet. One that reaches down the
+list, or at itself, is reported as a drawing problem naming the field to move, rather than quietly
+starting as the text of its own definition and failing at the first action that reads it. An action changes a field with a *set*, such as `discount = 10`.
 
 ### How a scenario is played
 

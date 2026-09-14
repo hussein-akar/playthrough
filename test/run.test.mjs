@@ -223,3 +223,54 @@ it('a stray space around a label does not make an action or an end a different o
   // the one the example fails on purpose.
   assert.equal(runAll(d).passed, runAll(doc).passed);
 });
+
+// A state field built from another one: `short` narrows the input, `urgent` narrows `short`. This
+// used to be kept as the text of its own definition, because an initial value was read over the
+// inputs alone — and the run then failed at whichever action first filtered it, saying that a
+// filter needs a list, nowhere near the field that was actually wrong.
+const chained = (state) => ({
+  name: 'Chained',
+  inputs: [{ name: 'items', type: 'list', fields: [{ name: 'status', type: 'enum', values: ['OPEN', 'CLOSED'] }, { name: 'qty', type: 'number' }] }],
+  state,
+  nodes: [
+    { id: 's', kind: 'start', label: 'Start' },
+    { id: 'a', kind: 'action', label: 'Trim it', set: { urgent: 'urgent.filter(qty > 2)' } },
+    { id: 'e', kind: 'end', label: 'Done' },
+  ],
+  edges: [{ id: 'e1', from: 's', to: 'a' }, { id: 'e2', from: 'a', to: 'e' }],
+  scenarios: [{ id: 'x', name: 'Three', inputs: { items: 'status=OPEN, qty=3\nstatus=OPEN, qty=1\nstatus=CLOSED, qty=9' }, expect: { actions: ['Trim it'], end: 'Done', state: {} } }],
+});
+const ORDERED = [{ name: 'open', initial: 'items.filter(status != CLOSED)' }, { name: 'urgent', initial: 'open' }];
+
+it('a state field starts as the state fields above it, worked out in order', async () => {
+  const { initialState, coerceInputs, runAll, lint } = await import('../lib/run.mjs');
+  const doc = chained(ORDERED);
+  const inputs = coerceInputs(doc, doc.scenarios[0].inputs);
+  const s = initialState(doc, inputs);
+  assert.equal(s.open.length, 2, 'narrowed from the input');
+  assert.deepEqual(s.urgent, s.open, 'and the one below starts as a copy of it, not as the text "open"');
+  const r = runAll(doc).results[0];
+  assert.equal(r.result.error, null, 'so an action may filter it again');
+  assert.deepEqual(r.result.state.urgent, [{ status: 'OPEN', qty: 3 }]);
+  assert.deepEqual(lint(doc), []);
+});
+
+it('an initial value that cannot be worked out is a drawing problem, not a run that fails elsewhere', async () => {
+  const { lint, runAll } = await import('../lib/run.mjs');
+  const below = lint(chained([ORDERED[1], ORDERED[0]]));
+  assert.equal(below.length, 1);
+  assert.match(below[0].message, /"urgent" starts as `open`/);
+  assert.match(below[0].message, /"open" is a state field below it.*move "open" above "urgent"/);
+
+  const itself = lint(chained([{ name: 'urgent', initial: 'urgent.filter(qty > 2)' }]));
+  assert.match(itself[0].message, /"urgent" starts as itself, which it cannot/);
+
+  const typo = lint(chained([{ name: 'urgent', initial: 'itmes.filter(qty > 2)' }]));
+  assert.match(typo[0].message, /kept as text and never worked out: unknown name 'itmes'/);
+
+  // Text is a perfectly good initial value, and none of this may start calling it a mistake.
+  assert.deepEqual(lint(chained([{ name: 'urgent', initial: 'items' }, { name: 'note', initial: 'pending' }, { name: 'n', initial: '0' }, { name: 'blank', initial: null }])), []);
+  // The run itself still says what went wrong, for a field that is text on purpose and filtered anyway.
+  const text = runAll(chained([{ name: 'urgent', initial: 'pending' }])).results[0];
+  assert.match(text.result.error.message, /in "Trim it", set urgent: filter needs a list/);
+});
