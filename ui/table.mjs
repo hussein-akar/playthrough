@@ -2,7 +2,7 @@
 // verdict sits at the end of the row and updates as you type, because the run is free.
 import { store, commit, select, selectScenario, emit, uid, parseTags, tagSummary } from './store.mjs';
 import { inputControl, editing, acceptRun } from './inspector.mjs';
-import { parseRecords } from '../lib/run.mjs';
+import { parseRecords, nodeName } from '../lib/run.mjs';
 
 const table = document.getElementById('table');
 const tagBar = document.getElementById('tagBar');
@@ -23,7 +23,7 @@ const GRIP = `<svg viewBox="0 0 8 14" fill="currentColor"><circle cx="2" cy="2" 
 // would be lost to the rebuild that selecting the row triggers.
 let shape = '';
 function shapeOf(doc) {
-  return JSON.stringify([doc.scenarios.map((s) => s.id), doc.inputs.map((i) => [i.name, i.type, i.values]), doc.state.map((f) => f.name), doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label)]);
+  return JSON.stringify([doc.scenarios.map((s) => s.id), doc.inputs.map((i) => [i.name, i.type, i.values]), doc.state.map((f) => f.name), doc.nodes.filter((n) => n.kind === 'end').map(nodeName)]);
 }
 
 export function render() {
@@ -36,7 +36,7 @@ export function render() {
     table.innerHTML = `<tr><td class="empty">No scenarios yet. Add one and fill in its inputs; the row turns green or red as you type.</td></tr>`;
     return;
   }
-  const ends = doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label);
+  const ends = doc.nodes.filter((n) => n.kind === 'end').map(nodeName);
   // The tags column appears once a scenario has a tag (given in its panel): until then it is noise.
   const tagged = doc.scenarios.some((s) => s.tags?.length);
   let html = `<thead><tr><th>#</th><th>Scenario</th>${tagged ? '<th>tags</th>' : ''}${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}

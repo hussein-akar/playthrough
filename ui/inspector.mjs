@@ -4,7 +4,7 @@
 import { store, commit, select, selectScenario, panelOpen, selectNodes, selectedNodeIds, uid, activeRun, renameName, parseTags } from './store.mjs';
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check, compile, names } from '../lib/expr.mjs';
-import { knownNames, listsOf, parseRecords, initialIsExpression, expectationOf } from '../lib/run.mjs';
+import { knownNames, listsOf, parseRecords, initialIsExpression, expectationOf, nodeName } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
 const sheet = document.getElementById('settings');   // the flow config sheet: the inputs or the state, and the cheat sheet
@@ -247,8 +247,8 @@ function insertAt(input, token) {
 
 function scenarioView(doc, s) {
   if (!s) return '';
-  const actions = [...new Set(flowOrder(doc).filter((n) => n.kind === 'action').map((n) => n.label))];
-  const ends = doc.nodes.filter((n) => n.kind === 'end').map((n) => n.label);
+  const actions = [...new Set(flowOrder(doc).filter((n) => n.kind === 'action').map(nodeName))];
+  const ends = doc.nodes.filter((n) => n.kind === 'end').map(nodeName);
   const want = new Set(s.expect.actions ?? []);
   return phead('Scenario', 'var(--accent)', titled('data-scn', s.name, 'What is being tried', { value: s.description ?? '', placeholder: 'Why this scenario exists, for whoever reads it next' })) + `<div class="pbody">
     ${sect('Result', `<div id="verdict">${verdictHtml()}</div><div class="actions"><button class="small play" data-act="play">▶ Play</button><button class="small" data-act="dup-scn">Duplicate</button></div>`)}
