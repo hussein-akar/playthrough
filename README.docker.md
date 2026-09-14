@@ -65,7 +65,7 @@ services:
 | **Port** | `8095` |
 | **Project folder** | `/app/specs` |
 | **User** | `node` (uid 1000) |
-| **Health check** | `GET /health` answers `{"status":"UP"}` |
+| **Health check** | `GET /health` answers `{"status":"UP","version":"1.1.1"}` — the version is the image's, and the page shows it beside the name |
 
 | Variable | Default | What it does |
 |---|---|---|
