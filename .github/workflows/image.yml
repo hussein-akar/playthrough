@@ -167,6 +167,27 @@ jobs:
           git tag -a "v$VERSION" -m "v$VERSION ($BUMP)"
           git push origin "v$VERSION"
 
+      # The tag is what the build reads; the release is what a person reads. GitHub keeps the two
+      # apart, so a tag alone leaves the repository's Releases showing whatever was last released by
+      # hand — which reads as "the version stopped moving" long after it stopped being true. The
+      # decision that pushed the tag publishes the release on it, so the two cannot drift.
+      #
+      # The notes start at the previous tag rather than at the previous release. They are the same
+      # thing from here on, but the tags already pushed without a release are not, and asking for
+      # the last release would put their pull requests in these notes a second time.
+      - name: Publish the release
+        if: github.ref == 'refs/heads/main' && steps.release.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PREVIOUS: ${{ steps.release.outputs.previous }}
+        run: |
+          if [ -n "$PREVIOUS" ]; then
+            gh release create "v$VERSION" --title "v$VERSION" --generate-notes --notes-start-tag "$PREVIOUS"
+          else
+            gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+          fi
+
       # Docker Hub's overview is README.docker.md, written for somebody landing on the image: what it
       # is, how to run it, what to mount. Docker Hub caps it at 25,000 bytes; README.md is the rest.
       - name: Sync the Docker Hub overview

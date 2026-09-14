@@ -135,9 +135,10 @@ The house style for the rest, which you can read off `git log`: the **subject** 
 sentence saying what is now true (`a scenario row moves by a grip`), not an order (`add drag
 handle`). The **body** says what was there before, why it was wrong, and what changed with it.
 
-When a release goes out, the workflow tags the released commit `vX.Y.Z` and commits nothing. The tag
-is the version: `package.json` in the repository says `0.0.0-development`, and only the published
-image's copy says the real number.
+When a release goes out, the workflow tags the released commit `vX.Y.Z` and publishes a GitHub
+release on that tag, its notes generated from the pull requests merged since the previous one. It
+commits nothing. The tag is the version: `package.json` in the repository says `0.0.0-development`,
+and only the published image's copy says the real number.
 
 ## Pull requests
 
