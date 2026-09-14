@@ -24,13 +24,16 @@ export function wrap(text, max = 24) {
   return lines.length ? lines : ['(untitled)'];
 }
 
+// A box is sized for its label and nothing else. What an action sets was drawn under the label as
+// `shipping = 12`, which said in the language of the file what the label already says in the
+// language of the team: the drawing is what a room reads together, and the expression belongs in the
+// panel, where it is edited.
 export function geom(node) {
   const lines = wrap(node.label);
-  const sets = Object.entries(node.set ?? {}).filter(([, v]) => v != null && String(v).trim() !== '');
-  const longest = Math.max(...lines.map((l) => l.length), ...sets.map(([k, v]) => `${k} = ${v}`.length * 1.05));
+  const longest = Math.max(...lines.map((l) => l.length));
   const w = Math.max(130, Math.min(280, longest * 7.1 + 40));
-  const h = 32 + lines.length * 16 + sets.length * 13 + 6;
-  return { x: node.x, y: node.y, w, h, lines, sets, cx: node.x + w / 2, cy: node.y + h / 2 };
+  const h = 32 + lines.length * 16 + 6;
+  return { x: node.x, y: node.y, w, h, lines, cx: node.x + w / 2, cy: node.y + h / 2 };
 }
 
 function shape(node, g) {
@@ -281,7 +284,6 @@ export function render() {
     out += `<g class="${cls}" data-node="${n.id}">${shape(n, g)}`;
     out += `<text class="kind" x="${g.cx}" y="${g.y + 15}" text-anchor="middle">${n.kind}</text>`;
     g.lines.forEach((l, i) => { out += `<text x="${g.cx}" y="${g.y + 32 + i * 16}" text-anchor="middle">${esc(l)}</text>`; });
-    g.sets.forEach(([k, v], i) => { out += `<text class="setbadge" x="${g.cx}" y="${g.y + 32 + g.lines.length * 16 + i * 13}" text-anchor="middle">${esc(k)} = ${esc(v)}</text>`; });
     // The dots on the sides. Nothing leaves an End, so its dots only appear while a wire is looking
     // for somewhere to land; a wire's own start and the dot it is about to land on are marked.
     if (n.kind !== 'end' || connecting) for (const s of SIDES) {
