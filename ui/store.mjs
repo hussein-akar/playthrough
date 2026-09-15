@@ -1,6 +1,7 @@
 // One place the document lives. Every change goes through `commit`, which snapshots for undo,
 // replays every scenario (cheap: it is a walk over a drawing), lints, saves, and tells the views.
 import { runAll, lint, nodeName } from '../lib/run.mjs';
+import { audit } from '../lib/audit.mjs';
 
 const KEY = 'playthrough.doc';
 const DIRTY = 'playthrough.dirty';
@@ -19,7 +20,8 @@ export const store = {
   tagFilter: null,          // a tag the scenario table is narrowed to, or null for every row
   playhead: null,           // when animating: number of steps revealed
   results: null,            // from runAll
-  problems: [],             // from lint
+  problems: [],             // from lint and the audit
+  audit: null,              // from audit: its problems, how many cases the grid holds, and whether it was skipped as too many
   dirty: false,             // changed since the last Save / Open / Import / New (autosave does not count)
   file: null,               // the project file this flow lives in, when the server has a project folder
   mtime: null,              // that file's modification time as last read or written, so a save can notice a change on disk
@@ -32,7 +34,18 @@ export function emit() { for (const fn of store.listeners) fn(store); }
 
 export function recompute() {
   store.results = runAll(store.doc);
-  store.problems = lint(store.doc);
+  // The audit's findings are drawing problems like lint's: a case a decision mishandles is as
+  // much a fault in the drawing as a branch that leads nowhere. Its cases are played on every
+  // edit while there are few enough of them; past the cap it waits to be asked for.
+  store.audit = audit(store.doc);
+  store.problems = [...lint(store.doc), ...store.audit.problems];
+}
+
+/** Play the audit's cases although there are more than it plays on its own. The findings stand until the next edit. */
+export function runAudit() {
+  store.audit = audit(store.doc, { force: true });
+  store.problems = [...lint(store.doc), ...store.audit.problems];
+  emit();
 }
 
 /** Change the document. `quiet` skips the undo snapshot (used while dragging). */
