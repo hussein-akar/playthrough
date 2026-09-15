@@ -285,7 +285,9 @@ the expected End, and every expected state field holds. An expected state cell c
 - **Playthrough**, then the flow's name (or, in a project, the project's name). Click it to rename.
 - Pills that say how the flow stands: **unsaved changes**, **all 4 pass** or **1 of 4 fail**, and **2
   drawing problems** (click it to go to the first). A drawing problem is a fault in the drawing
-  itself, from a branch that leads nowhere to a case the audit found no branch for.
+  itself, from a branch that leads nowhere to a case the audit found no branch for. The problems
+  are listed in a box over the top-left of the drawing; click one to go to it, or its head to fold
+  the list away to that one line.
 - **Undo** and **redo**, the **Template** menu, **Save**, and **?**, which lists every key.
 
 ### Drawing
