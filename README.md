@@ -187,6 +187,23 @@ The panel checks a condition as you type: a name nobody declared, or a missing b
 under the field at once. Renaming an input or a state field rewrites every condition, set and
 scenario cell that mentions it, in one undoable step.
 
+### The audit: the case nobody drew
+
+A decision's branches can leave a case out, or two of them can claim the same case, and no scenario
+will say so until someone happens to write that row. So every combination of the values the
+conditions mention (the same cases **Generate…** plays) is played through the drawing on every
+edit, and a decision that mishandles one is a drawing problem:
+
+- **A hole:** *"Channel?" has no branch when channel is Phone (2 cases).* A case reached the decision
+  and no branch took it. An **else** branch swallows holes.
+- **An overlap:** *"Channel?": "online" and "channel in [Web, Kiosk]" both hold when channel is Web.*
+  Two guarded branches took the same case.
+
+The cases are played, not read off the conditions: a case an earlier decision sends elsewhere is
+never held against a decision it cannot reach, and a condition on a state field is judged on the
+state the run really had. The example names only the inputs that matter. A flow with more than
+2,000 cases is not played on every edit; the problem box says so and offers to play them once.
+
 ### Lists of records
 
 A list input is declared with its fields: `lines`, where `status` is an enum of PICKED, SHORT and
@@ -267,7 +284,10 @@ the expected End, and every expected state field holds. An expected state cell c
 
 - **Playthrough**, then the flow's name (or, in a project, the project's name). Click it to rename.
 - Pills that say how the flow stands: **unsaved changes**, **all 4 pass** or **1 of 4 fail**, and **2
-  drawing problems** (click it to go to the first).
+  drawing problems** (click it to go to the first). A drawing problem is a fault in the drawing
+  itself, from a branch that leads nowhere to a case the audit found no branch for. The problems
+  are listed in a box over the top-left of the drawing; click one to go to it, or its head to fold
+  the list away to that one line.
 - **Undo** and **redo**, the **Template** menu, **Save**, and **?**, which lists every key.
 
 ### Drawing

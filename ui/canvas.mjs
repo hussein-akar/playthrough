@@ -62,7 +62,7 @@ export function portAt(g, s) {
 /**
  * A wire is smooth (one curve) or square (straight runs with rounded elbows); `mid` is where its
  * pill sits. A wire that has been pulled passes through `via`: a smooth one bends through it, a
- * square one turns at its column and at its row, so each of those two runs is moved on its own.
+ * square one runs straight out of each port to it, so dragging it moves the middle run.
  */
 export function edgePath(a, b, fromSide, toSide, shape, via) {
   const fs = side(fromSide, 'right'), ts = side(toSide, 'left');
@@ -164,60 +164,20 @@ function squareRoute(p, q, na, nb, ga, gb) {
 }
 
 /**
- * The corners of a square wire pulled through V. Out of its stub the wire runs to V's column and
- * turns, then to V's row and turns, then to the other stub: one upright run at V.x and one level
- * run at V.y, each of which can be moved on its own, so a via on a stub's line is a Z or an L
- * and one off both lines is a staircase. Corners that fall together are dropped, so the shape has
- * only the turns it needs.
+ * The corners of a square wire pulled to V. Dropped between the two ends, V moves the middle run
+ * of the usual Z sideways; dropped beyond them, the wire makes a detour that runs level with V,
+ * which is how it is pulled clear of a box.
  */
 function viaRoute(p, q, na, nb, V) {
   const a = { x: p.x + na[0] * STUB, y: p.y + na[1] * STUB }, b = { x: q.x + nb[0] * STUB, y: q.y + nb[1] * STUB };
-  const ah = na[1] === 0;   // the from stub is level, so the wire turns upright first
-  const mids = ah ? [{ x: V.x, y: a.y }, { x: V.x, y: V.y }, { x: b.x, y: V.y }] : [{ x: a.x, y: V.y }, { x: V.x, y: V.y }, { x: V.x, y: b.y }];
+  const between = (v, s, t) => v > Math.min(s, t) && v < Math.max(s, t);
+  const ah = na[1] === 0, bh = nb[1] === 0;
+  let mids;
+  if (ah && bh) mids = between(V.y, a.y, b.y) ? [{ x: V.x, y: a.y }, { x: V.x, y: b.y }] : [{ x: a.x, y: V.y }, { x: b.x, y: V.y }];
+  else if (!ah && !bh) mids = between(V.x, a.x, b.x) ? [{ x: a.x, y: V.y }, { x: b.x, y: V.y }] : [{ x: V.x, y: a.y }, { x: V.x, y: b.y }];
+  else mids = [{ x: a.x, y: V.y }, { x: b.x, y: V.y }];
   const pts = [p, a, ...mids, b, q].filter((c, i, all) => !i || Math.abs(c.x - all[i - 1].x) > 0.01 || Math.abs(c.y - all[i - 1].y) > 0.01);
   return pts.filter((c, i) => !i || i === pts.length - 1 || !((pts[i - 1].x === c.x && c.x === pts[i + 1].x) || (pts[i - 1].y === c.y && c.y === pts[i + 1].y)));
-}
-
-/** The ports, stub ends and stub directions of a square wire, and its corners as drawn; null if an end is missing. */
-function squareEnds(e) {
-  const A = store.doc.nodes.find((n) => n.id === e.from), B = store.doc.nodes.find((n) => n.id === e.to);
-  if (!A || !B) return null;
-  const ga = geom(A), gb = geom(B), fs = side(e.fromSide, 'right'), ts = side(e.toSide, 'left');
-  const p = portAt(ga, fs), q = portAt(gb, ts), na = NORMAL[fs], nb = NORMAL[ts];
-  const a = { x: p.x + na[0] * STUB, y: p.y + na[1] * STUB }, b = { x: q.x + nb[0] * STUB, y: q.y + nb[1] * STUB };
-  return { a, b, ah: na[1] === 0, bh: nb[1] === 0, pts: edgePath(ga, gb, fs, ts, 'square', e.via).pts };
-}
-
-/**
- * Where a square wire's via goes so the wire passes through V, the point it was pulled to, with
- * as few turns as it can: a Z or a detour when V lies in the wire's span, else a staircase that
- * turns at V itself.
- */
-function pullVia({ a, b, ah, bh }, V) {
-  const between = (v, s, t) => v > Math.min(s, t) && v < Math.max(s, t);
-  const inX = between(V.x, a.x, b.x), inY = between(V.y, a.y, b.y);
-  if (ah && bh) return inY ? { x: V.x, y: b.y } : inX ? { x: a.x, y: V.y } : V;
-  if (!ah && !bh) return inX ? { x: b.x, y: V.y } : inY ? { x: V.x, y: a.y } : V;
-  if (ah) return inX ? { x: a.x, y: V.y } : inY ? { x: V.x, y: b.y } : V;
-  return inX ? { x: b.x, y: V.y } : inY ? { x: V.x, y: a.y } : V;
-}
-
-/**
- * The half of the via that a grip holds still. A grip on a level run moves it up and down and
- * nothing else, one on an upright run moves it left and right, so the via keeps the coordinate
- * of the run the grip is not on. The run out of a port cannot leave the port's line, so its grip
- * moves the run after it instead: the via sits on the stub and the rest of the wire follows.
- */
-function gripLock({ a, b, ah, bh, pts }, run, horiz) {
-  const s = pts[run - 1], t = pts[run], last = run === pts.length - 1;
-  if (horiz) {
-    if (run === 1) return { x: a.x };
-    if (last && !ah && bh) return { x: b.x };
-    return { x: ah ? s.x : t.x };
-  }
-  if (run === 1) return { y: a.y };
-  if (last && ah && !bh) return { y: b.y };
-  return { y: ah ? t.y : s.y };
 }
 
 /** A polyline as a path whose corners are rounded off, as far as the runs on either side allow. */
@@ -351,17 +311,16 @@ export function render() {
   if (selEdge && gs.has(selEdge.from) && gs.has(selEdge.to)) {
     const p = portAt(gs.get(selEdge.from), side(selEdge.fromSide, 'right')), q = portAt(gs.get(selEdge.to), side(selEdge.toSide, 'left'));
     out += `<circle class="handle" data-handle="from" data-edge="${selEdge.id}" cx="${p.x}" cy="${p.y}" r="5.5"/><circle class="handle" data-handle="to" data-edge="${selEdge.id}" cx="${q.x}" cy="${q.y}" r="5.5"/>`;
-    // The wire can be pulled by any part of it. A square wire shows a grip on each of its runs,
-    // except a bare stub, which is fixed to its port; a smooth one a grip at its middle, unless
-    // its pill already sits there.
+    // The wire can be pulled by any part of it. A square wire shows a grip on each of its runs; a
+    // smooth one a grip at its middle, unless its pill already sits there.
     const m = mids.get(selEdge.id);
     const pts = edgePath(gs.get(selEdge.from), gs.get(selEdge.to), selEdge.fromSide, selEdge.toSide, selEdge.shape, selEdge.via).pts;
     if (pts) {
       for (let i = 1; i < pts.length; i++) {
         const a = pts[i - 1], b = pts[i], len = Math.hypot(b.x - a.x, b.y - a.y);
-        if (len < 24 || ((i === 1 || i === pts.length - 1) && len < STUB + 1)) continue;
+        if (len < 24) continue;
         const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, horiz = Math.abs(b.y - a.y) < 0.01;
-        out += `<rect class="handle grip ${horiz ? 'h' : 'v'}" data-edge="${selEdge.id}" data-run="${i}" x="${cx - (horiz ? 8 : 2.5)}" y="${cy - (horiz ? 2.5 : 8)}" width="${horiz ? 16 : 5}" height="${horiz ? 5 : 16}" rx="2.5"/>`;
+        out += `<rect class="handle grip ${horiz ? 'h' : 'v'}" data-edge="${selEdge.id}" x="${cx - (horiz ? 8 : 2.5)}" y="${cy - (horiz ? 2.5 : 8)}" width="${horiz ? 16 : 5}" height="${horiz ? 5 : 16}" rx="2.5"/>`;
       }
     } else if (m && !(selEdge.label?.trim() || selEdge.when?.trim() || selEdge.else)) out += `<circle class="handle bend" data-edge="${selEdge.id}" cx="${m[0]}" cy="${m[1]}" r="5"/>`;
   }
@@ -505,15 +464,9 @@ svg.addEventListener('pointerdown', (ev) => {
     const id = edgeEl.dataset.edge;
     // Pressing a wire selects it and picks it up in the same gesture: moving the pointer pulls the
     // wire through wherever it is dropped, a plain click just selects. Pressing its pill slides the
-    // pill along the wire instead, so the label can sit clear of whatever it was on. Pressing one
-    // of a square wire's grips moves that run alone, so the other half of the via is settled now,
-    // from the wire as it is before it moves.
+    // pill along the wire instead, so the label can sit clear of whatever it was on.
     if (!(store.selection?.type === 'edge' && store.selection.id === id)) select({ type: 'edge', id });
-    const grip = ev.target.closest('.grip');
-    const e = store.doc.edges.find((x) => x.id === id);
-    const ends = e?.shape === 'square' ? squareEnds(e) : null;
-    const lock = grip && ends ? gripLock(ends, +grip.dataset.run, grip.classList.contains('h')) : null;
-    drag = { mode: ev.target.closest('.label') ? 'label' : 'bend', id, start: w, moved: false, ends, lock };
+    drag = { mode: ev.target.closest('.label') ? 'label' : 'bend', id, start: w, moved: false };
   } else {
     // Dragging on empty canvas draws a rubber band. Shift keeps what was already selected and adds
     // to it; without Shift a plain click clears the selection, as it always did.
@@ -606,11 +559,7 @@ function dragTo(ev) {
   } else if (drag.mode === 'bend') {
     if (!drag.moved) { if (Math.hypot(w.x - drag.start.x, w.y - drag.start.y) * store.view.k < 3) return; drag.moved = true; mark(); svg.classList.add('moving'); }
     const e = store.doc.edges.find((e) => e.id === drag.id);
-    if (e) {
-      const place = ev.altKey ? Math.round : snap, V = { x: place(w.x), y: place(w.y) };
-      e.via = drag.lock ? { ...V, ...drag.lock } : drag.ends ? pullVia(drag.ends, V) : V;
-      render();
-    }
+    if (e) { const place = ev.altKey ? Math.round : snap; e.via = { x: place(w.x), y: place(w.y) }; render(); }
   } else if (drag.mode === 'label') {
     if (!drag.moved) { if (Math.hypot(w.x - drag.start.x, w.y - drag.start.y) * store.view.k < 3) return; drag.moved = true; mark(); svg.classList.add('moving'); }
     const e = store.doc.edges.find((e) => e.id === drag.id), a = e && geom(store.doc.nodes.find((n) => n.id === e.from)), b = e && geom(store.doc.nodes.find((n) => n.id === e.to));

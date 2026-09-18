@@ -238,9 +238,17 @@
   #ghost svg { display: block; overflow: visible; }
   body.placing, body.placing * { cursor: grabbing !important; }
   body.placing #stage svg, body.placing #stage svg * { cursor: copy !important; }
-  #lint { top: 10px; left: 10px; max-width: min(360px, calc(100% - 320px));   /* on the left, so it stays put as the panel comes and goes */ padding: 6px 10px; font-size: var(--fs-sm); line-height: 1.4; color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); display: none; }
+  #lint { top: 10px; left: 10px; max-width: min(360px, calc(100% - 320px));   /* on the left, so it stays put as the panel comes and goes */ padding: 4px 10px 6px; font-size: var(--fs-sm); line-height: 1.4; color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); display: none; }
   #lint.show { display: block; }
+  /* The head is always there and folds the list under it away; the list scrolls rather than reaching down over the drawing. */
+  #lint .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 0; font-weight: 600; cursor: pointer; user-select: none; }
+  #lint .head .chev { font-size: 10px; color: var(--muted); }
+  #lint .head:hover .chev { color: var(--warn-ink); }
+  #lint .list { max-height: min(40vh, 320px); overflow-y: auto; }
+  #lint.folded { padding-bottom: 4px; }
+  #lint.folded .list { display: none; }
   #lint [data-p] { cursor: pointer; padding: 2px 0; }
+  #lint [data-p]::before { content: '⚠ '; }
   #lint [data-p]:hover { text-decoration: underline; }
   #lint .muted { padding: 2px 0; color: var(--muted); }
   #panelResizer { position: absolute; top: var(--header-h); bottom: var(--table-h); width: 6px; z-index: 5; cursor: col-resize; transition: background .1s; }
