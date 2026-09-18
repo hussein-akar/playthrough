@@ -46,15 +46,31 @@ $('summary').addEventListener('click', (ev) => {
   else if (p?.edge) select({ type: 'edge', id: p.edge });
 });
 
+// The problem box lists every drawing problem over the top-left of the drawing. A long list would
+// cover the shapes it is about, so it folds to its one-line head, and stays folded until it is
+// opened again: the head still says how many there are, and the pill in the header does too.
+const LINT_FOLDED = 'playthrough.lintFolded';
+let lintFolded = false;
+try { lintFolded = localStorage.getItem(LINT_FOLDED) === '1'; } catch {}
 function renderLint() {
   const box = $('lint');
   const ps = store.problems;
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   // A flow with more cases than the audit plays on every edit says so here, and offers to play them once.
   const skipped = store.audit?.skipped ? `<div class="muted">The audit was not run: ${store.audit.cases.toLocaleString()} cases to play. <button class="link" data-audit>Run it</button></div>` : '';
   box.classList.toggle('show', ps.length > 0 || !!skipped);
-  box.innerHTML = ps.slice(0, 8).map((p, i) => `<div data-p="${i}">⚠ ${p.message.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</div>`).join('') + (ps.length > 8 ? `<div class="muted">… and ${ps.length - 8} more</div>` : '') + skipped;
+  box.classList.toggle('folded', lintFolded);
+  const head = `<div class="head" data-fold title="${lintFolded ? 'Show the list' : 'Fold the list away'}"><span>⚠ ${ps.length ? `${ps.length} drawing problem${ps.length === 1 ? '' : 's'}` : 'The audit was not run'}</span><span class="chev">${lintFolded ? '▸' : '▾'}</span></div>`;
+  const list = `<div class="list">${ps.map((p, i) => `<div data-p="${i}">${esc(p.message)}</div>`).join('')}${skipped}</div>`;
+  box.innerHTML = head + list;
 }
 $('lint').addEventListener('click', (ev) => {
+  if (ev.target.closest('[data-fold]')) {
+    lintFolded = !lintFolded;
+    try { localStorage.setItem(LINT_FOLDED, lintFolded ? '1' : ''); } catch {}
+    renderLint();
+    return;
+  }
   if (ev.target.closest('[data-audit]')) { runAudit(); return; }
   const d = ev.target.closest('[data-p]');
   if (!d) return;
