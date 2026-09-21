@@ -14,6 +14,16 @@ LABEL org.opencontainers.image.title="Playthrough" \
 
 WORKDIR /app
 
+# npm, npx, corepack and yarn, deleted. Nothing in here runs them: there are no dependencies to
+# install, and the container's one job is `node serve.mjs`. What they do leave behind is npm's own
+# dependency tree — a couple of hundred packages a scanner reads and reports CVEs against, in an
+# image that never calls a line of them. Deleting them is the whole fix for that, and it costs
+# nothing, because nothing here asked for them. Before the COPY steps, so editing the page or the
+# server does not rebuild this layer.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v* \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+           /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 # Only what the server reads at run time: the page, its modules, the server, and the presets the
 # Template menu offers.
 COPY package.json LICENSE serve.mjs index.html ./
