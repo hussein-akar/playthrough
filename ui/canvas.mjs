@@ -240,6 +240,10 @@ export function render() {
   const badE = new Set(problems.filter((p) => p.edge).map((p) => p.edge));
   const selN = new Set(selectedNodeIds());
   const group = selN.size > 1;
+  // Which nodes fork. A decision says so by its shape; anything else that branches says so with a
+  // small diamond in its corner, so where a run can go two ways is still readable off the drawing.
+  const ways = new Map();
+  for (const e of doc.edges) ways.set(e.from, (ways.get(e.from) ?? 0) + 1);
 
   let out = `<defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3af"/></marker>
@@ -283,6 +287,10 @@ export function render() {
     const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', badN.has(n.id) && 'bad'].filter(Boolean).join(' ');
     out += `<g class="${cls}" data-node="${n.id}">${shape(n, g)}`;
     out += `<text class="kind" x="${g.cx}" y="${g.y + 15}" text-anchor="middle">${n.kind}</text>`;
+    if (n.kind !== 'decision' && (ways.get(n.id) ?? 0) > 1) {
+      const fx = g.x + g.w - 11, fy = g.y + 11;
+      out += `<path class="fork" d="M${fx},${fy - 4.5} L${fx + 4.5},${fy} L${fx},${fy + 4.5} L${fx - 4.5},${fy} Z"><title>branches: more than one way out</title></path>`;
+    }
     g.lines.forEach((l, i) => { out += `<text x="${g.cx}" y="${g.y + 32 + i * 16}" text-anchor="middle">${esc(l)}</text>`; });
     // The dots on the sides. Nothing leaves an End, so its dots only appear while a wire is looking
     // for somewhere to land; a wire's own start and the dot it is about to land on are marked.

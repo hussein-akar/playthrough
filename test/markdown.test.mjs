@@ -10,7 +10,7 @@ it('the example becomes a spec with every section', () => {
   const lines = md.split('\n');
   assert.equal(lines[0], '# Checkout');
   assert.ok(md.includes(doc.description));
-  for (const h of ['## Inputs', '## State', '## Decisions', '## Scenarios']) assert.ok(md.includes(`\n${h}\n`), h);
+  for (const h of ['## Inputs', '## State', '## Branches', '## Scenarios']) assert.ok(md.includes(`\n${h}\n`), h);
   assert.ok(md.includes('| `channel` | enum | `Web`, `App`, `Marketplace`, `Phone`, `Kiosk` |'));
   assert.ok(md.includes('| `hasCoupon` | boolean |  |'));
   assert.ok(md.includes('| `discount` | `null` |'));
