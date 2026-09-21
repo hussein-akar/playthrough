@@ -95,7 +95,7 @@ function usesOf(doc, name) {
 }
 const uses = (doc, name) => { const n = usesOf(doc, name); return n ? `used ${n} time${n === 1 ? '' : 's'}` : 'not used yet'; };
 
-const CHEATSHEET = `<div class="muted">Guards read like <code>channel in (Web, App)</code>, <code>hasCoupon</code>, <code>amount &gt; 100 &amp;&amp; !blocked</code>, <code>(faulty || damaged) &amp;&amp; hasReceipt</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a decision may be <em>else</em>.</div>
+const CHEATSHEET = `<div class="muted">Guards read like <code>channel in (Web, App)</code>, <code>hasCoupon</code>, <code>amount &gt; 100 &amp;&amp; !blocked</code>, <code>(faulty || damaged) &amp;&amp; hasReceipt</code>, <code>date == null</code>. Enum values need no quotes. One edge out of a fork may be <em>else</em>.</div>
     <div class="muted" style="margin-top: 6px">A list answers <code>notices.size</code>, and is asked about with <code>filter</code>, <code>count</code>, <code>any</code>, <code>all</code> and <code>none</code>: <code>notices.any(status == OPEN)</code>, <code>notices.filter(status != CLOSED)</code> — inside the brackets a bare word is a field of the record. Where a field and an input share a name, name the record: in <code>notices.any(o -&gt; o.status == status)</code> the record is <code>o</code> and a bare word is the input. The older <code>notices where status != CLOSED</code> and <code>count(notices)</code> mean the same.</div>
     <div class="muted" style="margin-top: 6px">The ƒx beside any expression box opens what may go in it: every name in scope, every field, every function, and what the line comes to against a scenario.</div>`;
 
@@ -192,7 +192,7 @@ function groupView(doc, ids) {
   </div>`;
 }
 
-/** The line under the dialog's title for a guard: which branch out of which decision it is. */
+/** The line under the dialog's title for a guard: which branch out of which fork it is. */
 function whatEdge(doc, id) {
   const e = doc.edges.find((x) => x.id === id);
   const name = (nid) => nodeName(doc.nodes.find((n) => n.id === nid)) || '(untitled)';
@@ -202,11 +202,15 @@ function whatEdge(doc, id) {
 function edgeView(doc, e) {
   if (!e) return '';
   const from = doc.nodes.find((n) => n.id === e.from), to = doc.nodes.find((n) => n.id === e.to);
-  // Only a decision branches, so only an edge leaving one is offered a guard. Elsewhere the fields
-  // are still shown when something is already in them — the node was a decision when the condition
-  // was written, and changing its kind must not be the thing that silently drops it — but with the
-  // reason it is wrong under them, so the way out is to empty it or to make the node a decision.
-  const branches = from?.kind === 'decision';
+  // A guard needs something to choose between, and that is a fork: more than one way out. A
+  // decision is offered the field before its second branch is drawn, because a decision is a fork
+  // by declaration and that is the order a fork is usually drawn in; every other node earns the
+  // field when it actually forks. Elsewhere the fields are still shown when something is already
+  // in them — the node forked when the condition was written, and losing a way out must not be the
+  // thing that silently drops it — but with the reason under them, so the way out is to draw the
+  // other branch or to empty the field.
+  const ways = doc.edges.filter((x) => x.from === e.from).length;
+  const branches = ways > 1 || from?.kind === 'decision';
   const held = (e.when && e.when.trim()) || e.else;
   return phead('Edge', 'var(--faint)', `<div class="title-static">${esc(from?.label)} <span class="muted">→</span> ${esc(to?.label)}</div>`) + `<div class="pbody">
     ${sect('Condition', branches || held ? `<div class="row">
@@ -215,8 +219,8 @@ function edgeView(doc, e) {
       </div>
       <div class="errs"></div>
       <div class="field checks"><label><input type="checkbox" data-edge="else" ${e.else ? 'checked' : ''}> <span>else: taken when no other branch matches</span></label></div>
-      ${branches ? '' : `<div class="muted empty">${esc(from?.label || 'What this leaves')} is not a decision, so this cannot branch: it can only stop the run when it does not hold. Empty it, or select ${esc(from?.label || 'the node')} and set its kind to Decision.</div>`}`
-      : `<div class="muted empty">Only a decision branches. To put a condition here, select ${esc(from?.label || 'the node')} and set its kind to Decision.</div>`,
+      ${branches ? '' : `<div class="muted empty">${esc(from?.label || 'What this leaves')} has only one way out, so this cannot branch: it can only stop the run when it does not hold. Draw its other branch, or empty this.</div>`}`
+      : `<div class="muted empty">A condition needs another branch to choose against. Draw a second way out of ${esc(from?.label || 'this node')} to guard this one.</div>`,
       branches ? { note: 'blank means always' } : {})}
     ${sect('Label', `<input type="text" data-edge="label" value="${esc(e.label ?? '')}" placeholder="e.g. approved">`, { note: 'shown on the canvas instead of the condition' })}
     ${sect('Look', `<div class="field"><label>Line</label>

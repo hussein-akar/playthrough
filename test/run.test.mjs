@@ -169,32 +169,50 @@ it('an expected-state cell may be a check on the value or the count', async () =
   assert.equal(stateMatches('*', list, scope), true);
 });
 
-it('a condition belongs on an edge leaving a decision, and nowhere else', () => {
-  // e2 leaves "Reserve stock", an action: there is nothing for a guard to choose between.
+it('a condition belongs on an edge leaving a fork, whatever kind the node is', () => {
+  // e2 is the only way out of "Reserve stock": there is nothing for a guard to choose between, so
+  // it can only stop the run. That is the trap, and it is the fan-out that makes it one.
   const guarded = clone();
   guarded.edges.find((e) => e.id === 'e2').when = 'hasCoupon';
   assert.deepEqual(lint(guarded).map((p) => p.edge), ['e2']);
-  assert.match(lint(guarded)[0].message, /"Reserve stock" is an action, not a decision; a condition here cannot branch/);
+  assert.match(lint(guarded)[0].message, /"Reserve stock" has one way out, so the condition on it cannot branch/);
 
   // "else" is the same mistake wearing a checkbox.
   const otherwise = clone();
   otherwise.edges.find((e) => e.id === 'e2').else = true;
-  assert.match(lint(otherwise)[0].message, /"else" here has no other branch to fall through from/);
+  assert.match(lint(otherwise)[0].message, /"else" on it has no other branch to fall through from/);
 
-  // e1 leaves the start, which is named as itself rather than as an action.
+  // The start is no different: one way out, nothing to choose.
   const atStart = clone();
   atStart.edges.find((e) => e.id === 'e1').when = 'hasCoupon';
-  assert.match(lint(atStart)[0].message, /"Order placed" is the start, not a decision/);
+  assert.match(lint(atStart)[0].message, /"Order placed" has one way out/);
 
-  // A fork drawn straight from an action runs, but the shape is the thing being ruled out: a
-  // branch is a decision, so both of its ways out are named.
+  // A lone guarded branch off a decision is the same trap, which the kind of the node hid before.
+  const halfFork = clone();
+  halfFork.edges = halfFork.edges.filter((e) => e.id !== 'e4');
+  assert.match(lint(halfFork).find((p) => p.edge === 'e3').message, /"Has a coupon\?" has one way out/);
+
+  // And a decision that forks nowhere at all is a node that chooses nothing.
+  const idle = clone();
+  idle.edges = idle.edges.filter((e) => e.id !== 'e4');
+  idle.edges.find((e) => e.id === 'e3').when = '';
+  assert.match(lint(idle)[0].message, /is a decision with one unguarded way out/);
+});
+
+it('an action that branches on what it just did is a fork like any other', () => {
+  // The shape the rule used to rule out: "Apply coupon" sets discount, then the run forks on it.
+  // A guard leaving an action reads what that action set, because set runs before the edges test.
   const fork = clone();
-  fork.edges.find((e) => e.id === 'e5').when = 'hasCoupon';
-  fork.edges.push({ id: 'e12', from: 'apply', to: 'pay', else: true });
-  assert.deepEqual(lint(fork).map((p) => p.edge).sort(), ['e12', 'e5']);
-  assert.equal(run(fork, doc.scenarios[0]).error, null, 'and it still runs; the drawing is the complaint');
+  fork.edges.find((e) => e.id === 'e5').when = 'discount > 0';
+  fork.edges.push({ id: 'e12', from: 'apply', to: 'full', else: true });
+  assert.deepEqual(lint(fork), [], 'a fork off an action is a drawing like any other');
 
-  // The edges that do leave a decision keep their guards, and the flow stays clean.
+  const r = run(fork, doc.scenarios[0]);
+  assert.equal(r.error, null);
+  assert.equal(r.steps.find((s) => s.via === 'e5') !== undefined, true, 'took the guarded branch, on state the action had just set');
+  assert.deepEqual(r.actions, ['Reserve stock', 'Apply coupon', 'Take payment', 'Send confirmation email']);
+
+  // The edges that leave a decision keep their guards, and the example stays clean.
   assert.deepEqual(lint(doc), []);
 });
 

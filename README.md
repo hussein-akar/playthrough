@@ -98,8 +98,9 @@ Without Docker, from a checkout of this repository: `npm start -- /path/to/your/
 2. Select a node, then drag from one of the dots on its side to another node to connect them.
 3. Press **Config** at the foot of the palette. Add the **Inputs** a scenario provides (a coupon, a
    channel, a list of order lines) and the **State** your actions leave behind.
-4. Click an edge leaving a decision and write its **Condition**, such as `channel in [Web, App]`. The
-   **insert…** menu beside it lists every name and value you can use.
+4. Where a node has two or more ways out, click each one and write its **Condition**, such as
+   `channel in [Web, App]`, leaving one as *else* if you like. Any node can fork this way, not only
+   a decision. The **insert…** menu beside the field lists every name and value you can use.
 
 ### 4. Write the scenarios
 
@@ -141,7 +142,7 @@ Then `docker compose up -d`, and open <http://localhost:8095>.
 |---|---|
 | **Start** | Where a scenario enters. One per flow. |
 | **Action** | Something that happens: a document created, an event published. A scenario expects a set of these. An action may also *set* a state field. |
-| **Decision** | A fork. Each edge leaving it carries a condition, and one edge may be *else*. |
+| **Decision** | A node that does nothing but choose. Each edge leaving it carries a condition, and one edge may be *else*. An action may fork the same way, so a decision is for a fork that is not also a step. |
 | **End** | Where a scenario lands. A scenario may expect a particular one. |
 | **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text, or a list of records. A condition can only mention declared names, so a typo is caught while drawing. |
 | **State** | Fields an action may set along the way and a scenario may check at the end. |
@@ -177,11 +178,22 @@ builder for a question about a list. The box itself is at the top, and under it 
 comes to when it is run against one of your scenarios — so `lines.count(picked < qty)` says `1`
 before you have played anything.
 
-A condition belongs on an edge leaving a decision, because that is the only place it has anything to
-choose between. On the way out of a start or an action the panel does not offer the field, and a
-condition already there — left behind by a node that used to be a decision — is a drawing problem:
-it cannot send the run one way or the other, it can only stop it. Make the node a decision, or empty
-the field.
+A condition belongs on an edge leaving a fork — a node with more than one way out — because that is
+where it has something to choose between. What kind of node it leaves does not matter: an action
+that filters a list and then branches on what it found is a fork, and its edges carry conditions
+like any other. A guard leaving an action reads what that action set, because an action sets its
+state before the edges are tested, so `matches.size > 0` on one branch and *else* on the other reads
+the way it sounds.
+
+Where a node has only one way out, a condition on it is a drawing problem: it cannot send the run
+one way or the other, it can only stop it when it does not hold. That is as true of a lone guarded
+branch off a decision as of a condition left behind on an action. Draw the other branch, or empty
+the field. The panel offers the field once a node forks, and on a decision from the start, since a
+decision is a fork by declaration; anywhere else it still shows a condition that is already there,
+with the reason under it, so losing a branch never silently drops what somebody wrote.
+
+A node that forks says so on the drawing: a decision by its shape, anything else by a small diamond
+in its corner.
 
 The panel checks a condition as you type: a name nobody declared, or a missing bracket, shows up
 under the field at once. Renaming an input or a state field rewrites every condition, set and
