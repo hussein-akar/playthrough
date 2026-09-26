@@ -14,7 +14,7 @@ tool and is not tied to any code: the flow file it saves is the spec.
 
 ![Playthrough: projects on the left, the flow in the middle, the selected scenario on the right, the scenario table below](assets/playthrough.jpg)
 
-[Try it](#try-it) · [Use it with your team](#use-it-with-your-team) · [How a flow works](#how-a-flow-works) · [The page](#the-page) · [The flow file](#the-flow-file) · [Running it](#running-it) · [Development](#development) · [Publishing](#publishing) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
+[Try it](#try-it) · [Use it with your team](#use-it-with-your-team) · [How a flow works](#how-a-flow-works) · [The page](#the-page) · [The flow file](#the-flow-file) · [Running it](#running-it) · [Development](#development) · [Contributing](CONTRIBUTING.md) · [License](LICENSE)
 
 ## Try it
 
@@ -514,71 +514,6 @@ docker build -t playthrough . && docker run --rm -p 8095:8095 playthrough   # th
 [CONTRIBUTING.md](CONTRIBUTING.md) has the rest: the no-dependencies rule, where things are in the
 code, what the tests cover, how commit messages cut releases, pull requests, and how to report a bug
 or a vulnerability.
-
-## Publishing
-
-The image is built and published by [`.github/workflows/image.yml`](.github/workflows/image.yml).
-
-### What happens, and when
-
-| Event | What the workflow does |
-|---|---|
-| A pull request | Runs the tests on Node 22, 24 and 26, builds the image and smoke-tests it. Publishes nothing. |
-| A push to `main` | The same, then publishes `husseinakar/playthrough:latest` for amd64 and arm64 and updates the Docker Hub page from [`README.docker.md`](README.docker.md). |
-| …with a `feat:`, `fix:` or breaking commit since the last release ([which commits count](CONTRIBUTING.md#commit-messages-which-cut-releases)) | Also works out the next version, publishes `:1.3.0` and `:1.3` (with that version in the image's `package.json`), and tags the commit `v1.3.0`. Nothing is committed back to `main`. |
-| A `v*` tag pushed by hand | Publishes that version's tags, with that version in the image's `package.json`. |
-
-The smoke test starts the image with a folder mounted, as a Linux user would, and checks that it
-answers `/health`, serves the page and the presets, and writes a flow into the folder.
-
-### One-time setup
-
-1. **Create the GitHub repository** and push to it:
-
-   ```bash
-   gh repo create hussein-akar/playthrough --public --source . --push
-   ```
-
-   Or create it on github.com, then `git remote add origin git@github.com:hussein-akar/playthrough.git`
-   and `git push -u origin main`.
-
-2. **Create a Docker Hub access token.** On hub.docker.com: **Account Settings → Personal access
-   tokens → Generate new token**, with the permission **Read, Write, Delete**. (Read & Write is
-   enough to push, but not to update the repository's description, and Docker Hub refuses a narrower
-   token with a `Forbidden` that looks like a wrong password.)
-
-3. **Add two repository secrets.** On GitHub: **Settings → Secrets and variables → Actions → New
-   repository secret**:
-
-   | Name | Value |
-   |---|---|
-   | `DOCKERHUB_USERNAME` | `husseinakar` |
-   | `DOCKERHUB_TOKEN` | the token from step 2 |
-
-   Or from the terminal:
-
-   ```bash
-   gh secret set DOCKERHUB_USERNAME --body husseinakar
-   gh secret set DOCKERHUB_TOKEN          # paste the token when asked
-   ```
-
-4. **Run the workflow.** Push to `main`, or start it by hand: **Actions → image → Run workflow**. The
-   first run publishes `latest` and, because the history holds `feat:` commits, releases `v0.1.0`.
-   Docker Hub creates the `husseinakar/playthrough` repository on that first push.
-
-`main` is protected by a ruleset: every change is a pull request with the maintainer's approval and
-passing checks (see [CONTRIBUTING.md](CONTRIBUTING.md#pull-requests)). A release only pushes a tag,
-so the workflow needs no exception to it.
-
-### Releasing by hand
-
-Merge commits with a `feat:` or `fix:` subject and the next push to `main` releases on its own. To
-release a specific version instead:
-
-```bash
-git tag -a v1.0.0 -m "v1.0.0"
-git push origin v1.0.0
-```
 
 ## Contributing
 
