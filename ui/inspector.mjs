@@ -42,9 +42,17 @@ export function render() {
 for (const r of roots) r.addEventListener('focusout', () => setTimeout(() => { if (!r.contains(document.activeElement)) render(); }, 0));
 
 // The flow's name and description are edited where they are read, in controls that look like the
-// text until hovered. The description grows with what is in it rather than scrolling; Enter on the
+// text until hovered. The description grows with what is in it rather than scrolling, up to the six
+// lines the stylesheet allows it: the head it sits in is stuck to the top of the panel, and one that
+// grew without limit would cover the sections under it, so past that it scrolls within itself. It is
+// measured without a scrollbar, which would narrow it and wrap more lines than it has. Enter on the
 // name, or Escape on either, puts the text down without closing the panel.
-const fit = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`; };
+const fit = (t) => {
+  t.classList.remove('long');
+  t.style.height = 'auto';
+  t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`;
+  t.classList.toggle('long', t.scrollHeight > t.clientHeight);
+};
 const fitAll = () => el.querySelectorAll('textarea.inline').forEach(fit);
 new ResizeObserver(fitAll).observe(el);
 el.addEventListener('keydown', (ev) => {
