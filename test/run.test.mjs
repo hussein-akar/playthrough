@@ -86,6 +86,23 @@ it('the example flow lints clean, and a bad one does not', () => {
   assert.ok(msgs.some((m) => /decision with no condition/.test(m)));
 });
 
+it('a problem says how much it costs: an error stops a run, a warning only deserves a look', () => {
+  const d = clone();
+  d.nodes.push({ id: 'orphan', kind: 'action', label: 'Orphan', x: 0, y: 0, set: { nope: '1' } }, { id: 'lonely', kind: 'end', label: 'Lonely', x: 0, y: 0 });
+  d.edges.push({ id: 'x1', from: 'done', to: 'orphan' });
+  d.edges.find((e) => e.id === 'e3').when = '';
+  d.edges.find((e) => e.id === 'e8').when = 'chanel in [Web]';
+  const ps = lint(d);
+  assert.ok(ps.every((p) => p.severity === 'error' || p.severity === 'warning'), 'every problem is one or the other');
+  const sev = (re) => ps.find((p) => re.test(p.message))?.severity;
+  assert.equal(sev(/"Orphan" leads nowhere/), 'error', 'a run that reaches it stops');
+  assert.equal(sev(/unguarded edge next to guarded ones/), 'error', 'a fork whose branches cannot be told apart');
+  assert.equal(sev(/unknown name 'chanel'/), 'error', 'a name nobody declared stops the run on that edge');
+  assert.equal(sev(/is an end, but something leaves it/), 'warning', 'the run has ended by then');
+  assert.equal(sev(/sets nope, which is not a declared state field/), 'warning', 'written where nothing looks');
+  assert.equal(sev(/nothing leads to "Lonely"/), 'warning', 'unreachable, not unplayable');
+});
+
 it('records of a list input are read from lines, positions or JSON', async () => {
   const { parseRecords } = await import('../lib/run.mjs');
   const fields = [{ name: 'status', type: 'enum', values: ['PICKED', 'SHORT'] }, { name: 'gift', type: 'boolean' }, { name: 'qty', type: 'number' }];
@@ -300,16 +317,53 @@ it('a name is declared once, and a second one is said out loud', async () => {
     nodes: [{ id: 's', kind: 'start', label: 'S' }, { id: 'e', kind: 'end', label: 'E' }],
     edges: [{ id: '1', from: 's', to: 'e' }], scenarios: [],
   });
-  // The one that costs the most: nothing fails, the flow just does something other than what it
-  // says. A guard reading `items` gets the input; the action set it on the state, where nothing looks.
-  const both = lint(flow([{ name: 'items', type: 'number' }], [{ name: 'items', initial: null }]));
-  assert.equal(both.length, 1);
-  assert.match(both[0].message, /"items" is both an input and a state field/);
-  assert.match(both[0].message, /never read back/);
+  // An input and a state field of one name is not a repeat: the field shadows the input (see the
+  // next test), and the panel says so where the name is typed.
+  assert.deepEqual(lint(flow([{ name: 'items', type: 'number' }], [{ name: 'items', initial: null }])), []);
 
-  assert.match(lint(flow([{ name: 'a', type: 'number' }, { name: 'a', type: 'text' }], []))[0].message, /declared twice as an input/);
+  const twice = lint(flow([{ name: 'a', type: 'number' }, { name: 'a', type: 'text' }], []));
+  assert.match(twice[0].message, /declared twice as an input/);
+  assert.equal(twice[0].severity, 'warning', 'it runs; it just does not mean what it says');
   assert.match(lint(flow([], [{ name: 'a', initial: null }, { name: 'a', initial: '1' }]))[0].message, /declared twice as a state field/);
   assert.deepEqual(lint(flow([{ name: 'a', type: 'number' }], [{ name: 'b', initial: null }])), []);
   // A half-typed row has no name yet, which is the panel's business and not a drawing problem.
   assert.deepEqual(lint(flow([{ name: '', type: 'number' }, { name: '', type: 'text' }], [])), []);
+});
+
+it('a state field that shares an input\'s name starts as the input and shadows it from then on', async () => {
+  const { initialState, coerceInputs, runAll, lint, shadows } = await import('../lib/run.mjs');
+  const doc = {
+    name: 'Shadow',
+    inputs: [
+      { name: 'status', type: 'enum', values: ['NEW', 'PAID', 'SHIPPED'] },
+      { name: 'lines', type: 'list', fields: [{ name: 'gift', type: 'boolean' }, { name: 'qty', type: 'number' }] },
+    ],
+    state: [{ name: 'status', initial: null }, { name: 'lines', initial: 'lines.filter(gift)' }, { name: 'gifts', initial: 'lines.size' }],
+    nodes: [
+      { id: 's', kind: 'start', label: 'Start' },
+      { id: 'pay', kind: 'action', label: 'Take payment', set: { status: 'PAID' } },
+      { id: 'q', kind: 'decision', label: 'Paid?' },
+      { id: 'ship', kind: 'action', label: 'Ship it', set: { status: 'SHIPPED', lines: 'lines.filter(qty > 1)' } },
+      { id: 'hold', kind: 'action', label: 'Hold it' },
+      { id: 'e', kind: 'end', label: 'Done' },
+    ],
+    edges: [
+      { id: 'e1', from: 's', to: 'pay' }, { id: 'e2', from: 'pay', to: 'q' },
+      { id: 'e3', from: 'q', to: 'ship', when: 'status == PAID' }, { id: 'e4', from: 'q', to: 'hold', else: true },
+      { id: 'e5', from: 'ship', to: 'e' }, { id: 'e6', from: 'hold', to: 'e' },
+    ],
+    scenarios: [{ id: 'x', name: 'A new order', inputs: { status: 'NEW', lines: 'gift=yes, qty=2\ngift=yes, qty=1\ngift=no, qty=5' }, expect: { actions: ['Take payment', 'Ship it'], end: 'Done', state: { status: 'SHIPPED', lines: '1', gifts: '2' } } }],
+  };
+  assert.deepEqual(lint(doc), [], 'sharing a name is not a drawing problem');
+  assert.ok(shadows(doc, 'status') && shadows(doc, 'lines') && !shadows(doc, 'gifts'));
+  const inputs = coerceInputs(doc, doc.scenarios[0].inputs);
+  const s = initialState(doc, inputs);
+  assert.equal(s.status, 'NEW', 'blank: it starts as the input');
+  assert.equal(s.lines.length, 2, 'an initial on it reads the input, since the field is not worked out yet');
+  assert.equal(s.gifts, 2, 'and the field below reads the field, not the input of three');
+  const r = runAll(doc).results[0];
+  assert.equal(r.result.error, null);
+  assert.deepEqual(r.result.actions, ['Take payment', 'Ship it'], 'the guard read what the action set, not the input');
+  assert.deepEqual([r.result.state.status, r.result.state.lines.length], ['SHIPPED', 1]);
+  assert.equal(r.verdict.pass, true, 'and the expected-state cells check the fields');
 });

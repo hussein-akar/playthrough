@@ -9,6 +9,9 @@ import * as presets from './presets.mjs';
 import * as generate from './generate.mjs';
 
 const $ = (id) => document.getElementById(id);
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** How many of the drawing's problems stop a run (errors), and how many only deserve a look (warnings). */
+const tally = (ps) => { const errors = ps.filter((p) => p.severity === 'error').length; return { errors, warnings: ps.length - errors }; };
 
 subscribe(() => {
   // The panel is for what is selected; with nothing selected the drawing has the width.
@@ -30,21 +33,25 @@ function renderHeader() {
   // How the flow stands, a pill each: whether the scenarios pass, and whether the drawing has problems (a click goes to the first).
   const n = doc.scenarios.length;
   const p = results?.passed ?? 0;
-  const problems = store.problems.length;
+  const { errors, warnings } = tally(store.problems);
   const verdict = !n ? '<span class="pill">no scenarios</span>' : p === n ? `<span class="pill ok">${n === 1 ? 'the scenario passes' : `all ${n} pass`}</span>` : `<span class="pill bad">${n - p} of ${n} fail</span>`;
-  const drawing = problems ? `<button class="pill bad" data-problem title="Go to the first one">${problems} drawing problem${problems === 1 ? '' : 's'}</button>` : '';
+  // The drawing's pill is red while something stops a run, amber while its problems only deserve a look.
+  const drawing = !store.problems.length ? '' : `<button class="pill ${errors ? 'bad' : 'warn'}" data-problem title="Go to the first one">${[errors && plural(errors, 'drawing error'), warnings && plural(warnings, errors ? 'warning' : 'drawing warning')].filter(Boolean).join(' · ')}</button>`;
   if ($('summary').written !== verdict + drawing) { $('summary').innerHTML = verdict + drawing; $('summary').written = verdict + drawing; }
   $('stateChip').hidden = !store.dirty;
   $('undo').disabled = !store.undo.length;
   $('redo').disabled = !store.redo.length;
   document.title = `${store.dirty ? '• ' : ''}${doc.name || 'Untitled flow'}${info ? ` · ${info.name}` : ''} – Playthrough`;
 }
-$('summary').addEventListener('click', (ev) => {
-  if (!ev.target.closest('[data-problem]')) return;
-  const p = store.problems[0];
-  if (p?.node) select({ type: 'node', id: p.node });
-  else if (p?.edge) select({ type: 'edge', id: p.edge });
-});
+$('summary').addEventListener('click', (ev) => { if (ev.target.closest('[data-problem]')) goTo(store.problems[0]); });
+
+/** Select what a problem is about, bringing it on screen first when it is not. */
+function goTo(p) {
+  if (!p) return;
+  canvas.reveal(p);
+  if (p.node) select({ type: 'node', id: p.node });
+  else if (p.edge) select({ type: 'edge', id: p.edge });
+}
 
 // The problem box lists every drawing problem over the top-left of the drawing. A long list would
 // cover the shapes it is about, so it folds to its one-line head, and stays folded until it is
@@ -58,12 +65,21 @@ function renderLint() {
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   // A flow with more cases than the audit plays on every edit says so here, and offers to play them once.
   const skipped = store.audit?.skipped ? `<div class="muted">The audit was not run: ${store.audit.cases.toLocaleString()} cases to play. <button class="link" data-audit>Run it</button></div>` : '';
+  const { errors, warnings } = tally(ps);
   box.classList.toggle('show', ps.length > 0 || !!skipped);
   box.classList.toggle('folded', lintFolded);
-  const head = `<div class="head" data-fold title="${lintFolded ? 'Show the list' : 'Fold the list away'}"><span>⚠ ${ps.length ? `${ps.length} drawing problem${ps.length === 1 ? '' : 's'}` : 'The audit was not run'}</span><span class="chev">${lintFolded ? '▸' : '▾'}</span></div>`;
-  const list = `<div class="list">${ps.map((p, i) => `<div data-p="${i}">${esc(p.message)}</div>`).join('')}${skipped}</div>`;
+  box.classList.toggle('errors', errors > 0);
+  // The head counts the two weights apart, each behind its own mark, so the folded box still says
+  // whether anything stops a run; the list has the errors first, each line behind the same mark.
+  const counts = ps.length ? [errors && `<span class="n error">${plural(errors, 'error')}</span>`, warnings && `<span class="n warning">${plural(warnings, 'warning')}</span>`].filter(Boolean).join('') : '<span class="n">The audit was not run</span>';
+  const head = `<div class="head" data-fold title="${lintFolded ? 'Show the list' : 'Fold the list away'}"><span class="counts">${counts}</span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></span></div>`;
+  const list = `<div class="list">${ps.map((p, i) => `<div class="${p.severity}" data-p="${i}">${esc(p.message)}</div>`).join('')}${skipped}</div>`;
   box.innerHTML = head + list;
 }
+// Pointing at a line lights up the shape it is about, so a problem can be found among many boxes
+// before it is clicked. The class goes straight onto the drawing: a hover is not a change.
+$('lint').addEventListener('mouseover', (ev) => { const d = ev.target.closest('[data-p]'); if (d) canvas.hint(store.problems[Number(d.dataset.p)]); });
+$('lint').addEventListener('mouseout', (ev) => { if (ev.target.closest('[data-p]')) canvas.hint(null); });
 $('lint').addEventListener('click', (ev) => {
   if (ev.target.closest('[data-fold]')) {
     lintFolded = !lintFolded;
@@ -73,10 +89,7 @@ $('lint').addEventListener('click', (ev) => {
   }
   if (ev.target.closest('[data-audit]')) { runAudit(); return; }
   const d = ev.target.closest('[data-p]');
-  if (!d) return;
-  const p = store.problems[Number(d.dataset.p)];
-  if (p?.node) select({ type: 'node', id: p.node });
-  else if (p?.edge) select({ type: 'edge', id: p.edge });
+  if (d) goTo(store.problems[Number(d.dataset.p)]);
 });
 
 async function copy(text, what) {

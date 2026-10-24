@@ -147,10 +147,12 @@ Then `docker compose up -d`, and open <http://localhost:8095>.
 | **Inputs** | What a scenario provides, declared once on the flow with a type: enum, boolean, number, text, or a list of records. A condition can only mention declared names, so a typo is caught while drawing. |
 | **State** | Fields an action may set along the way and a scenario may check at the end. |
 
-Inputs and state fields share one set of names, and each name belongs to one of them. Declaring the
-same name twice is reported as a drawing problem: an input wins wherever a name is read, so a state
-field sharing an input's name would be written by an action and never read back, and nothing would
-fail to say so.
+Inputs and state fields share one set of names. Within the inputs, and within the state, a name is
+declared once, and a repeat is reported as a drawing problem: the later one is what everything
+reads, and nothing would otherwise say so. An input and a state field *may* share a name, and then
+the field **shadows** the input: it starts as the input's value, and from then on the name means
+the field, so an action can set `status` and the next condition reads what it set. See
+[State](#state).
 
 ### Conditions
 
@@ -197,14 +199,16 @@ in its corner.
 
 The panel checks a condition as you type: a name nobody declared, or a missing bracket, shows up
 under the field at once. Renaming an input or a state field rewrites every condition, set and
-scenario cell that mentions it, in one undoable step.
+scenario cell that mentions it, in one undoable step; a state field that shares an input's name is
+renamed with it.
 
 ### The audit: the case nobody drew
 
 A decision's branches can leave a case out, or two of them can claim the same case, and no scenario
 will say so until someone happens to write that row. So every combination of the values the
 conditions mention (the same cases **Generate…** plays) is played through the drawing on every
-edit, and a decision that mishandles one is a drawing problem:
+edit, and a decision that mishandles one is a drawing problem, a warning rather than an error,
+since the drawing plays and whether the case can arise is the team's call:
 
 - **A hole:** *"Channel?" has no branch when channel is Phone (2 cases).* A case reached the decision
   and no branch took it. An **else** branch swallows holes.
@@ -259,6 +263,15 @@ A state field starts as its **initial value**. That is taken as written (`0`, `n
 unless it is an expression over the inputs: `lines` starts as a copy of the input `lines`, and
 `lines.filter(gift)` as the gift lines only.
 
+A state field may have the **same name as an input**, and then it shadows it: left blank, it starts
+as that input, and wherever the name is read from then on, it is the field. So an input `status`
+that the flow moves along is declared twice, once under Inputs (what the scenario provides) and once
+under State (what the actions set), and an action's `status = PAID` is what the next decision and
+the scenario's expected-state cell see. An initial written on such a field still reads `status` as
+the input, since the field is not worked out yet. The input's own value is then reachable only in
+the scenario's row; if the flow needs both, give the field a name of its own, with the input's name
+as its initial. Renaming either half renames both, and every mention with them.
+
 The fields are worked out **in the order they are declared**, and each may build on the ones above
 it — `open` can be `lines.filter(status != CANCELLED)`, and `urgent` below it `open.filter(rush)`.
 Only the ones above: a field cannot start as something not worked out yet. One that reaches down the
@@ -295,11 +308,18 @@ the expected End, and every expected state field holds. An expected state cell c
 ### The header
 
 - **Playthrough**, then the flow's name (or, in a project, the project's name). Click it to rename.
-- Pills that say how the flow stands: **unsaved changes**, **all 4 pass** or **1 of 4 fail**, and **2
-  drawing problems** (click it to go to the first). A drawing problem is a fault in the drawing
-  itself, from a branch that leads nowhere to a case the audit found no branch for. The problems
-  are listed in a box over the top-left of the drawing; click one to go to it, or its head to fold
-  the list away to that one line.
+- Pills that say how the flow stands: **unsaved changes**, **all 4 pass** or **1 of 4 fail**, and **1
+  drawing error · 2 warnings** (click it to go to the first). A drawing problem is a fault in the
+  drawing itself, and comes in two weights. An **error**, in red, is one a run cannot get past: a
+  branch that leads nowhere, a name nobody declared, a fork whose branches cannot be told apart. A
+  **warning**, in amber, is a drawing that plays but is in doubt: a case the audit found no branch
+  for, a node nothing leads to, a name declared twice or read two ways. The problems are listed in a
+  box over the top-left of the drawing, errors first; click one to go to it (the drawing pans to it
+  when it is off screen), or the head to fold the list away to that one line. On the drawing, a
+  node with a problem is outlined in its colour and carries a flag in its corner, a red disc for an
+  error and an amber triangle for a warning, with the problems in its tooltip; pointing at a line in
+  the box lights up the shape it is about, and the panel of a selected node or edge lists its
+  problems at the top.
 - **Undo** and **redo**, the **Template** menu, **Save**, and **?**, which lists every key.
 
 ### Drawing
