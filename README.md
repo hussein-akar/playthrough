@@ -340,7 +340,11 @@ the expected End, and every expected state field holds. An expected state cell c
 
 ### Scenarios
 
-- **Select** a row with a click: its path lights up on the drawing. ↑ and ↓ move to the next one.
+- **Select** a row with a click: its path lights up on the drawing, and a box over the drawing's
+  top-right shows what the scenario gives it: every input with its value, every list as a table
+  of its records, and under them the state as the run left it. A state field that shadows an
+  input is shown once, as the input, with where the run left it after an arrow. Click the box's
+  head to fold it to the scenario's name. ↑ and ↓ move to the next one.
 - **Open** it in the side panel with a double-click, or ✎ at the end of the row. The panel has its
   name, description, result, tags, inputs, and what it expects.
 - **Play** it step by step with ▶ at the end of the row, or Space.

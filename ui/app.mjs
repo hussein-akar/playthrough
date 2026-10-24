@@ -7,6 +7,7 @@ import * as table from './table.mjs';
 import * as project from './project.mjs';
 import * as presets from './presets.mjs';
 import * as generate from './generate.mjs';
+import * as inputs from './inputs.mjs';
 
 const $ = (id) => document.getElementById(id);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -21,6 +22,7 @@ subscribe(() => {
   table.render();
   renderHeader();
   renderLint();
+  inputs.render();
 });
 
 function renderHeader() {

@@ -201,7 +201,7 @@
   #stage svg.connecting, #stage svg.connecting .node, #stage svg.connecting .port { cursor: crosshair; }
   #stage svg.connecting .node:hover .box { stroke-width: 1.5; filter: none; }   /* while a wire is out, the dots are the target, not the box */
   .marquee { fill: rgba(47, 111, 237, .08); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
-  #palette, #lint { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
+  #palette, #lint, #inputs { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r2); box-shadow: var(--shadow); }
   /* The shape palette: a small card of thin-line icons in a grid, in the manner of a whiteboard's shapes panel. */
   #palette { top: 50%; left: 12px; transform: translateY(-50%); width: 80px; padding: 10px 6px 6px; border-radius: 12px; user-select: none; -webkit-user-select: none; }
   #palette h2 { margin: 0 0 6px; text-align: center; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
@@ -244,13 +244,13 @@
   #lint.errors { color: var(--bad-ink); background: var(--bad-soft); border-color: var(--bad-line); }
   #lint.show { display: block; }
   /* The head is always there and folds the list under it away; the list scrolls rather than reaching down over the drawing. */
-  #lint .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 0; font-weight: 600; cursor: pointer; user-select: none; }
+  #lint .head, #inputs .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 0; font-weight: 600; cursor: pointer; user-select: none; }
   #lint .head .counts { display: flex; flex-wrap: wrap; gap: 2px 12px; }
   /* The chevron is a control, so it has a control's size and a square under it on hover; it turns to point at the list it would open. */
-  #lint .head .chev { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--r-xs); color: var(--muted); }
-  #lint .head .chev svg { width: 16px; height: 16px; transition: transform .12s; }
-  #lint .head:hover .chev { color: inherit; background: color-mix(in srgb, currentColor 10%, transparent); }
-  #lint.folded .head .chev svg { transform: rotate(-90deg); }
+  #lint .head .chev, #inputs .head .chev { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--r-xs); color: var(--muted); }
+  #lint .head .chev svg, #inputs .head .chev svg { width: 16px; height: 16px; transition: transform .12s; }
+  #lint .head:hover .chev, #inputs .head:hover .chev { color: inherit; background: color-mix(in srgb, currentColor 10%, transparent); }
+  #lint.folded .head .chev svg, #inputs.folded .head .chev svg { transform: rotate(-90deg); }
   #lint .list { max-height: min(40vh, 320px); overflow-y: auto; }
   #lint.folded { padding-bottom: 4px; }
   #lint.folded .list { display: none; }
@@ -263,6 +263,26 @@
   #lint [data-p].warning { color: var(--warn-ink); }
   #lint [data-p]:hover { text-decoration: underline; }
   #lint .muted { padding: 2px 0; color: var(--muted); }
+  /* The inputs box: what the selected scenario gives the flow, over the top-right of the drawing beside the path it lights up. Every input is a value by its name and every list a table of its records, with the state as the run left it under them; it folds to the scenario's name. */
+  #inputs { top: 10px; right: 10px; width: max-content; max-width: min(380px, calc(100% - 320px)); padding: 4px 8px 6px 10px; font-size: var(--fs-sm); line-height: 1.4; display: none; }
+  #inputs.show { display: block; }
+  #inputs .head .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #inputs .list { max-height: min(50vh, 420px); overflow: auto; }
+  #inputs.folded { padding-bottom: 4px; }
+  #inputs.folded .list { display: none; }
+  #inputs .cap { margin: 8px 0 2px; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  #inputs .cap .to { text-transform: none; letter-spacing: 0; font-weight: 500; }
+  #inputs table { border-collapse: collapse; width: 100%; }
+  #inputs th, #inputs td { padding: 3px 12px 3px 0; border-bottom: 1px solid var(--line-2); text-align: left; vertical-align: top; }
+  #inputs th:last-child, #inputs td:last-child { padding-right: 0; }
+  #inputs tr:last-child > * { border-bottom: 0; }
+  #inputs th { font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+  #inputs table.rows th { font-size: var(--fs-xs); color: var(--muted); }
+  #inputs td { font-family: var(--mono); font-size: 12px; }
+  #inputs .to { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  #inputs .muted { color: var(--muted); font-family: inherit; }
+  #inputs .bad { color: var(--bad); }
+  #inputs pre { margin: 2px 0 0; font: 12px var(--mono); white-space: pre-wrap; }
   #panelResizer { position: absolute; top: var(--header-h); bottom: var(--table-h); width: 6px; z-index: 5; cursor: col-resize; transition: background .1s; }
   #panelResizer:hover, #panelResizer.on { background: var(--accent-line); }
   .empty-hint text { fill: var(--muted); font-size: 13px; text-anchor: middle; pointer-events: none; }
@@ -786,6 +806,7 @@
     </div>
     <div id="ctx" role="menu" hidden></div>
     <div id="lint"></div>
+    <div id="inputs"></div>
     </div>
   </div>
 
