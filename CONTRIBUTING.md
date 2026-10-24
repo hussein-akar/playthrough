@@ -96,6 +96,7 @@ ui/canvas.mjs     the SVG drawing and its pointer interactions
 ui/inspector.mjs  the side panel for whatever is selected, and the config drawer
 ui/expression.mjs "What you can write here": the ƒx beside every expression box
 ui/table.mjs      the scenario table
+ui/inputs.mjs     the inputs box: what the selected scenario gives the flow, as tables over the drawing
 ui/generate.mjs   the Generate… dialog
 ui/project.mjs    the project sidebar and the calls to the folder API
 ui/presets.mjs    the Presets dialog

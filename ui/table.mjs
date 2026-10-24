@@ -36,7 +36,7 @@ export function render() {
     table.innerHTML = `<tr><td class="empty">No scenarios yet. Add one and fill in its inputs; the row turns green or red as you type.</td></tr>`;
     return;
   }
-  const ends = doc.nodes.filter((n) => n.kind === 'end').map(nodeName);
+  const ends = [...new Set(doc.nodes.filter((n) => n.kind === 'end').map(nodeName))];   // an end is expected by its label, so two ends with one label are one choice
   // The tags column appears once a scenario has a tag (given in its panel): until then it is noise.
   const tagged = doc.scenarios.some((s) => s.tags?.length);
   let html = `<thead><tr><th>#</th><th>Scenario</th>${tagged ? '<th>tags</th>' : ''}${doc.inputs.map((i) => `<th>${esc(i.name)}</th>`).join('')}
