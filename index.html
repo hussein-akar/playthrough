@@ -374,7 +374,9 @@
   #inspector .inline:hover { border-color: transparent; background: var(--panel-2); }
   #inspector .inline:focus { border-color: var(--accent); background: #fff; }
   #inspector input.inline.name { height: 34px; margin-top: 4px; font-size: 18px; font-weight: 650; letter-spacing: -.015em; color: var(--ink); text-overflow: ellipsis; }
-  #inspector textarea.inline { min-height: 0; margin-top: 1px; padding: 3px 9px; overflow: hidden; resize: none; font-family: inherit; font-size: var(--fs-sm); line-height: 1.5; color: var(--muted); }
+  /* The description grows with its text up to six lines, then scrolls within itself: the head is stuck to the top of the panel, so one that grew without limit would cover the sections under it. */
+  #inspector textarea.inline { min-height: 0; max-height: calc(9em + 8px); margin-top: 1px; padding: 3px 9px; overflow: hidden; resize: none; font-family: inherit; font-size: var(--fs-sm); line-height: 1.5; color: var(--muted); }
+  #inspector textarea.inline.long { overflow-y: auto; }
   #inspector textarea.inline:focus { color: var(--ink); }
   #inspector .pbody { display: grid; gap: 11px; align-content: start; padding: 14px 0 0; }   /* the sections run the head's width: a band of the panel, not a card inset in it */
   #inspector .sect { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-1); }
