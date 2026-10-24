@@ -5,7 +5,7 @@ import { store, commit, select, selectScenario, panelOpen, selectNodes, selected
 import { alignSelected, deleteSelectedNodes } from './canvas.mjs';
 import { check, ambiguous, compile, names } from '../lib/expr.mjs';
 import { show as writeExpression } from './expression.mjs';
-import { knownNames, listsOf, parseRecords, initialIsExpression, expectationOf, nodeName } from '../lib/run.mjs';
+import { knownNames, listsOf, parseRecords, initialIsExpression, expectationOf, nodeName, shadows } from '../lib/run.mjs';
 
 const el = document.getElementById('inspector');
 const sheet = document.getElementById('settings');   // the flow config sheet: the inputs or the state, and the cheat sheet
@@ -109,6 +109,8 @@ const phead = (kind, tint, body) => `<div class="phead"><div class="eyebrow"><i 
 const sect = (title, body, { n, note = '', tools = '', cls = '' } = {}) => `<section class="sect${cls ? ` ${cls}` : ''}"><div class="head"><span class="grow">${title}${note ? ` <span class="note">· ${note}</span>` : ''}</span>${n == null ? '' : `<span class="count">${n}</span>`}${tools}</div><div class="body">${body}</div></section>`;
 /** The last section of a view: the button that removes what is selected, set apart in red. */
 const danger = (label, act) => sect('Danger zone', `<div class="actions end"><button class="small danger" data-act="${act}">${label}</button></div>`, { cls: 'danger' });
+/** The drawing problems on what is selected, errors first, so a flagged shape says why once it is clicked. The words are the problem box's, which is where every problem is listed. */
+const problemsSect = (ps) => (!ps.length ? '' : sect('Problems', `<ul class="problems">${ps.map((p) => `<li class="${p.severity}">${esc(p.message)}</li>`).join('')}</ul>`, { n: ps.length, cls: ps.some((p) => p.severity === 'error') ? 'problems errors' : 'problems' }));
 /** The name as the panel's title and, when there is one, the description as the line under it: text until hovered, a field once clicked. */
 const titled = (attr, name, placeholder, desc) => `<input type="text" class="inline name" ${attr}="name" value="${esc(name)}" placeholder="${esc(placeholder)}" title="The name">${desc == null ? '' : `<textarea class="inline" ${attr}="description" rows="1" placeholder="${esc(desc.placeholder)}" title="The description">${esc(desc.value)}</textarea>`}`;
 
@@ -117,7 +119,7 @@ function flowView(doc) {
   const detail = (i) => i.type === 'enum' ? `enum · ${(i.values ?? []).map(esc).join(', ')}` : i.type === 'list' ? `list · ${(i.fields ?? []).map((f) => esc(f.name)).join(', ') || 'no fields yet'}` : esc(i.type);
   const pencil = (focus) => `<button class="small icon pencil" data-act="open-settings" data-focus="${focus}" title="Edit in flow config"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 2.5l2 2L5 13H3v-2z"/></svg></button>`;
   const inputs = doc.inputs.map((i, k) => `<button class="item" data-act="open-settings" data-focus="input:${k}"><span class="name">${esc(i.name) || '<i>unnamed</i>'}</span><span class="detail">${detail(i)}</span><span class="chev">›</span></button>`);
-  const state = doc.state.map((f, k) => `<button class="item" data-act="open-settings" data-focus="state:${k}"><span class="name">${esc(f.name) || '<i>unnamed</i>'}</span><span class="detail">${f.initial == null || String(f.initial).trim() === '' ? 'null at first' : `${esc(f.initial)} at first`}</span><span class="chev">›</span></button>`);
+  const state = doc.state.map((f, k) => `<button class="item" data-act="open-settings" data-focus="state:${k}"><span class="name">${esc(f.name) || '<i>unnamed</i>'}</span><span class="detail">${f.initial == null || String(f.initial).trim() === '' ? (shadows(doc, f.name) ? `the input ${esc(f.name)} at first` : 'null at first') : `${esc(f.initial)} at first`}</span><span class="chev">›</span></button>`);
   return phead('Flow', 'var(--accent)', titled('data-doc', doc.name, 'Untitled flow', { value: doc.description, placeholder: 'What this flow is about' })) + `<div class="pbody">
     ${sect('Inputs', `${inputs.join('') || '<div class="muted empty">No inputs yet. A guard can only mention what is declared here.</div>'}<div class="actions end"><button class="small" data-act="add-input-open">+ Input</button></div>`, { n: doc.inputs.length, tools: pencil('input:0') })}
     ${sect('State', `${state.join('') || '<div class="muted empty">No state fields. Add one when an action needs to leave something behind.</div>'}<div class="actions end"><button class="small" data-act="add-state-open">+ State field</button></div>`, { n: doc.state.length, tools: pencil('state:0') })}
@@ -171,6 +173,7 @@ function nodeView(doc, n) {
       ${fx('set')}<button class="icon danger" data-act="rm-set" title="Remove">×</button>
     </div><div class="errs"></div>`).join('');
   return phead(`${n.kind} node`, `var(--${n.kind})`, `<input type="text" class="inline name" data-node="label" value="${esc(n.label)}" placeholder="Label" title="The label on the canvas">`) + `<div class="pbody">
+    ${problemsSect(store.problems.filter((p) => p.node === n.id))}
     ${sect('Node', `<div class="field"><label>Kind</label><select data-node="kind">${['start', 'action', 'decision', 'end'].map((k) => opt(k, n.kind, k[0].toUpperCase() + k.slice(1))).join('')}</select></div>
       <div class="field"><label>Note</label><textarea data-node="note" style="font-family: inherit" placeholder="Anything the team should know">${esc(n.note ?? '')}</textarea></div>`)}
     ${n.kind === 'action' ? sect('Sets', `${sets}<div class="actions"><button class="small" data-act="add-set" ${setBlock ? 'disabled' : ''}>+ Set a field</button>${setBlock ? `<span class="muted">${setBlock}</span>` : ''}</div>`, { note: 'state this action leaves behind', n: Object.keys(n.set ?? {}).length }) : ''}
@@ -213,6 +216,7 @@ function edgeView(doc, e) {
   const branches = ways > 1 || from?.kind === 'decision';
   const held = (e.when && e.when.trim()) || e.else;
   return phead('Edge', 'var(--faint)', `<div class="title-static">${esc(from?.label)} <span class="muted">→</span> ${esc(to?.label)}</div>`) + `<div class="pbody">
+    ${problemsSect(store.problems.filter((p) => p.edge === e.id))}
     ${sect('Condition', branches || held ? `<div class="row">
         <input type="text" class="expr" data-edge="when" data-check value="${esc(e.when)}" placeholder="e.g. channel in (Web, App)" ${e.else ? 'disabled' : ''}>
         ${e.else ? '' : fx('guard')}
@@ -398,15 +402,21 @@ function problemsOf(c, known, lists) {
     const k = Number(c.closest('[data-state]').dataset.state);
     const above = doc.state.slice(0, k).map((f) => f.name);
     const reads = doc.inputs.concat(doc.state.slice(0, k)).some((x) => new RegExp(`\\b${x.name}\\b`).test(v));
+    // Blank on a field that shares an input's name is not null: it is the input.
+    if (!v.trim() && shadows(doc, doc.state[k]?.name)) return [note(`blank: starts as the input ${doc.state[k].name}`)];
     return (initialIsExpression(doc, v, above) && !/^[0-9]/.test(v.trim()) && reads ? [note(`starts as the value of ${v.trim()}`)] : [])
       .concat(ambiguous(v, known, lists).map(warn));
   }
   if (d.f === 'name') {
-    const row = c.closest('[data-input], [data-state]'), ix = Number(row.dataset.input ?? -1), sx = Number(row.dataset.state ?? -1);
-    const taken = doc.inputs.filter((_, j) => j !== ix).map((x) => x.name).concat(doc.state.filter((_, j) => j !== sx).map((x) => x.name));
+    // Two inputs, or two state fields, cannot share a name. An input and a state field can: the
+    // field then starts as the input and shadows it, which is said here so nobody takes it for a slip.
+    const row = c.closest('[data-input], [data-state]'), isInput = row.dataset.input != null, k = Number(row.dataset.input ?? row.dataset.state);
+    const siblings = (isInput ? doc.inputs : doc.state).filter((_, j) => j !== k).map((x) => x.name);
+    const other = (isInput ? doc.state : doc.inputs).some((x) => x.name === v);
     if (!IDENT.test(v)) return [err(v.trim() ? 'a name is letters, digits and _, and starts with a letter' : 'it needs a name')];
     if (RESERVED.has(v)) return [err(`${v} is a word of the condition language; pick another name`)];
-    if (taken.includes(v)) return [err(`another input or state field is already called ${v}`)];
+    if (siblings.includes(v)) return [err(`another ${isInput ? 'input' : 'state field'} is already called ${v}`)];
+    if (other) return [note(isInput ? `the state field ${v} starts as this input and shadows it from then on; renaming either renames both` : `shadows the input ${v}: starts as it, and from then on the name means this field; renaming either renames both`)];
     return [];
   }
   if (d.f === 'values') {
@@ -441,12 +451,19 @@ export function acceptRun(id) {
 }
 
 /**
- * Is `name` an input or state field other than `self`? A rename onto such a name must not fold
- * two fields into one, and a rename away from one (the keystroke after a collision) must not
- * carry the other field's mentions along. Either way the mentions stay put and lint points at them.
+ * Is `name` held by another field of `self`'s kind, another input or another state field? A
+ * rename onto such a name must not fold two fields into one, and a rename away from one (the
+ * keystroke after a collision) must not carry the other field's mentions along. Either way the
+ * mentions stay put and lint points at them. An input and a state field of one name are not a
+ * collision but one name in two roles — the field shadows the input — so renaming either half
+ * renames the other, and the mentions follow both.
  */
-const taken = (doc, name, self) => doc.inputs.some((x) => x !== self && x.name === name) || doc.state.some((x) => x !== self && x.name === name);
-const follow = (doc, from, to, self) => { if (!taken(doc, from, self) && !taken(doc, to, self)) renameName(doc, from, to); };
+const taken = (doc, name, self) => (doc.inputs.includes(self) ? doc.inputs : doc.state).some((x) => x !== self && x.name === name);
+const follow = (doc, from, to, self) => {
+  if (taken(doc, from, self) || taken(doc, to, self)) return;
+  if (IDENT.test(to)) for (const x of doc.inputs.includes(self) ? doc.state : doc.inputs) if (x.name === from) x.name = to;
+  renameName(doc, from, to);
+};
 
 for (const r of roots) r.addEventListener('input', (ev) => {
   const t = ev.target;

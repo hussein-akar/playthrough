@@ -32,19 +32,26 @@ export const store = {
 export function subscribe(fn) { store.listeners.add(fn); return () => store.listeners.delete(fn); }
 export function emit() { for (const fn of store.listeners) fn(store); }
 
+/**
+ * Lint's problems and the audit's as the one list the page shows, the errors first: the thing that
+ * stops a run is never under a dozen things that merely deserve a look, and the header's pill goes
+ * to the first of them.
+ */
+const problemsOf = (lints, audited) => [...lints, ...audited].sort((a, b) => (a.severity === 'error' ? 0 : 1) - (b.severity === 'error' ? 0 : 1));
+
 export function recompute() {
   store.results = runAll(store.doc);
   // The audit's findings are drawing problems like lint's: a case a decision mishandles is as
   // much a fault in the drawing as a branch that leads nowhere. Its cases are played on every
   // edit while there are few enough of them; past the cap it waits to be asked for.
   store.audit = audit(store.doc);
-  store.problems = [...lint(store.doc), ...store.audit.problems];
+  store.problems = problemsOf(lint(store.doc), store.audit.problems);
 }
 
 /** Play the audit's cases although there are more than it plays on its own. The findings stand until the next edit. */
 export function runAudit() {
   store.audit = audit(store.doc, { force: true });
-  store.problems = [...lint(store.doc), ...store.audit.problems];
+  store.problems = problemsOf(lint(store.doc), store.audit.problems);
   emit();
 }
 

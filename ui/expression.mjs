@@ -13,7 +13,7 @@
 // you can see.
 import { store } from './store.mjs';
 import { LIBRARY, check, ambiguous, compile, evaluate, names } from '../lib/expr.mjs';
-import { knownNames, listsOf, enumsOf, coerceInputs, initialState } from '../lib/run.mjs';
+import { knownNames, listsOf, enumsOf, coerceInputs, initialState, shadows } from '../lib/run.mjs';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -63,8 +63,12 @@ function sample() {
 function scope() {
   const { doc } = store;
   const out = [];
-  for (const i of doc.inputs) if (i.name) out.push({ name: i.name, group: 'In scope', role: `input · ${i.type}`, input: i });
-  if (target.kind !== 'initial') for (const f of doc.state) if (f.name) out.push({ name: f.name, group: 'In scope', role: 'state field', state: f });
+  // A state field that shares an input's name shadows it, so here the name is the field, and the
+  // input is not listed on its own; in an initial value the field is not worked out yet, so there
+  // it is the input.
+  const shadowed = (name) => target.kind !== 'initial' && doc.state.some((f) => f.name === name);
+  for (const i of doc.inputs) if (i.name && !shadowed(i.name)) out.push({ name: i.name, group: 'In scope', role: `input · ${i.type}`, input: i });
+  if (target.kind !== 'initial') for (const f of doc.state) if (f.name) out.push({ name: f.name, group: 'In scope', role: shadows(doc, f.name) ? `state field · shadows the input ${f.name}` : 'state field', state: f });
   for (const i of doc.inputs) {
     if (i.type !== 'list') continue;
     for (const f of i.fields ?? []) if (f.name) out.push({ name: `${i.name}.${f.name}`, group: 'Record fields', role: `a field of one ${i.name} record · ${f.type}`, field: f, of: i });
@@ -77,16 +81,16 @@ function scope() {
 }
 
 /** The lists a question can be asked about: the list inputs, and the state fields, which often hold one. */
-const listables = () => store.doc.inputs.filter((i) => i.type === 'list' && i.name)
+const listables = () => store.doc.inputs.filter((i) => i.type === 'list' && i.name && !(target.kind !== 'initial' && store.doc.state.some((f) => f.name === i.name)))
   .map((i) => ({ name: i.name, fields: i.fields ?? [] }))
-  .concat(target.kind === 'initial' ? [] : store.doc.state.filter((f) => f.name).map((f) => ({ name: f.name, fields: fieldsOfState(f) })));
+  .concat(target.kind === 'initial' ? [] : store.doc.state.filter((f) => f.name).map((f) => ({ name: f.name, fields: fieldsOfState(f) })))
+  .sort((a, b) => (b.fields.length > 0) - (a.fields.length > 0));   // the ones known to be lists first, so the builder opens on one
 
-/** A state field's fields, when its initial value narrows a list input: `items where inStock` has items' fields. */
+/** A state field's fields, when its initial value narrows a list input (`items where inStock` has items' fields), or when, blank, it starts as the list input of its own name. */
 function fieldsOfState(f) {
-  try {
-    const root = names(compile(String(f.initial ?? '')))[0]?.split('.')[0];
-    return store.doc.inputs.find((i) => i.name === root && i.type === 'list')?.fields ?? [];
-  } catch { return []; }
+  const fieldsOfInput = (name) => store.doc.inputs.find((i) => i.name === name && i.type === 'list')?.fields ?? [];
+  if (f.initial == null || !String(f.initial).trim()) return fieldsOfInput(f.name);
+  try { return fieldsOfInput(names(compile(String(f.initial)))[0]?.split('.')[0]); } catch { return []; }
 }
 
 // ---- rendering ---------------------------------------------------------------------------------
@@ -201,7 +205,7 @@ function detailHtml(key) {
   if (e.input?.type === 'enum') lines.push(`one of ${(e.input.values ?? []).join(', ') || 'nothing yet'}`);
   if (e.input?.type === 'list') lines.push(`records of ${(e.input.fields ?? []).map((f) => f.name).join(', ') || 'no declared fields'}`);
   if (e.field?.type === 'enum') lines.push(`one of ${(e.field.values ?? []).join(', ') || 'nothing yet'}`);
-  if (e.state) lines.push(e.state.initial == null || String(e.state.initial).trim() === '' ? 'null until an action sets it' : `${e.state.initial} until an action sets it`);
+  if (e.state) lines.push(e.state.initial == null || String(e.state.initial).trim() === '' ? `${shadows(store.doc, e.state.name) ? `the input ${e.state.name}` : 'null'} until an action sets it` : `${e.state.initial} until an action sets it`);
   return `<h4>${esc(name)}</h4>
     <div class="role">${esc(e.role)}</div>
     ${lines.map((l) => `<p>${esc(l)}</p>`).join('')}
@@ -254,7 +258,8 @@ function renderBar() {
   const src = $('writeBar').value;
   const { doc } = store;
   const known = knownNames(doc);
-  if (target.kind === 'initial') for (const f of doc.state) known.delete(f.name);
+  // An initial is read over the inputs, so the state's names go — except one an input shares, which is the input here.
+  if (target.kind === 'initial') for (const f of doc.state) if (!shadows(doc, f.name)) known.delete(f.name);
   const errs = check(src, known, listsOf(doc));
   const out = $('writeVerdict');
   if (errs.length) { out.className = 'verdict bad'; out.textContent = errs[0]; return; }

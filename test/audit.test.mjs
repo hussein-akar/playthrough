@@ -25,7 +25,7 @@ it('a case no branch takes is a hole on the decision, and an else swallows it', 
   const [p, ...rest] = audit(doc).problems;
   assert.deepEqual(rest, []);
   assert.equal(p.message, '"Channel?" has no branch when channel is Phone (2 cases)');
-  assert.deepEqual([p.node, p.kind, p.edges, p.cases], ['channel', 'hole', [], 2]);
+  assert.deepEqual([p.node, p.kind, p.edges, p.cases, p.severity], ['channel', 'hole', [], 2, 'warning']);
   assert.deepEqual(p.example.varied, [{ name: 'channel', label: 'Phone', text: 'is Phone' }]);   // hasCoupon does not matter, so it is not named
   assert.equal(p.example.inputs.channel, 'Phone');
   assert.equal(run(doc, { inputs: p.example.inputs }).error.kind, 'unmatched', 'the example really is stuck there');

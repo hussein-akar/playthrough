@@ -88,13 +88,14 @@
   input.invalid:focus { box-shadow: var(--ring-bad); }
   /* A pill: a short mono statement in a pill. A state pill carries a dot in its colour, so the word can stay small. */
   .pill { display: inline-flex; align-items: center; gap: 6px; height: auto; padding: 3px 11px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel-2); color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-weight: 500; line-height: 1.35; white-space: nowrap; }
-  .pill.ok::before, .pill.dirty::before, .pill.bad::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .pill.dirty { color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); }
+  .pill.ok::before, .pill.dirty::before, .pill.warn::before, .pill.bad::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.dirty, .pill.warn { color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); }
   .pill.bad { color: var(--bad); background: var(--bad-soft); border-color: var(--bad-line); }
   .pill.ok { color: var(--ok); background: var(--ok-soft); border-color: var(--ok-line); }
   button.pill { cursor: pointer; }
   button.pill:hover { border-color: currentColor; background: color-mix(in srgb, currentColor 13%, transparent); color: inherit; }
   button.pill.bad:hover { color: var(--bad); }
+  button.pill.warn:hover { color: var(--warn-ink); }
   .errs:empty { display: none; }
   .errs > div { font-size: var(--fs-sm); line-height: 1.35; margin-top: 3px; }
   .errs .err, .err { color: var(--bad); }
@@ -238,17 +239,28 @@
   #ghost svg { display: block; overflow: visible; }
   body.placing, body.placing * { cursor: grabbing !important; }
   body.placing #stage svg, body.placing #stage svg * { cursor: copy !important; }
-  #lint { top: 10px; left: 10px; max-width: min(360px, calc(100% - 320px));   /* on the left, so it stays put as the panel comes and goes */ padding: 4px 10px 6px; font-size: var(--fs-sm); line-height: 1.4; color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); display: none; }
+  /* The problem box is tinted by the worst thing in it: amber while everything in it merely deserves a look, red once something stops a run. */
+  #lint { top: 10px; left: 10px; max-width: min(360px, calc(100% - 320px));   /* on the left, so it stays put as the panel comes and goes */ padding: 4px 8px 6px 10px; font-size: var(--fs-sm); line-height: 1.4; color: var(--warn-ink); background: var(--warn-soft); border-color: var(--warn-line); display: none; }
+  #lint.errors { color: var(--bad-ink); background: var(--bad-soft); border-color: var(--bad-line); }
   #lint.show { display: block; }
   /* The head is always there and folds the list under it away; the list scrolls rather than reaching down over the drawing. */
   #lint .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 0; font-weight: 600; cursor: pointer; user-select: none; }
-  #lint .head .chev { font-size: 10px; color: var(--muted); }
-  #lint .head:hover .chev { color: var(--warn-ink); }
+  #lint .head .counts { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+  /* The chevron is a control, so it has a control's size and a square under it on hover; it turns to point at the list it would open. */
+  #lint .head .chev { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--r-xs); color: var(--muted); }
+  #lint .head .chev svg { width: 16px; height: 16px; transition: transform .12s; }
+  #lint .head:hover .chev { color: inherit; background: color-mix(in srgb, currentColor 10%, transparent); }
+  #lint.folded .head .chev svg { transform: rotate(-90deg); }
   #lint .list { max-height: min(40vh, 320px); overflow-y: auto; }
   #lint.folded { padding-bottom: 4px; }
   #lint.folded .list { display: none; }
+  /* A problem stands behind its mark, a cross for an error and a warning sign for a warning, which tells them apart without the colour. The counts in the head carry the same marks. */
+  #lint [data-p], #lint .n { display: flex; gap: 6px; align-items: baseline; }
   #lint [data-p] { cursor: pointer; padding: 2px 0; }
-  #lint [data-p]::before { content: '⚠ '; }
+  #lint .error::before, #lint .warning::before { content: '⚠'; flex: none; width: 13px; text-align: center; color: var(--warn); }
+  #lint .error::before { content: '✕'; color: var(--bad); font-weight: 700; }
+  #lint [data-p].error { color: var(--bad-ink); }
+  #lint [data-p].warning { color: var(--warn-ink); }
   #lint [data-p]:hover { text-decoration: underline; }
   #lint .muted { padding: 2px 0; color: var(--muted); }
   #panelResizer { position: absolute; top: var(--header-h); bottom: var(--table-h); width: 6px; z-index: 5; cursor: col-resize; transition: background .1s; }
@@ -270,7 +282,12 @@
   .node .fork { fill: var(--decision); opacity: .75; pointer-events: none; }
   .node:hover .box { filter: drop-shadow(0 3px 8px rgba(16, 24, 40, .16)); }
   .node:hover:not(.selected):not(.on):not(.stuck) .box { stroke-width: 2.5; }
-  .node.bad .box { stroke: var(--bad); stroke-dasharray: 4 3; }
+  /* A node with a drawing problem: a solid outline in the colour of its worst one and a faint wash of it, which can be seen from across a big drawing, plus a flag in its corner (drawn with the badges, over everything) that says which weight. Pointed at in the problem box, it glows. */
+  .node.bad .box { stroke: var(--bad); stroke-width: 2; fill: color-mix(in srgb, var(--bad) 5%, #fff); }
+  .node.warn .box { stroke: var(--warn); stroke-width: 2; fill: color-mix(in srgb, var(--warn) 6%, #fff); }
+  .node.hint .box { stroke-width: 3; }
+  .node.hint.bad .box { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--bad) 70%, transparent)); }
+  .node.hint.warn .box { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--warn) 80%, transparent)); }
   /* Selection keeps the node's own colour: a heavier outline and a glow in that colour, not the accent. */
   .node.start { color: var(--start); }
   .node.action { color: var(--action); }
@@ -293,6 +310,12 @@
   .badge circle { fill: var(--accent); stroke: #fff; stroke-width: 2; }
   .badge.stuck circle { fill: var(--bad); }
   .badge text { fill: #fff; font-size: 10px; font-weight: 700; text-anchor: middle; }
+  /* A problem flag in a node's corner: a disc for an error, a triangle for a warning, white-rimmed so it stands off the outline it sits on. */
+  .flag { pointer-events: none; }
+  .flag circle, .flag path { stroke: #fff; stroke-width: 2; stroke-linejoin: round; }
+  .flag.error circle { fill: var(--bad); }
+  .flag.warning path { fill: var(--warn); }
+  .flag text { fill: #fff; font-size: 11px; font-weight: 800; text-anchor: middle; }
 
   /* ==== edges ================================================================================= */
   .edge path.wire { fill: none; stroke: var(--faint); stroke-width: 1.6; transition: stroke .1s; }
@@ -304,6 +327,10 @@
   .edge.c-failed path.wire { stroke: var(--bad); }      .edge.c-failed .label rect { stroke: var(--bad-line); }     .edge.c-failed .label text { fill: var(--bad-ink); }
   .edge.c-warning path.wire { stroke: var(--warn); }    .edge.c-warning .label rect { stroke: var(--warn-line); }   .edge.c-warning .label text { fill: var(--warn-ink); }
   .edge.c-info path.wire { stroke: var(--accent); }     .edge.c-info .label rect { stroke: var(--accent-line); }    .edge.c-info .label text { fill: var(--accent-hover); }
+  /* A wire with a drawing problem is drawn in the problem's colour, arrow (a marker each) and pill too, and glows when its line in the problem box is pointed at. The path a scenario took still paints over it. */
+  .edge.bad path.wire { stroke: var(--bad); }           .edge.warn path.wire { stroke: var(--warn); }
+  .edge.hint path.wire { stroke-width: 3.5; }
+  .edge.hint.bad path.wire { filter: drop-shadow(0 0 4px var(--bad)); }   .edge.hint.warn path.wire { filter: drop-shadow(0 0 4px var(--warn)); }
   .edge.linked path.wire { stroke: var(--accent); stroke-width: 2.2; }
   .edge.on path.wire { stroke: var(--accent); stroke-width: 3; }
   .edge .label rect { fill: #fff; stroke: var(--line); rx: 4; }
@@ -312,8 +339,8 @@
   .edge:hover .label rect { stroke: var(--faint); fill: var(--panel-2); }
   .edge.on .label rect { stroke: var(--accent); fill: #fff; }
   .edge.selected .label rect { stroke: #8a94a3; fill: #fff; }
-  .edge.bad .label rect { stroke: var(--bad); }
-  .edge.bad .label text { fill: var(--bad); }
+  .edge.bad .label rect { stroke: var(--bad); }         .edge.bad .label text { fill: var(--bad); }
+  .edge.warn .label rect { stroke: var(--warn); }       .edge.warn .label text { fill: var(--warn-ink); }
   /* The ends of the selected wire, draggable to another dot. */
   .handle { fill: #fff; stroke: var(--accent); stroke-width: 1.5; cursor: grab; }
   .handle:hover { r: 7; fill: var(--accent-soft); }
@@ -361,6 +388,17 @@
   #inspector .sect > .body > :last-child { margin-bottom: 0; }
   #inspector .sect.danger { border-color: color-mix(in srgb, var(--bad) 26%, var(--line)); }
   #inspector .sect.danger > .head { color: var(--bad); border-bottom-color: color-mix(in srgb, var(--bad) 18%, var(--line-2)); }
+  /* The problems on what is selected, in the colours of the box over the drawing: amber for a look, red once something stops a run. */
+  #inspector .sect.problems { border-color: color-mix(in srgb, var(--warn) 30%, var(--line)); }
+  #inspector .sect.problems > .head { color: var(--warn-ink); }
+  #inspector .sect.problems.errors { border-color: color-mix(in srgb, var(--bad) 26%, var(--line)); }
+  #inspector .sect.problems.errors > .head { color: var(--bad); }
+  #inspector ul.problems { margin: 0; padding: 0; list-style: none; }
+  #inspector ul.problems li { display: flex; gap: 7px; padding: 3px 0; font-size: var(--fs-sm); line-height: 1.4; }
+  #inspector ul.problems li::before { content: '⚠'; flex: none; width: 13px; text-align: center; color: var(--warn); }
+  #inspector ul.problems li.error::before { content: '✕'; color: var(--bad); font-weight: 700; }
+  #inspector ul.problems li.error { color: var(--bad-ink); }
+  #inspector ul.problems li.warning { color: var(--warn-ink); }
   #inspector .field { margin-bottom: 10px; }
   #inspector label > .link, #inspector label > .muted { margin-left: 6px; font-size: 11px; font-weight: 400; }
   #inspector label { display: block; margin-bottom: 5px; font-size: 11px; font-weight: 600; color: var(--muted); }

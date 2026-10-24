@@ -46,6 +46,18 @@ function shape(node, g) {
   return `<rect class="box" x="${x}" y="${y}" width="${w}" height="${h}" rx="7"/>`;
 }
 
+/**
+ * Where a node's problem flag sits: on the outline at the top right, so it reads as a badge on the
+ * shape rather than on the box around it. A pill's outline curves away from that corner and a
+ * decision's is cut off there, so each is met where it actually is.
+ */
+function flagAt(node, g) {
+  if (node.kind === 'decision') return { ax: g.x + g.w - 6, ay: g.y + 6 };
+  if (node.kind === 'action') return { ax: g.x + g.w - 2, ay: g.y + 2 };
+  const k = (g.h / 2) * (1 - Math.SQRT1_2);
+  return { ax: g.x + g.w - k, ay: g.y + k };
+}
+
 // A node has a port in the middle of each side. A wire leaves its port along the side's normal
 // and arrives at the other port the same way, so it always meets a box square-on.
 export const SIDES = ['top', 'right', 'bottom', 'left'];
@@ -236,8 +248,13 @@ export function render() {
     });
     if (active.result.error && (playhead == null || playhead >= active.result.steps.length)) stuckAt = active.result.error.at;
   }
-  const badN = new Set(problems.filter((p) => p.node).map((p) => p.node));
-  const badE = new Set(problems.filter((p) => p.edge).map((p) => p.edge));
+  // The problems on each node and edge, worst first (the list already is). A shape with any is
+  // drawn in the colour of its worst one, and a node is flagged in its corner too, so that one
+  // box among many can be found; the flags are drawn last, over everything, with the badges.
+  const onNode = new Map(), onEdge = new Map();
+  for (const p of problems) { const m = p.node ? onNode : p.edge ? onEdge : null, id = p.node ?? p.edge; if (m) (m.get(id) ?? m.set(id, []).get(id)).push(p); }
+  const worst = (ps) => (ps?.some((p) => p.severity === 'error') ? 'error' : ps?.length ? 'warning' : null);
+  const flags = [];
   const selN = new Set(selectedNodeIds());
   const group = selN.size > 1;
   // Which nodes fork. A decision says so by its shape; anything else that branches says so with a
@@ -249,6 +266,8 @@ export function render() {
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9aa3af"/></marker>
     <marker id="arrow-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f6fed"/></marker>
     <marker id="arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6675"/></marker>
+    <marker id="arrow-error" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--bad)"/></marker>
+    <marker id="arrow-warning" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--warn)"/></marker>
     ${Object.entries(EDGE_COLORS).map(([c, v]) => `<marker id="arrow-${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${v}"/></marker>`).join('')}
   </defs><g transform="translate(${view.x} ${view.y}) scale(${view.k})">`;
 
@@ -266,9 +285,10 @@ export function render() {
     const label = e.label?.trim() ?? '', when = e.when?.trim() ?? '';
     const full = label || (e.else ? 'else' : when);
     const color = EDGE_COLORS[e.color] ? e.color : null;
-    const cls = ['edge', sel && 'selected', linked && 'linked', on && 'on', e.else && !label && 'else', color && `c-${color}`, badE.has(e.id) && 'bad'].filter(Boolean).join(' ');
+    const sev = worst(onEdge.get(e.id));
+    const cls = ['edge', sel && 'selected', linked && 'linked', on && 'on', e.else && !label && 'else', color && `c-${color}`, sev && (sev === 'error' ? 'bad' : 'warn')].filter(Boolean).join(' ');
     const text = full.length > 34 ? full.slice(0, 32) + '…' : full;
-    const marker = on ? 'arrow-on' : color ? `arrow-${color}` : sel ? 'arrow-sel' : 'arrow';
+    const marker = on ? 'arrow-on' : sev ? `arrow-${sev}` : color ? `arrow-${color}` : sel ? 'arrow-sel' : 'arrow';
     const tip = label && (when || e.else) ? `${label} · ${e.else ? 'else' : when}` : full;
     out += `<g class="${cls}" data-edge="${e.id}"><title>${esc(tip)}</title><path class="grab" d="${d}"/><path class="wire" d="${d}" marker-end="url(#${marker})"/>`;
     if (text) {
@@ -284,11 +304,14 @@ export function render() {
     const g = gs.get(n.id);
     const sel = selN.has(n.id);
     const steps = nodeSteps.get(n.id);
-    const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', badN.has(n.id) && 'bad'].filter(Boolean).join(' ');
+    const sev = worst(onNode.get(n.id));
+    if (sev) flags.push({ ...flagAt(n, g), sev, ps: onNode.get(n.id) });
+    const cls = ['node', n.kind, sel && 'selected', steps && 'on', stuckAt === n.id && 'stuck', sev && (sev === 'error' ? 'bad' : 'warn')].filter(Boolean).join(' ');
     out += `<g class="${cls}" data-node="${n.id}">${shape(n, g)}`;
     out += `<text class="kind" x="${g.cx}" y="${g.y + 15}" text-anchor="middle">${n.kind}</text>`;
     if (n.kind !== 'decision' && (ways.get(n.id) ?? 0) > 1) {
-      const fx = g.x + g.w - 11, fy = g.y + 11;
+      // The diamond gives way to a problem flag in the same corner.
+      const fx = g.x + g.w - 11 - (sev ? 12 : 0), fy = g.y + 11;
       out += `<path class="fork" d="M${fx},${fy - 4.5} L${fx + 4.5},${fy} L${fx},${fy + 4.5} L${fx - 4.5},${fy} Z"><title>branches: more than one way out</title></path>`;
     }
     g.lines.forEach((l, i) => { out += `<text x="${g.cx}" y="${g.y + 32 + i * 16}" text-anchor="middle">${esc(l)}</text>`; });
@@ -312,6 +335,13 @@ export function render() {
     out += `<g class="badge${stuckAt === id ? ' stuck' : ''}" transform="translate(${g.x} ${g.y - 2}) scale(${bs})">`;
     steps.forEach((s, i) => { out += `<circle cx="${2 + i * 20}" cy="0" r="9"/><text x="${2 + i * 20}" y="3.5">${s}</text>`; });
     out += `</g>`;
+  }
+  // Problem flags go on top too, in the corner of their node: a red disc for an error, an amber
+  // triangle for a warning, the count when there is more than one, and the problems themselves in
+  // the tooltip. Like the badges they keep their size as the drawing is zoomed out, so a flagged
+  // node can be found in a flow that is mostly off screen.
+  for (const f of flags) {
+    out += `<g class="flag ${f.sev}" transform="translate(${f.ax} ${f.ay}) scale(${bs})"><title>${esc(f.ps.map((p) => p.message).join('\n'))}</title>${f.sev === 'error' ? '<circle r="8.5"/>' : '<path d="M0,-10 L10,7.5 L-10,7.5 Z"/>'}<text y="${f.sev === 'error' ? 3.5 : 5}">${f.ps.length > 1 ? f.ps.length : '!'}</text></g>`;
   }
 
   // The ends of the selected wire are handles: either can be dragged to another dot.
@@ -776,6 +806,33 @@ export function fit() {
   const k = Math.min(1.4, Math.max(ZOOM.min, Math.min(r.width / (maxX - minX), r.height / (maxY - minY))));
   store.view = { k, x: (r.width - (maxX - minX) * k) / 2 - minX * k, y: (r.height - (maxY - minY) * k) / 2 - minY * k };
   render();
+}
+
+/**
+ * Pan so that what a problem is about is on screen, if it is not already: the node, or both ends
+ * of the edge. The zoom is kept, and nothing moves while it is already in view, so going down the
+ * problem list does not make the drawing jump about. The caller's selection renders the new view.
+ */
+export function reveal(p) {
+  const { doc, view } = store;
+  const e = p?.edge ? doc.edges.find((x) => x.id === p.edge) : null;
+  const gs = (p?.node ? [p.node] : e ? [e.from, e.to] : []).map((id) => doc.nodes.find((n) => n.id === id)).filter(Boolean).map(geom);
+  if (!gs.length) return;
+  const r = svg.getBoundingClientRect(), pad = 24;
+  const x0 = Math.min(...gs.map((g) => g.x)), y0 = Math.min(...gs.map((g) => g.y)), x1 = Math.max(...gs.map((g) => g.x + g.w)), y1 = Math.max(...gs.map((g) => g.y + g.h));
+  const inView = view.x + x0 * view.k >= pad && view.y + y0 * view.k >= pad && view.x + x1 * view.k <= r.width - pad && view.y + y1 * view.k <= r.height - pad;
+  if (!inView) store.view = { ...view, x: r.width / 2 - ((x0 + x1) / 2) * view.k, y: r.height / 2 - ((y0 + y1) / 2) * view.k };
+}
+
+/**
+ * Light up what a problem is about while the pointer is on its line in the problem box; `null`
+ * puts it out. The class goes straight onto the drawing rather than through the store: a hover is
+ * not a change to the document, and the next render dropping it is what should happen anyway.
+ */
+export function hint(p) {
+  for (const el of svg.querySelectorAll('.hint')) el.classList.remove('hint');
+  const el = p?.node ? svg.querySelector(`[data-node="${CSS.escape(p.node)}"]`) : p?.edge ? svg.querySelector(`[data-edge="${CSS.escape(p.edge)}"]`) : null;
+  el?.classList.add('hint');
 }
 
 // ---- layout -----------------------------------------------------------------------------------
